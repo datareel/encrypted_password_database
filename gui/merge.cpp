@@ -113,7 +113,7 @@ Exiting the merge operation");
 
   // Decrypt the compressed string
   crypt_error = AES_Decrypt(dup, &cryptLen, 
-			    (const unsigned char *)DBStringConfig::crypt_key.c_str(), 
+			    (const unsigned char *)DBStringConfig::crypt_key.m_buf(), 
 			    DBStringConfig::crypt_key.length());
   if(crypt_error != AES_NO_ERROR) {
 #ifdef __APP_DEBUG_VERSION__

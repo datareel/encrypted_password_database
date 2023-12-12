@@ -92,7 +92,30 @@ struct GXDLCODE_API DBStringConfig
 #ifdef __USE_DB_ENCRYPTION__
   static int compress_only;
   static char mode;
-  static gxString crypt_key;
+  static MemoryBuffer crypt_key;
+  static int add_rsa_key;
+  static unsigned char rsa_ciphertext[8192];
+  static unsigned rsa_ciphertext_len;
+  static gxString rsa_key_username;
+  static char public_key[RSA_max_keybuf_len];
+  static unsigned public_key_len;
+  static gxString rsa_key_passphrase;
+  static int has_passphrase;
+  static gxString private_rsa_key_file;
+  static int use_private_rsa_key;
+  static char private_key[RSA_max_keybuf_len];
+  static unsigned private_key_len;
+  
+#ifdef __ENABLE_SMART_CARD__
+  static SmartCardOB sc;
+  static gxString smartcard_cert_username;
+  static int add_smart_card;
+  static int use_smartcard_cert;
+  static int use_smartcard_cert_file;
+  static gxString smartcard_cert_file;
+#endif
+
+  
 #endif
 }; 
 

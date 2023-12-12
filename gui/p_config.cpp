@@ -38,11 +38,11 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 {
   int i;
 
-  RememberFrameSize = 0;
-  EnableLogging = 0;
+  RememberFrameSize = 1;
+  EnableLogging = 1;
   EnableTimer = 0;
-  MainFrameWidth = default_MainFrameWidth = 650;
-  MainFrameHeight = default_MainFrameHeight = 500; 
+  MainFrameHeight = default_MainFrameHeight = 1024;
+  MainFrameWidth = default_MainFrameWidth = 1280;
   ViewToolBar = 1;
 
   logFile = default_logFile = "encrypted_password_database.log";
@@ -142,7 +142,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   num_child_frames = 0;
   active_child_frame = 0;
 
-  complex_passwords = 1;
+  complex_passwords = 0; // Disable complex password requirment by default
   password_length = 1;
   min_password_length = 8;
   password_aging = 0;

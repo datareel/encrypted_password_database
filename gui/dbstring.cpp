@@ -40,12 +40,23 @@ int DBStringConfig::DBStringCaseCompare = 1;
 #ifdef __USE_DB_ENCRYPTION__
 int DBStringConfig::compress_only = 0;
 // char DBStringConfig::mode = 0; // no encryption, when cryto is enabled
-// char DBStringConfig::mode = 1; // 128-bit encryption, when cryto is enabled
-// char DBStringConfig::mode = 2; // 192-bit encryption, when cryto is enabled
 // char DBStringConfig::mode = 3; // 256-bit encryption, when cryto is enabled
-// NOTE: 11/06/2014: In 64-bit version default to 256-bit encryption
 char DBStringConfig::mode = 3; // Use 256-bit encryption by default
-gxString DBStringConfig::crypt_key = "as078q2n*&S(*&D1JKL:(8234;*&AS6as::laskd9ashd678712c-asdaios_qi2731189&&&*ksjdsa&*JA*";
+const char *dummy_crypt_key = "as078q2n*&S(*&D1JKL:(8234;*&AS6as::laskd9ashd678712c-asdaios_qi2731189&&&*ksjdsa&*JA*";
+MemoryBuffer dummy_crypt_key_buf;
+MemoryBuffer DBStringConfig::crypt_key(dummy_crypt_key, strlen(dummy_crypt_key));
+int DBStringConfig::add_rsa_key = 0;
+unsigned DBStringConfig::rsa_ciphertext_len = 0;
+unsigned DBStringConfig::public_key_len = 0;
+int DBStringConfig::has_passphrase = 0;
+int DBStringConfig::use_private_rsa_key;
+unsigned DBStringConfig::private_key_len;
+#ifdef __ENABLE_SMART_CARD__
+int DBStringConfig::add_smart_card = 0;
+int DBStringConfig::use_smartcard_cert = 0;
+int DBStringConfig::use_smartcard_cert_file = 0;
+#endif
+
 #endif
 
 DBStringConfig::DBStringConfig() 
@@ -90,7 +101,7 @@ char *DBString::GetCString() const
 
     // Decrypt the compressed string
     crypt_error = AES_Decrypt(dup, &cryptLen, 
-			      (const unsigned char*)DBStringConfig::crypt_key.c_str(), 
+			      (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
 			      DBStringConfig::crypt_key.length());
     if(crypt_error != AES_NO_ERROR) {
 #ifdef __APP_DEBUG_VERSION__
@@ -204,7 +215,7 @@ int DBString::SetString(const char *s, unsigned bytes)
   unsigned cryptLen = destLen+sizeof(ch);
   int crypt_error;
   crypt_error = AES_Encrypt((char *)dest, &cryptLen, 
-			    (const unsigned char*)DBStringConfig::crypt_key.c_str(), 
+			    (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
 			    DBStringConfig::crypt_key.length(), 
 			    DBStringConfig::mode);
   if(crypt_error != AES_NO_ERROR) {

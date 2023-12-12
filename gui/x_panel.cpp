@@ -36,8 +36,8 @@ BEGIN_EVENT_TABLE(NewDatabasePanel, wxDialog)
   EVT_CLOSE(NewDatabasePanel::OnCloseWindow)
   EVT_BUTTON (ID_NEWDATABASE_OK, NewDatabasePanel::OnOK)
   EVT_BUTTON (ID_NEWDATABASE_CANCEL, NewDatabasePanel::OnCancel)
-  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL1, 
-		 NewDatabasePanel::OnTextControl1Enter)
+  EVT_BUTTON (ID_NEWDATABASE_BROWSE, NewDatabasePanel::OnBrowse)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL1, NewDatabasePanel::OnTextControl1Enter)
 END_EVENT_TABLE()
 
 NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
@@ -71,6 +71,11 @@ NewDatabasePanel::~NewDatabasePanel()
   if(confirm_password_label) delete confirm_password_label;
   if(password_input) delete password_input;
   if(confirm_password_input) delete confirm_password_input;
+  if(password_box) delete password_box;
+  if(key_box) delete key_box;
+  if(key_label) delete key_label;
+  if(key_input) delete key_input;
+  if(browse) delete browse;
 #endif
 }
 
@@ -109,6 +114,47 @@ int NewDatabasePanel::TestInput()
   }
 
 #ifdef __USE_DB_ENCRYPTION__
+  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You use password or a key file to create this database");   
+    is_ok = 0;
+    return 0;
+  }
+
+
+  if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You can use use a password or a key file to create this database");   
+    is_ok = 0;
+    return 0;
+  }
+
+  if(!key_input->GetValue().IsNull()) {
+    if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
+      ProgramError->Message("The key file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+
+    gxString ebuf;
+    MemoryBuffer key;
+    if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
+      ProgramError->Message(ebuf.c_str());   
+      is_ok = 0;
+      return 0;
+    }
+
+    progcfg->global_dbparms.crypt_key = key;
+  
+    password_input->Clear();
+    confirm_password_input->Clear();
+    key_input->Clear();
+    is_ok = 1;
+    return 1;
+  }
+
   if(password_input->GetValue().IsNull()) {
     password_input->Clear();
     ProgramError->Message("You must enter a password for this database");   
@@ -269,6 +315,19 @@ void NewDatabasePanel::OnCancel(wxCommandEvent &WXUNUSED(event))
   Show(FALSE);
 }
 
+void NewDatabasePanel::OnBrowse(wxCommandEvent &WXUNUSED(event))
+{
+  wxFileDialog dialog(this, "Open symmetric encryption key file:",
+		      progcfg->docDir.c_str(), "",
+		      "*.key",
+		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
+  
+  if(dialog.ShowModal() == wxID_OK) {
+    key_input->Clear();
+    key_input->AppendText(dialog.GetPath());
+  }
+}
+
 void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 // Define the behaviour for the dialog closing when the user has 
 // tried to close a dialog box using the window manager (X) or 
@@ -281,8 +340,8 @@ void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 {
 #ifdef __USE_DB_ENCRYPTION__
-  int xpos=50; int ypos=50; int width=350; int height=265;
-  int button_ypos = 200;
+  int xpos=50; int ypos=50; int width=350; int height=550;
+  int button_ypos = 450;
 #else
   int xpos=50; int ypos=50; int width=350; int height=165;
   int button_ypos = 100;
@@ -307,25 +366,43 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
   
 
 #ifdef __USE_DB_ENCRYPTION__
+
+  panel->password_box = new wxStaticBox(panel, -1, "Use Password", wxPoint(9, 73), wxSize(270,145));
+  
   panel->password_label = new wxStaticText(panel, -1,
 					   "Password",
-					   wxPoint(11, 73));
+					   wxPoint(15, 95));
   
   panel->password_input = new wxTextCtrl(panel, -1,
 					 "",
-					 wxPoint(11, 99),
+					 wxPoint(15, 121),
 					 wxSize(250,25),
 					 wxTE_PASSWORD);
   
   panel->confirm_password_label = new wxStaticText(panel, -1,
 						   "Confirm Password",
-						   wxPoint(11, 127));
+						   wxPoint(15, 149));
   
   panel->confirm_password_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL1,
 						 "",
-						 wxPoint(11, 153),
+						 wxPoint(15, 175),
 						 wxSize(250, 25),
 						 wxTE_PROCESS_ENTER|wxTE_PASSWORD);
+
+  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(9, 240), wxSize(270,135));
+  panel->key_label = new wxStaticText(panel, -1,
+				      "File Name",
+				      wxPoint(15, 266));
+  
+  panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL1,
+				    "",
+				    wxPoint(15, 292),
+				    wxSize(250, 25)),
+
+  panel->browse = panel->cancel_btn = new wxButton(panel, ID_NEWDATABASE_BROWSE, "Browse",
+						   wxPoint(15, 330),
+						   wxSize(75, 25));
+
 #endif
 
   panel->ok_btn = new wxButton(panel, ID_NEWDATABASE_OK, "OK",

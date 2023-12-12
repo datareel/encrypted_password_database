@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/10/2023
+// Date Last Modified: 12/12/2023
 // Copyright (c) 1999-2023 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -1745,8 +1745,8 @@ gxDatabaseParms::gxDatabaseParms()
   // Default number of grid rows for empty databases. This number will be
   // automatically adjusted during import and merge operations.
   default_num_rows = 25;  
-  column_label_size = 25; // Column label size
-  row_label_size = 25;    // Row label size
+  column_label_size = 50; // Column label size
+  row_label_size = 50;    // Row label size
   
   // Initialize the string arrays
   int i;
@@ -1758,13 +1758,13 @@ gxDatabaseParms::gxDatabaseParms()
   // Set the default column names for this database
   // TODO: This must correspond to your total number of data
   // memebers for this database application.
-  dbgrid_labels[0] = "ID";
-  dbgrid_labels[1] = "User";
-  dbgrid_labels[2] = "Pass";
-  dbgrid_labels[3] = "Old Pass";
-  dbgrid_labels[4] = "Def User";
-  dbgrid_labels[5] = "Def Pass";
-  dbgrid_labels[6] = "URL";
+  dbgrid_labels[0] = "Title";
+  dbgrid_labels[1] = "Username";
+  dbgrid_labels[2] = "Password";
+  dbgrid_labels[3] = "Previous Password";
+  dbgrid_labels[4] = "Security Questions";
+  dbgrid_labels[5] = "Account Information";
+  dbgrid_labels[6] = "Website Link";
   dbgrid_labels[7] = "Notes";
                       
   // Database specific configuration parameters stored with every datafile
@@ -1804,7 +1804,8 @@ gxDatabaseParms::gxDatabaseParms()
   database_revision = 'E'; // Database revision letter
 
   // Set a dummy encryption key
-  crypt_key = "lhjol3h1230982&^&^JWEUW*E&^W*Em123jo12j3313*&*DS*A5Y2-+SpHC(*;jk;asd8907q32wn(*&LNSADOYA(D*6549+mn98333nd87d";
+  const char *dummy_encryption_key = "lhjol3h1230982&^&^JWEUW*E&^W*Em123jo12j3313*&*DS*A5Y2-+SpHC(*;jk;asd8907q32wn(*&LNSADOYA(D*6549+mn98333nd87d";
+  crypt_key.Cat(dummy_encryption_key, strlen(dummy_encryption_key));
 
   // Set a dummy password
   passwd = ":LKJASDA*&Sasodi7a9073lkj4243654JASDA*7ASsdsD2*88234KJK39459DFG?:>oius658SD98SDFIHUASD&&jds*&dUJ7g6565123^%%^82";

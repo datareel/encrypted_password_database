@@ -53,7 +53,7 @@ const int DefaultNumEntries = 100;
 const int NumPanelEntries = 255;
 
 // Default grid column sizes
-const int DefaultColSize = 70;
+const int DefaultColSize = 200;
 
 // Min/Max grid column sizes
 const int MinColSize = 10;
@@ -425,7 +425,7 @@ struct gxDatabaseParms
   char database_revision;        // Database revision letter
   gxString username;  // Username associated with this database
   gxString passwd;    // Password associated with this database
-  gxString crypt_key; // Key used to encrypt and decrypt database files
+  MemoryBuffer crypt_key; // Key used to encrypt and decrypt database files
 
 #ifdef __USE_MSW_PRINTING__
   MSWPrintingParameters print_config;

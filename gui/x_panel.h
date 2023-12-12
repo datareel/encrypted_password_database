@@ -47,7 +47,9 @@ Application panel
 enum { // Page setup panel IDs 
   ID_NEWDATABASE_OK = 731,
   ID_NEWDATABASE_CANCEL,
-  ID_NEWDATABASE_TEXTCONTROL1
+  ID_NEWDATABASE_TEXTCONTROL1,
+  ID_NEWDATABASE_TEXTCONTROL2,
+  ID_NEWDATABASE_BROWSE
 };
 // --------------------------------------------------------------
 
@@ -67,6 +69,7 @@ public: // Event handlers
   // Button event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
+  void OnBrowse(wxCommandEvent &event);
   void OnTextControl1Enter(wxCommandEvent &event);
 
 public: // Memeber functions
@@ -79,10 +82,18 @@ public: // Control objects
   wxTextCtrl *name_input;
 
 #ifdef __USE_DB_ENCRYPTION__
+  wxStaticBox *password_box;
+  wxStaticBox *key_box;
+  
   wxStaticText *password_label;
   wxStaticText *confirm_password_label;
   wxTextCtrl *password_input;
   wxTextCtrl *confirm_password_input;
+
+  wxStaticText *key_label;
+  wxTextCtrl *key_input;
+  wxButton *browse;
+  
 #endif
 
   wxButton *ok_btn;

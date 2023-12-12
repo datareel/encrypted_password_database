@@ -588,7 +588,8 @@ void MainFrame::OnOpen(wxCommandEvent& event)
 
 #ifdef __USE_DB_ENCRYPTION__
     subframe->DBParms()->passwd = progcfg->global_dbparms.passwd;
-    DBStringConfig::crypt_key = progcfg->global_dbparms.passwd;
+    DBStringConfig::crypt_key.Clear();
+    DBStringConfig::crypt_key.Cat(progcfg->global_dbparms.passwd.c_str(), progcfg->global_dbparms.passwd.length());
 #endif
 
     // Open the database associated with this child frame
@@ -715,7 +716,8 @@ void MainFrame::OnNew(wxCommandEvent& event)
 
 #ifdef __USE_DB_ENCRYPTION__
     subframe->DBParms()->passwd = progcfg->global_dbparms.passwd;
-    DBStringConfig::crypt_key = progcfg->global_dbparms.passwd;
+    DBStringConfig::crypt_key.Clear();
+    DBStringConfig::crypt_key.Cat(progcfg->global_dbparms.passwd.c_str(), progcfg->global_dbparms.passwd.length());
 #endif
 
     subframe->DBParms()->pod = OpenDatabase(subframe, dbname, 
@@ -1868,7 +1870,8 @@ CryptDBDocument *MainFrame::get_active_child()
     wxMDIChildFrame *cf_ptr = (wxMDIChildFrame *)ptr->data;
     if(child_frame == cf_ptr) {
 #ifdef __USE_DB_ENCRYPTION__
-      DBStringConfig::crypt_key = ptr->data->DBParms()->passwd;
+      DBStringConfig::crypt_key.Clear();
+      DBStringConfig::crypt_key.Cat(ptr->data->DBParms()->passwd.c_str(), ptr->data->DBParms()->passwd.length()) ;
 #endif
       return ptr->data;
     }
