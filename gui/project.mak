@@ -14,14 +14,15 @@ M_GLOBALS_DEP = $(APP_PATH)$(PATHSEP)m_globals.h
 
 AS2PRINT_DEP = $(APP_PATH)$(PATHSEP)as2print.h
 
-PROJECT_DEP = $(APP_PATH)$(PATHSEP)app_defs.h \
+DB_AUTH_DEP = $(INCLUDE_PATH)db_auth.h
+
+PROJECT_DEP = $(INCLUDE_PATH)db_auth.h $(APP_PATH)$(PATHSEP)as2print.h $(APP_PATH)$(PATHSEP)m_globals.h \
+	$(APP_PATH)$(PATHSEP)app_defs.h \
 	$(APP_PATH)$(PATHSEP)a_panel.h \
 	$(APP_PATH)$(PATHSEP)c_panel.h \
 	$(APP_PATH)$(PATHSEP)d_panel.h \
 	$(APP_PATH)$(PATHSEP)e_panel.h \
 	$(APP_PATH)$(PATHSEP)f_panel.h \
-	$(APP_PATH)$(PATHSEP)m_globals.h \
-	$(APP_PATH)$(PATHSEP)as2print.h \
 	$(APP_PATH)$(PATHSEP)dbstring.h \
 	$(APP_PATH)$(PATHSEP)dbstring.cpp \
 	$(APP_PATH)$(PATHSEP)g_thread.h \
@@ -89,6 +90,10 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)app_defs.h \
 include ../../env/datareel_objs.mak
 include ../../env/fcrypt_objs.mak
 
+db_auth$(OBJ_EXT):	$(SRC_PATH)db_auth.cpp $(DB_AUTH_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(SRC_PATH)db_auth.cpp
+
+
 m_globals$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)m_globals.cpp $(M_GLOBALS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)m_globals.cpp
 
@@ -116,7 +121,7 @@ DATAREEL_OBJECTS = $(DATAREEL_DATABASE_CORE_OBJECTS) \
 		$(DATAREEL_DEBUG_OBJECTS) \
 		$(DATAREEL_RDBMS_OBJECTS)
 
-OBJECTS = $(PROJECT)$(OBJ_EXT) m_globals$(OBJ_EXT) as2print$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
+OBJECTS = $(PROJECT)$(OBJ_EXT) db_auth$(OBJ_EXT) m_globals$(OBJ_EXT) as2print$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
 
 RCS = $(PROJECT).res
 # ===============================================================

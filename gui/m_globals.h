@@ -78,6 +78,9 @@ external to the wxWindow library.
 #include "rsadb.h"
 #include "smart_card.h"
 
+
+const unsigned DB_AUTH_STATIC_AREA_SIZE = 65536;
+
 #endif
 // --------------------------------------------------------------
 

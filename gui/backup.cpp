@@ -44,6 +44,7 @@ void BackUp(wxWindow *parent)
   }
 
   wxString sbuf("*");
+  gxString ebuf;
   sbuf += child_frame->DBParms()->data_file_extension.c_str();
   wxFileDialog dialog(parent, "Backup database to:",
 		      progcfg->docDir.c_str(), "",
@@ -75,22 +76,37 @@ void BackUp(wxWindow *parent)
     
   POD newdb;
   INFOHOGKEY key, compare_key;
-
+  FAU_t static_data_size = (FAU_t)(sizeof(gxDatabaseConfig) + (InfoHogStaticArea + DB_AUTH_STATIC_AREA_SIZE));
   gxDatabaseError err = newdb.Open(datafile.c_str(), indexfile.c_str(), key,
 				   InfoHogNodeOrder, gxDBASE_READWRITE,
 				   InfoHogUseIndexFile, 
-				   (FAU_t)(sizeof(gxDatabaseConfig) + InfoHogStaticArea),
+				   static_data_size,
 				   InfoHogNumTrees,
 				   child_frame->DBParms()->database_revision,
 				   child_frame->DBParms()->database_revision);
   
   if(err != gxDBASE_NO_ERROR) {
-    ProgramError->Message("Error opening the backup copy!\n \
-Exiting the backup operation");
+    ProgramError->Message("Error opening the backup copy!\n Exiting the backup operation");
     EchoDBError(&newdb, frame->statusWin);
     return;
   }
 
+  FAU_t start_of_static_area = newdb.OpenDataFile()->StaticArea();
+
+  unsigned char *static_data = new unsigned char[static_data_size];
+  AES_fillrand(static_data, static_data_size);
+  err = newdb.OpenDataFile()->Write(static_data, static_data_size, start_of_static_area);
+  if(err != gxDBASE_NO_ERROR) {
+    delete static_data;
+    ebuf << clear << "Error initializing static data area" << "\n" << gxDatabaseExceptionMessage(err);
+    ProgramError->Message(ebuf.c_str());
+    futils_remove(datafile.c_str());
+    futils_remove(indexfile.c_str());
+    EchoDBError(&newdb, frame->statusWin);
+    return;
+  }
+  delete static_data;
+  
   gxDatabaseConfig db_config;
   gxDatabaseParms *dbparms = child_frame->DBParms();
   char dest[DBStringLength];

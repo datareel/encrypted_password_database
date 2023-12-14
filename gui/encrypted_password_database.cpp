@@ -453,7 +453,8 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
   // if the file name does not have a dot extension.
   gxString data_file = fname;
   gxString dbname = fname;
-
+  gxString sbuf;
+  
   child_frame->DBParms()->data_file = dbname;
   child_frame->DBParms()->index_file = dbname;
 
@@ -495,12 +496,14 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
   ::wxYield();
 
+  FAU_t static_data_size = (FAU_t)(sizeof(gxDatabaseConfig) + (InfoHogStaticArea + DB_AUTH_STATIC_AREA_SIZE));
+				   
   // Create or open an existing database using a single index file
   gxDatabaseError err = pod->Open(data_file.c_str(), 
 				  index_file.c_str(), key_type,
 				  InfoHogNodeOrder, gxDBASE_READWRITE, 
 				  InfoHogUseIndexFile, 
-				  (FAU_t)(sizeof(gxDatabaseConfig) + InfoHogStaticArea),
+				  static_data_size,
 				  InfoHogNumTrees,
 			  child_frame->DBParms()->database_revision,
 			  child_frame->DBParms()->database_revision);
@@ -513,7 +516,7 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
     err = pod->Open(data_file.c_str(), index_file.c_str(), key_type,
 		    InfoHogNodeOrder, gxDBASE_READONLY,
 		    InfoHogUseIndexFile, 
-		    (FAU_t)(sizeof(gxDatabaseConfig) + InfoHogStaticArea),
+		    static_data_size,
 		    InfoHogNumTrees,
 		    child_frame->DBParms()->database_revision,
 		    child_frame->DBParms()->database_revision);
@@ -550,6 +553,26 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
   }
   
   if(!pod->Exists()) { // A new file was created
+
+    FAU_t start_of_static_area = pod->OpenDataFile()->StaticArea();
+
+    unsigned char *static_data = new unsigned char[static_data_size];
+    AES_fillrand(static_data, static_data_size);
+    err = pod->OpenDataFile()->Write(static_data, static_data_size, start_of_static_area);
+    if(err != gxDBASE_NO_ERROR) {
+      delete pod;
+      delete static_data;
+      pod = 0; // Signal that there are no database files open
+      if(display_errors) {
+	sbuf << clear << "Error initializing static data area" << "\n" << gxDatabaseExceptionMessage(err);
+	ProgramError->Message(sbuf.c_str());
+      }
+      futils_remove(data_file.c_str());
+      futils_remove(index_file.c_str());
+      return 0;
+    }
+    delete static_data;
+    
     gxDatabaseParms *dbparms = child_frame->DBParms();
 
     // Load the database name
