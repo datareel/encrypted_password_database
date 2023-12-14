@@ -1,0 +1,84 @@
+# Define a name for the executable
+PROJECT = epdb_auth_tool
+
+INSTALL_DIR = ../../bin/linux
+
+# Datareel library path
+DATAREEL_PATH = ../../fcrypt/3plibs/datareel
+DATAREEL_SRC_PATH = $(DATAREEL_PATH)/src/
+DATAREEL_INCLUDE_PATH = $(DATAREEL_PATH)/include/
+
+FCRYPT_PATH = ../../fcrypt
+FCRYPT_SRC_PATH = $(FCRYPT_PATH)/src/
+FCRYPT_INCLUDE_PATH = $(FCRYPT_PATH)/include/
+
+OBJ_EXT = .o
+PATHSEP = /
+
+ADD_INC_PATHS = -I../../include -I../../src -I../ -I$(DATAREEL_INCLUDE_PATH) -I$(FCRYPT_INCLUDE_PATH)
+
+# Define debug macros specific to the gxcode library
+64BIT_DEFMACS = -D__64_BIT_DATABASE_ENGINE__ -D_LARGEFILE64_SOURCE
+ANSI_DEFMACS = -D__USE_ANSI_CPP__
+CPP_DEFMACS = -D__USE_CPP_IOSTREAM__ -D__CPP_EXCEPTIONS__
+DISPLAY_DEFMACS = -D__CONSOLE__
+THREAD_DEFMACS = -D__REENTRANT__ 
+POSIX_DEFMACS= -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS
+UNICODE_DEMACS = -D__HAS_UNICODE__
+#SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL6__
+#SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL7__
+SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL8__
+#SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL9__
+
+# Setup define macros
+DEFMACS = -D__UNIX__ -D__POSIX__ -D__LINUX__ -D__X86__ \
+$(64BIT_DEFMACS) $(ANSI_DEFMACS) $(BTREE_DEFMACS) $(CPP_DEFMACS) \
+$(DATABASE_DEFMACS) $(DEBUG_DEFMACS) $(DEVCACHE_DEFMACS) $(DISPLAY_DEFMACS) \
+$(FILESYS_DEFMACS) $(TESTCODE_DEFMACS) $(PS_DEFMACS) $(HTM_DEFMACS) \
+$(TXT_DEFMACS) $(IO_DEFMACS) $(THREAD_DEFMACS) $(POSIX_DEFMACS) \
+$(UNICODE_DEMACS) $(SMARTCARD_DEMACS)
+
+# Define macros for compiler and linker
+CC = gcc
+CPP = g++ 
+LINKER = ld
+
+# Define compiler and linker flags macros
+COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive
+COMPILE_ONLY = -c
+OUTPUT = -o
+LINKER_FLAGS = -lpthread -lm -lssl -lcrypto
+
+# Set the project dependencies  
+# ===============================================================
+
+# ===============================================================
+
+# Compile the files and build the executable
+# ===============================================================
+all:	$(PROJECT)$(EXE_EXT)
+
+include ../project.mak
+
+$(PROJECT):	$(OBJECTS)
+	$(CPP) $(COMPILE_FLAGS) $(OBJECTS) $(OUTPUT) $(PROJECT) $(LINKER_FLAGS)
+# ===============================================================
+
+# Install the binaries to the bin directory
+# ===============================================================
+install:
+	echo Installing $(PROJECT) binaries to $(INSTALL_DIR)
+	mkdir -pv $(INSTALL_DIR)
+	cp $(PROJECT) $(INSTALL_DIR)/.
+# ===============================================================
+
+
+# Remove object files and the executable after running make 
+# ===============================================================
+clean:
+	echo Removing all OBJECT files from working directory...
+	rm -f *.o 
+
+	echo Removing EXECUTABLE file from working directory...
+	rm -f $(PROJECT)
+# ===============================================================
