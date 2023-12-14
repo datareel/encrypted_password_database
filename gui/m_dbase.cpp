@@ -1802,13 +1802,6 @@ gxDatabaseParms::gxDatabaseParms()
   index_file = "EncryptedPasswordDatabase";
   index_file += index_file_extension;
   database_revision = 'E'; // Database revision letter
-
-  // Set a dummy encryption key
-  const char *dummy_encryption_key = "lhjol3h1230982&^&^JWEUW*E&^W*Em123jo12j3313*&*DS*A5Y2-+SpHC(*;jk;asd8907q32wn(*&LNSADOYA(D*6549+mn98333nd87d";
-  crypt_key.Cat(dummy_encryption_key, strlen(dummy_encryption_key));
-
-  // Set a dummy password
-  passwd = ":LKJASDA*&Sasodi7a9073lkj4243654JASDA*7ASsdsD2*88234KJK39459DFG?:>oius658SD98SDFIHUASD&&jds*&dUJ7g6565123^%%^82";
 }
 
 unsigned BtreeSearch(gxBtree *btx, int item, POD *pod,

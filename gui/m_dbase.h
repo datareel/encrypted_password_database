@@ -424,7 +424,6 @@ struct gxDatabaseParms
   gxString index_file;           // Name of the currently opened index file
   char database_revision;        // Database revision letter
   gxString username;  // Username associated with this database
-  gxString passwd;    // Password associated with this database
   MemoryBuffer crypt_key; // Key used to encrypt and decrypt database files
 
 #ifdef __USE_MSW_PRINTING__

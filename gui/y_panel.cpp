@@ -38,10 +38,10 @@ BEGIN_EVENT_TABLE(OpenDatabasePanel, wxDialog)
   EVT_CLOSE(OpenDatabasePanel::OnCloseWindow)
   EVT_BUTTON (ID_OPENDATABASE_OK, OpenDatabasePanel::OnOK)
   EVT_BUTTON (ID_OPENDATABASE_CANCEL, OpenDatabasePanel::OnCancel)
-  EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL1, 
-		 OpenDatabasePanel::OnTextControl1Enter)
+  EVT_BUTTON (ID_OPENDATABASE_BROWSE, OpenDatabasePanel::OnBrowse)
+  EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL1, OpenDatabasePanel::OnTextControl1Enter)
+  EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL1, OpenDatabasePanel::OnTextControl1Enter)
 END_EVENT_TABLE()
-
 OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
 				   char *title,
 				   int xpos, int ypos, int width, int height,
@@ -54,6 +54,10 @@ OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
   is_ok = 0;
   password_label = 0;
   password_input = 0;
+  use_key = 0;
+  use_password = 0;
+  use_rsa_key = 0;
+  use_smartcard = 0;
 }
   
 OpenDatabasePanel::~OpenDatabasePanel()
@@ -62,6 +66,11 @@ OpenDatabasePanel::~OpenDatabasePanel()
   if(cancel_btn) delete cancel_btn;
   if(password_label) delete password_label;
   if(password_input) delete password_input;
+  if(password_box) delete password_box;
+  if(key_box) delete key_box;
+  if(key_label) delete key_label;
+  if(key_input) delete key_input;
+  if(browse) delete browse;
 }
 
 void OpenDatabasePanel::ShowPanel(gxString &fname)
@@ -76,46 +85,75 @@ void OpenDatabasePanel::ShowPanel(gxString &fname)
 
 int OpenDatabasePanel::TestInput()
 {
-  if(password_input->GetValue().IsNull()) {
+  use_key = 0;
+  use_password = 0;
+  use_rsa_key = 0;
+  use_smartcard = 0;
+  gxString sbuf;
+  
+  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You must use a password or a key file to open this database");   
+    is_ok = 0;
+    return 0;
+  }
+
+  if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You only one method at a time to open this database");   
+    is_ok = 0;
+    return 0;
+  }
+
+  // Set the logic here to determine with open method to use
+  if(!key_input->GetValue().IsNull() && password_input->GetValue().IsNull()) use_key = 1;
+  if(key_input->GetValue().IsNull() && !password_input->GetValue().IsNull()) use_password = 1;
+  
+  if(use_key) {
+    if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
+      ProgramError->Message("The key file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+
+    gxString ebuf;
+    MemoryBuffer key;
+    if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
+      ProgramError->Message(ebuf.c_str());   
+      is_ok = 0;
+      return 0;
+    }
+
+    progcfg->global_dbparms.crypt_key = key;
+  
+    password_input->Clear();
+    key_input->Clear();
+    use_key = 1;
+  }
+
+  if(password_input->GetValue().IsNull() && !use_key && !use_rsa_key && !use_smartcard) {
     password_input->Clear();
     ProgramError->Message("You must enter a password for this database");   
     is_ok = 0;
     return 0;
   }
 
-  gxString pass_buf = (const char *)password_input->GetValue();
-  if(pass_buf.length() < 8) { 
-    // Our encryption requires a min of 8 character passwords
-    // NOTE: These values must match the x_panel values
-    if(pass_buf.length() == 0) {
-      pass_buf = "lkjasdlkjalskdjlaksjda0198213354.0s23)()87123+_+_76&^(*@#!@#+-*213shasjdsjasjdSUISJ#*@#MJC";
+  if(use_password) {
+    gxString pass_buf = (const char *)password_input->GetValue();
+    if(pass_buf.length() < 8) { 
+      ProgramError->Message("Your password should be at least 8 characters long");
+      is_ok = 0;
+      return 0;
     }
-    else if(pass_buf.length() == 1) {
-      pass_buf << "LKLKSJADJISD--911kkasd0&(*^A9721ln243809sllNSDFasfd><?>AS<POF-0982130asoiasoi^&#781q932101982)XZXWcxz";
-    }
-    else if(pass_buf.length() == 2) {
-      pass_buf << "jlahs890723LKJSD)*&A3lki809asudlnasd908738jlq908asd78ashdoasi70nc*(&S(*ASDAy1qlj32eb497acnb a98s7ds2da";
-    }
-    else if(pass_buf.length() == 3) {
-      pass_buf << "LKJASLMD9312871283lns87*(&SA1oljd98w,m S(A&^D832knasd9q6914bk^(*&yt(knjasbdia&^871KJ9((^klj2q39476bdc";
-    }
-    else if(pass_buf.length() == 4) {
-      pass_buf << "LKASD()903214ksadf809781l23907saodJKL(AS*DASD*(*A&^H#@(*AS&^DL#97213lsdf899(^(AS^(A^SD&A^D(*G#Bkbmbr98";
-    }
-    else if(pass_buf.length() == 5) {
-      pass_buf << "-098324kjasd0-q7983LKJSAD)(*D0831ljkhAs)(90a7wdokjh)*(OIHASD80-231y4o1hd908AszND128209183091Hn 08aqy08";
-    }
-    else if(pass_buf.length() == 6) {
-      pass_buf << "k*ASKDAN312091u09kmasd0aq8903081238akjOI)A(*AS,129812679(*D(*Aws1m23980asd08aYW08y123SDLHAJ2381908j)((";
-    }
-    else if(pass_buf.length() == 7) {
-      pass_buf << "JLKAS*(761298*(*@#&&&Q@&KJbU^79862KBADSUIYAKJSB9872*(&^&^(&s^dasdKBJQ23H4981Yk*s^d&(*sEB 2139786k89&W,";
-    }
-    else {
-      // We have 8 or more characters
-    }
+    password_input->Clear();
+    key_input->Clear();
+    progcfg->global_dbparms.crypt_key.Clear();
+    progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
+    pass_buf.Clear(1);
   }
-  
+
   gxDatabase f;
   gxDatabaseError rv = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
   if(rv != gxDBASE_NO_ERROR) {
@@ -125,16 +163,12 @@ int OpenDatabasePanel::TestInput()
 #endif
     ProgramError->Message("Error opening specified database");   
     is_ok = 0;
-    password_input->Clear();
-    pass_buf.Clear();
     return 0;
   }
   gxDatabaseConfig dbconfig;
   if(!dbconfig.ReadConfig(&f)) {
     ProgramError->Message("Error reading database config");   
     is_ok = 0;
-    password_input->Clear();
-    pass_buf.Clear();
     f.Close();
     return 0;
   }
@@ -145,8 +179,6 @@ int OpenDatabasePanel::TestInput()
   if(dup[0] == 0) {
     ProgramError->Message("Invalid password hash in database config");   
     is_ok = 0;
-    password_input->Clear();
-    pass_buf.Clear();
     delete[] dup;
     return 0;
   }
@@ -163,35 +195,38 @@ int OpenDatabasePanel::TestInput()
 
   // Decrypt the compressed string
   crypt_error = AES_Decrypt(dup, &cryptLen, 
-			    (const unsigned char *)pass_buf.c_str(), 
-			    pass_buf.length());
+			    (const unsigned char *)progcfg->global_dbparms.crypt_key.m_buf(), 
+			    progcfg->global_dbparms.crypt_key.length());
   if(crypt_error != AES_NO_ERROR) {
 #ifdef __APP_DEBUG_VERSION__
-    debug_log << "Error decrypting SPPC BL" << "\n" << flush; 
+    debug_log << "Error decrypting password hash" << "\n" << flush; 
     debug_log << AES_err_string(crypt_error) << "\n" << flush; 
 #endif
     delete[] dup;
     dup = 0;
     if(crypt_error == AES_ERROR_BAD_SECRET) {
-      ProgramError->Message("The password you entered is not correct \
-\nCannot open database");   
+      if(use_password) {
+	ProgramError->Message("The password you entered is not correct\nCannot open database");
+      }
+      else if(use_key) {
+	ProgramError->Message("The key you used is not vaild\nCannot open database");
+      }
+      else {
+	ProgramError->Message("Cannot open database with the credentials you provided");
+      }
     }
-    else { 
-      ProgramError->Message("Error decrypting password hash \
-\nCannot open database");   
+    else {
+      sbuf << clear << "Error decrypting password hash " << AES_err_string(crypt_error) << "\nCannot open database";
+      ProgramError->Message(sbuf.c_str());
     }
     is_ok = 0;
     password_input->Clear();
-    pass_buf.Clear();
     return 0;
   }
 
   delete[] dup;
   dup = 0;
-  progcfg->global_dbparms.passwd = pass_buf;
   is_ok = 1;
-  password_input->Clear();
-  pass_buf.Clear();
 
   return 1;
 }
@@ -224,10 +259,29 @@ void OpenDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
   Show(FALSE);
 }
 
+void OpenDatabasePanel::OnBrowse(wxCommandEvent &event)
+{
+  wxFileDialog dialog(this, "Open symmetric encryption key file:",
+		      progcfg->docDir.c_str(), "",
+		      "*.key",
+		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
+  
+  if(dialog.ShowModal() == wxID_OK) {
+    key_input->Clear();
+    key_input->AppendText(dialog.GetPath());
+  }
+}
+
+void OpenDatabasePanel::OnTextControl2Enter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
 OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=350; int height=165;
-  int button_ypos = 100;
+  int xpos=50; int ypos=50; int width=350; int height=550;
+  int button_ypos = 450;
 
   OpenDatabasePanel *panel = new OpenDatabasePanel(parent,
 						   OPENDATABASE_PANEL_ID,
@@ -238,15 +292,31 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
   
   if(!panel) return 0;
 
+  panel->password_box = new wxStaticBox(panel, -1, "Use Password to open", wxPoint(9, 47), wxSize(270,95));
+  
   panel->password_label = new wxStaticText(panel, -1,
 					   "Password",
-					   wxPoint(11, 15));
+					   wxPoint(15, 69));
   
   panel->password_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL1,
 					 "",
-					 wxPoint(11, 39),
+					 wxPoint(15, 99),
 					 wxSize(250,25),
 					 wxTE_PROCESS_ENTER|wxTE_PASSWORD);
+
+  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(9, 240), wxSize(270,135));
+  panel->key_label = new wxStaticText(panel, -1,
+				      "File Name",
+				      wxPoint(15, 266));
+  
+  panel->key_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL2,
+				    "",
+				    wxPoint(15, 292),
+				    wxSize(250, 25)),
+
+  panel->browse = panel->cancel_btn = new wxButton(panel, ID_OPENDATABASE_BROWSE, "Browse",
+						   wxPoint(15, 330),
+						   wxSize(75, 25));
   
   panel->ok_btn = new wxButton(panel, ID_OPENDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),

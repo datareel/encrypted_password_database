@@ -38,6 +38,7 @@ BEGIN_EVENT_TABLE(NewDatabasePanel, wxDialog)
   EVT_BUTTON (ID_NEWDATABASE_CANCEL, NewDatabasePanel::OnCancel)
   EVT_BUTTON (ID_NEWDATABASE_BROWSE, NewDatabasePanel::OnBrowse)
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL1, NewDatabasePanel::OnTextControl1Enter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL2, NewDatabasePanel::OnTextControl2Enter)
 END_EVENT_TABLE()
 
 NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
@@ -99,6 +100,12 @@ void NewDatabasePanel::OnTextControl1Enter(wxCommandEvent &event)
   Show(FALSE);
 }
 
+void NewDatabasePanel::OnTextControl2Enter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
 int NewDatabasePanel::TestInput()
 {
   gxString sbuf;
@@ -117,7 +124,7 @@ int NewDatabasePanel::TestInput()
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
     password_input->Clear();
     key_input->Clear();
-    ProgramError->Message("You use password or a key file to create this database");   
+    ProgramError->Message("You must use a password or a key file to create this database");   
     is_ok = 0;
     return 0;
   }
@@ -126,7 +133,7 @@ int NewDatabasePanel::TestInput()
   if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()) {
     password_input->Clear();
     key_input->Clear();
-    ProgramError->Message("You can use use a password or a key file to create this database");   
+    ProgramError->Message("You can only use use a password or a key file to create this database");   
     is_ok = 0;
     return 0;
   }
@@ -186,35 +193,9 @@ int NewDatabasePanel::TestInput()
   }
   else {
     if(pass_buf.length() < 8) { 
-      // Our encryption requires a min of 8 character passwords
-      // NOTE: These values must match the x_panel values
-      if(pass_buf.length() == 0) {
-	pass_buf = "lkjasdlkjalskdjlaksjda0198213354.0s23)()87123+_+_76&^(*@#!@#+-*213shasjdsjasjdSUISJ#*@#MJC";
-      }
-      else if(pass_buf.length() == 1) {
-	pass_buf << "LKLKSJADJISD--911kkasd0&(*^A9721ln243809sllNSDFasfd><?>AS<POF-0982130asoiasoi^&#781q932101982)XZXWcxz";
-      }
-      else if(pass_buf.length() == 2) {
-	pass_buf << "jlahs890723LKJSD)*&A3lki809asudlnasd908738jlq908asd78ashdoasi70nc*(&S(*ASDAy1qlj32eb497acnb a98s7ds2da";
-      }
-      else if(pass_buf.length() == 3) {
-	pass_buf << "LKJASLMD9312871283lns87*(&SA1oljd98w,m S(A&^D832knasd9q6914bk^(*&yt(knjasbdia&^871KJ9((^klj2q39476bdc";
-      }
-      else if(pass_buf.length() == 4) {
-	pass_buf << "LKASD()903214ksadf809781l23907saodJKL(AS*DASD*(*A&^H#@(*AS&^DL#97213lsdf899(^(AS^(A^SD&A^D(*G#Bkbmbr98";
-      }
-      else if(pass_buf.length() == 5) {
-	pass_buf << "-098324kjasd0-q7983LKJSAD)(*D0831ljkhAs)(90a7wdokjh)*(OIHASD80-231y4o1hd908AszND128209183091Hn 08aqy08";
-      }
-      else if(pass_buf.length() == 6) {
-	pass_buf << "k*ASKDAN312091u09kmasd0aq8903081238akjOI)A(*AS,129812679(*D(*Aws1m23980asd08aYW08y123SDLHAJ2381908j)((";
-      }
-      else if(pass_buf.length() == 7) {
-	pass_buf << "JLKAS*(761298*(*@#&&&Q@&KJbU^79862KBADSUIYAKJSB9872*(&^&^(&s^dasdKBJQ23H4981Yk*s^d&(*sEB 2139786k89&W,";
-      }
-      else {
-	// We have 8 or more characters
-      }
+      ProgramError->Message("Your password must be at least 8 characters long");
+      is_ok = 0;
+      return 0;
     }
   }
 
@@ -286,11 +267,12 @@ int NewDatabasePanel::TestInput()
     }
   }
 
-  progcfg->global_dbparms.passwd = pass_buf;
+  progcfg->global_dbparms.crypt_key.Clear(1);
+  progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
   
   password_input->Clear();
   confirm_password_input->Clear();
-  pass_buf.Clear();
+  pass_buf.Clear(1);
 #endif
 
   is_ok = 1;
@@ -394,7 +376,7 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 				      "File Name",
 				      wxPoint(15, 266));
   
-  panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL1,
+  panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL2,
 				    "",
 				    wxPoint(15, 292),
 				    wxSize(250, 25)),

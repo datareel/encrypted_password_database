@@ -48,7 +48,9 @@ Application panel
 enum { // Page setup panel IDs 
   ID_OPENDATABASE_OK = 9846,
   ID_OPENDATABASE_CANCEL,
-  ID_OPENDATABASE_TEXTCONTROL1
+  ID_OPENDATABASE_BROWSE,
+  ID_OPENDATABASE_TEXTCONTROL1,
+  ID_OPENDATABASE_TEXTCONTROL2
 };
 // --------------------------------------------------------------
 
@@ -69,7 +71,9 @@ public: // Event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
   void OnTextControl1Enter(wxCommandEvent &event);
-
+  void OnBrowse(wxCommandEvent &event);
+  void OnTextControl2Enter(wxCommandEvent &event);
+  
 public: // Memeber functions
   void ShowPanel(gxString &fname);
   int TestInput();
@@ -81,11 +85,21 @@ public: // Control objects
 
   wxButton *ok_btn;
   wxButton *cancel_btn;
-  
+
+  wxStaticBox *password_box;
+  wxStaticBox *key_box;
+  wxStaticText *key_label;
+  wxTextCtrl *key_input;
+  wxButton *browse;
+
 private: // Data members
   int is_ok;
   gxString curr_fname;
-
+  int use_key;
+  int use_password;
+  int use_rsa_key;
+  int use_smartcard;
+  
 private:
   DECLARE_EVENT_TABLE()
 };

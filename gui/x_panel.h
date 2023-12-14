@@ -71,7 +71,8 @@ public: // Event handlers
   void OnCancel(wxCommandEvent &event);
   void OnBrowse(wxCommandEvent &event);
   void OnTextControl1Enter(wxCommandEvent &event);
-
+  void OnTextControl2Enter(wxCommandEvent &event);
+  
 public: // Memeber functions
   void ShowPanel();
   int TestInput();
