@@ -27,11 +27,11 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
 USA
 
-Cryptography code  
+Compression code  
 */
 // ----------------------------------------------------------- //   
-#ifndef __M_CRYPTO_HPP__
-#define __M_CRYPTO_HPP__
+#ifndef __M_COMPRESS_HPP__
+#define __M_COMPRESS_HPP__
 
 #include "m_globals.h"
 
@@ -42,7 +42,7 @@ GXDLCODE_API Bytef *CompressString(Bytef *dest, uLong *destLen,
 GXDLCODE_API Bytef *UnCompressString(Bytef *dest, uLong *destLen, 
 				     const Bytef *s, uLong bytes);
 
-#endif // __M_CRYPTO_HPP__
+#endif // __M_COMPRESS_HPP__
 // ----------------------------------------------------------- // 
 // ------------------------------- //
 // --------- End of File --------- //

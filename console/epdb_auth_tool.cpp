@@ -51,6 +51,8 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include "gxlist.h"
 
 
+int PrintDBConfig(gxDatabaseConfig &db_config);
+
 int ERROR_LEVEL = 0;
 gxString executable_name;
 
@@ -88,12 +90,308 @@ int main(int argc, char **argv)
 
   DatabaseStats(f);
 
-
-  cout << "Size of gxDatabaseConfig = " << db_config.SizeOf() << "\n";
-  cout << "Size of DB_AUTH_STATIC_AREA_SIZE = " <<   DB_AUTH_STATIC_AREA_SIZE << "\n";
-  cout << "Total static_data_size = " <<  static_data_size << "\n";
+  // TODO: Add inputs need to read the key or password for the DB file
+  // DBStringConfig::crypt_key.Clear();
+  // DBStringConfig::crypt_key.Cat(sbuf.c_str(), sbuf.length());
+  // db_config.ReadConfig(f);
+  // PrintDBConfig(db_config);
   
   return ERROR_LEVEL;
+}
+
+int PrintDBConfig(gxDatabaseConfig &db_config)
+{
+  cout << "Printing database configurtaion" << "\n";
+  cout << "-------------------------------" << "\n";
+  
+  char *s = db_config.database_name.GetString();
+  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
+    cout << "ERROR: Error decrypting database name " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
+    return 1;
+  }
+  if(!s) {
+    cout << "ERROR: Database name is a null value" << "\n";
+    return 1;
+  }
+
+  unsigned i = 0;
+  unsigned j = 0;
+  
+  cout << "version_number: " << db_config.version_number << "\n";
+  cout << "database_name: " << s << "\n";
+
+  cout << "column_names:";
+  for(i = 0; i <  NumDataMembers; i++) {
+    s = db_config.column_names[i].GetString();
+    if(s) cout << " " << s;
+  }
+  cout << "\n";
+  
+  cout << "view_labels: " << db_config.view_labels << "\n";
+  cout << "view_row_numbers: " << db_config.view_row_numbers << "\n";
+
+  cout << "col_sizes: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.col_sizes[i];
+  }
+  cout << "\n";
+
+  cout << "print_field: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.print_field[i];
+  }
+  cout << "\n";
+
+  cout << "cell_attrib: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_attrib[i];
+  }
+  cout << "\n";
+
+  cout << "cell_align: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_align[i];
+  }
+  cout << "\n";
+
+  cout << "cell_border: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_border[i];
+  }
+  cout << "\n";
+
+  cout << "cell_color: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_color[i];
+  }
+  cout << "\n";
+
+  cout << "cell_fill: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_fill[i];
+  }
+  cout << "\n";
+
+  cout << "cell_text_color: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_text_color[i];
+  }
+  cout << "\n";
+
+  cout << "cell_text_font: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_text_font[i];
+  }
+  cout << "\n";
+
+  cout << "cell_type: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_type[i];
+  }
+  cout << "\n";
+
+  cout << "cell_pattern: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_pattern[i];
+  }
+  cout << "\n";
+
+  cout << "cell_protection: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_protection[i];
+  }
+  cout << "\n";
+
+  cout << "label_align: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_align[i];
+  }
+  cout << "\n";
+
+  cout << "label_border: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_border[i];
+  }
+  cout << "\n";
+
+  cout << "label_color: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_color[i];
+  }
+  cout << "\n";
+
+  cout << "label_fill: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_fill[i];
+  }
+  cout << "\n";
+
+  cout << "label_text_font: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_text_font[i];
+  }
+  cout << "\n";
+
+  cout << "label_text_color: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_text_color[i];
+  }
+  cout << "\n";
+
+  cout << "label_pattern: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_pattern[i];
+  }
+  cout << "\n";
+
+  cout << "label_protection: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_protection[i];
+  }
+  cout << "\n";
+
+  cout << "display_field: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.display_field[i];
+  }
+  cout << "\n";
+
+  cout << "cell_misc: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.cell_misc[i];
+  }
+  cout << "\n";
+
+  cout << "label_misc: ";
+  for(i = 0; i <  NumDataMembers; i++) {
+    cout << " " <<  db_config.label_misc[i];
+  }
+  cout << "\n";
+
+  cout << "auto_size: " << db_config.auto_size << "\n";
+  cout << "cell_overflow: " << db_config.cell_overflow << "\n";
+  cout << "view_grid_lines: " << db_config.view_grid_lines << "\n";
+  cout << "grid_line_color: " << db_config.grid_line_color << "\n";
+  cout << "view_skip_lines: " << db_config.view_skip_lines << "\n";
+  cout << "skip_line_color: " << db_config.skip_line_color << "\n";
+  cout << "grid_background_color: " << db_config.grid_background_color << "\n";
+  cout << "grid_text_color: " << db_config.grid_text_color << "\n";
+  cout << "grid_label_background_color: " << db_config.grid_label_background_color << "\n";
+  cout << "grid_label_text_color: " << db_config.grid_label_text_color << "\n";
+  cout << "hyperlink_color: " << db_config.hyperlink_color << "\n";
+
+  cout << "grid_label_font: ";
+  for(i = 0; i <  FontElements; i++) {
+    cout << " " <<  db_config.grid_label_font[i];
+  }
+  cout << "\n";
+
+  s = db_config.grid_label_font_name.GetString();
+  if(s) cout << "grid_label_font_name: " << s << "\n";
+  
+  cout << "grid_text_font: ";
+  for(i = 0; i <  FontElements; i++) {
+    cout << " " <<  db_config.grid_text_font[i];
+  }
+  cout << "\n";
+
+  s = db_config.grid_text_font_name.GetString();
+  if(s) cout << "grid_text_font_name: " << s << "\n";
+  
+  cout << "hyperlink_font: ";
+  for(i = 0; i <  FontElements; i++) {
+    cout << " " <<  db_config.hyperlink_font[i];
+  }
+  cout << "\n";
+
+  s = db_config.hyperlink_font_name.GetString();
+  if(s) cout << "hyperlink_font_name: " << s << "\n";
+  
+  s = db_config.print_doc_name.GetString();
+  if(s) cout << "print_doc_name: " << s << "\n";
+  
+  cout << "print_doc_time_and_date: " << db_config.print_doc_time_and_date << "\n";
+  cout << "print_grid_lines: " << db_config.print_grid_lines << "\n";
+  cout << "print_orientation: " << db_config.print_orientation << "\n";
+  cout << "print_left_margin_size: " << db_config.print_left_margin_size << "\n";
+  cout << "print_paper_size: " << db_config.print_paper_size << "\n";
+  cout << "print_page_header: " << db_config.print_page_header << "\n";
+
+  s = db_config.print_doc_custom_header.GetString();
+  if(s) cout << "print_doc_custom_header: " << s << "\n";
+  
+  cout << "print_header_color: " << db_config.print_header_color << "\n";
+
+  cout << "print_header_font: ";
+  for(i = 0; i <  FontElements; i++) {
+    cout << " " <<  db_config.print_header_font[i];
+  }
+  cout << "\n";
+
+  s = db_config.print_header_font_name.GetString();
+  if(s) cout << "print_header_font_name: " << s << "\n";
+  
+  cout << "print_page_footer: " << db_config.print_page_footer << "\n";
+
+  s = db_config.print_doc_custom_footer.GetString();
+  if(s) cout << "print_doc_custom_footer: " << s << "\n";
+  
+  cout << "print_footer_color: " << db_config.print_footer_color << "\n";
+
+  cout << "print_footer_font: ";
+  for(i = 0; i <  FontElements; i++) {
+    cout << " " <<  db_config.print_footer_font[i];
+  }
+  cout << "\n";
+
+  s = db_config.print_footer_font_name.GetString();
+  if(s) cout << "print_footer_font_name: " << s << "\n";
+  
+  cout << "print_skip_lines: " << db_config.print_skip_lines << "\n";
+  cout << "print_grid_labels: " << db_config.print_grid_labels << "\n";
+  cout << "print_row_numbers: " << db_config.print_row_numbers << "\n";
+  cout << "print_page_scale: " << db_config.print_page_scale << "\n";
+
+  cout << "cell_text_fonts:";
+  for(i = 0; i < (unsigned)NumDataMembers; i++) {
+    for(j = 0; j < (unsigned)FontElements; j++) cout << " " << db_config.cell_text_fonts[i][j];
+  }
+  cout << "\n";
+
+  cout << "cell_text_font_names:";
+  for(i = 0; i <  NumDataMembers; i++) {
+    s = db_config.cell_text_font_names[1].GetString();
+    if(s) cout << " " << s;
+  }
+  cout << "\n";
+
+  cout << "label_text_fonts:";
+  for(i = 0; i < (unsigned)NumDataMembers; i++) {
+    for(j = 0; j < (unsigned)FontElements; j++) cout << " " << db_config.label_text_fonts[i][j];
+  }
+  cout << "\n";
+
+  cout << "label_text_font_names:";
+  for(i = 0; i <  NumDataMembers; i++) {
+    s = db_config.label_text_font_names[i].GetString();
+    if(s) cout << " " << s;
+  }
+  cout << "\n";
+
+  if(db_config.text_delimiter[0] != 0) {
+    if(db_config.text_delimiter[0] == '\t') {
+      cout << "text_delimiter 1: tab" << "\n";
+    }
+    else {
+      cout << "text_delimiter 1: " << db_config.text_delimiter[0] << "\n";
+    }
+  }
+  if(db_config.text_delimiter[1] != 0) cout << "text_delimiter 2: " << db_config.text_delimiter[1] << "\n";
+  if(db_config.text_delimiter[2] != 0) cout << "text_delimiter 3: " << db_config.text_delimiter[2] << "\n";
+  if(db_config.text_delimiter[3] != 0) cout << "text_delimiter 4: " << db_config.text_delimiter[3] << "\n";
+  cout << "\n";
+
+  return 0;
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //

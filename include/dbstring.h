@@ -81,27 +81,9 @@ struct GXDLCODE_API DBStringConfig
   ~DBStringConfig();
 
   static int DBStringCaseCompare;
-  static int compress_only;
   static char mode;
   static MemoryBuffer crypt_key;
-  static int add_rsa_key;
-  static unsigned char rsa_ciphertext[8192];
-  static unsigned rsa_ciphertext_len;
-  static gxString rsa_key_username;
-  static char public_key[RSA_max_keybuf_len];
-  static unsigned public_key_len;
-  static gxString rsa_key_passphrase;
-  static int has_passphrase;
-  static gxString private_rsa_key_file;
-  static int use_private_rsa_key;
-  static char private_key[RSA_max_keybuf_len];
-  static unsigned private_key_len;
-  static SmartCardOB sc;
-  static gxString smartcard_cert_username;
-  static int add_smart_card;
-  static int use_smartcard_cert;
-  static int use_smartcard_cert_file;
-  static gxString smartcard_cert_file;
+  static int AES_error_level;
 }; 
 
 // Database string class 
@@ -131,20 +113,16 @@ public:
     return *this;
   }
 
-public: // Append, Insert, delete, and remove functions
+public:
   int SetString(const char *s, unsigned bytes = 0);
+  char *GetString() const; 
   void Clear();
   void Copy(const DBString &s);
-
-public: // C String, pointer, and length functions
   unsigned length();
   char *c_str(char *sbuf);
   int is_null();
   int is_not_null();
   char *GetSPtr() { return sptr; }
-
-private:
-  char *GetCString() const; 
 
 public: // Database functions
   size_t SizeOf() { return sizeof(sptr); }

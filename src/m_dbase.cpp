@@ -71,11 +71,6 @@ FAU_t gxDatabaseConfig::GetFileAddress(gxDatabase *f, gxDatabaseConfigMembers m)
   if(m == VERSION_NUMBER) {
     return curr_address;
   }
-  curr_address += sizeof(version_number);
-  if(m == IS_ENCRYPTED) {
-    return curr_address;
-  }
-  curr_address += sizeof(is_encrypted);
   if(m == DATABASE_NAME) {
     return curr_address;
   }
@@ -181,62 +176,6 @@ FAU_t gxDatabaseConfig::GetFileAddress(gxDatabase *f, gxDatabaseConfigMembers m)
   }
   curr_address += sizeof(cell_misc);
   if(m == LABEL_MISC) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_misc);
-  if(m == IS_INSTALLED) {
-    return curr_address;
-  }
-  curr_address += sizeof(is_installed);
-  if(m == INSTALL_DAY) {
-    return curr_address;
-  }
-  curr_address += sizeof(install_day);
-  if(m == INSTALL_YEAR) {
-    return curr_address;
-  }
-  curr_address += sizeof(install_year);
-  if(m == TIME_INT_A) {
-    return curr_address;
-  }
-  curr_address += sizeof(time_int_a);
-  if(m == TIME_INT_C) {
-    return curr_address;
-  }
-  curr_address += sizeof(time_int_c);
-  if(m == TIME_INT_M) {
-    return curr_address;
-  }
-  curr_address += sizeof(time_int_m);
-  if(m == TIME_INT_I) {
-    return curr_address;
-  }
-  curr_address += sizeof(time_int_i);
-  if(m == DATABASE_DESCRIPTION) {
-    return curr_address;
-  }
-  curr_address += sizeof(database_description);
-  if(m == DATABASE_PROGRAM_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(database_program_name);
-  if(m == INSTALL_KEY_HASH) {
-    return curr_address;
-  }
-  curr_address += sizeof(install_key_hash);
-  if(m == DATABASE_HASH) {
-    return curr_address;
-  }
-  curr_address += sizeof(database_hash);
-  if(m == CRYPT_HASH) {
-    return curr_address;
-  }
-  curr_address += sizeof(crypt_hash);
-  if(m == PASSWD_HASH) {
-    return curr_address;
-  }
-  curr_address += sizeof(passwd_hash);
-  if(m == AUTO_SIZE) {
     return curr_address;
   }
   curr_address += sizeof(auto_size);
@@ -403,22 +342,13 @@ FAU_t gxDatabaseConfig::GetFileAddress(gxDatabase *f, gxDatabaseConfigMembers m)
   if(m == TEXT_DELIMITER) {
     return curr_address;
   }
-  curr_address += sizeof(text_delimiter);
-  if(m == FAU_MISC) {
-    return curr_address;
-  }
-  curr_address += sizeof(fau_misc);
-  if(m == STR_MISC) {
-    return curr_address;
-  }
-
   return -1;
 }
 
 long gxDatabaseConfig::Version()
 // Return the current version number
 {
-  return 1088;
+  return 2023107;
 }
 
 void gxDatabaseConfig::Copy(const gxDatabaseConfig &ob)
@@ -426,7 +356,6 @@ void gxDatabaseConfig::Copy(const gxDatabaseConfig &ob)
   int i, j;
 
   version_number = ob.version_number;
-  is_encrypted = ob.is_encrypted;
   database_name = ob.database_name;
 
   for(i = 0; i < NumDataMembers; i++) {
@@ -505,23 +434,7 @@ void gxDatabaseConfig::Copy(const gxDatabaseConfig &ob)
   for(i = 0; i < NumDataMembers; i++) {
     label_misc[i] = ob.label_misc[i];
   }
-
-  is_installed = ob.is_installed;
-  install_day = ob.install_day;
-  install_year = ob.install_year;
-  time_int_a = ob.time_int_a;
-  time_int_c = ob.time_int_c;
-  time_int_m = ob.time_int_m;
-  time_int_i = ob.time_int_i;
-
-  database_description = ob.database_description;
-  database_program_name = ob.database_program_name;
-
-  memmove(install_key_hash, ob.install_key_hash, CryptDBHashSize); 
-  memmove(database_hash, ob.database_hash, CryptDBHashSize); 
-  memmove(crypt_hash, ob.crypt_hash, CryptDBHashSize);
-  memmove(passwd_hash, ob.passwd_hash, CryptDBHashSize);
-
+  
   auto_size = ob.auto_size;
   cell_overflow = ob.cell_overflow;
   view_grid_lines = ob.view_grid_lines; 
@@ -599,8 +512,6 @@ void gxDatabaseConfig::Copy(const gxDatabaseConfig &ob)
   }
 
   memmove(text_delimiter, ob.text_delimiter, 4);
-  memmove(fau_misc, ob.fau_misc, DBBinaryChunkSize);
-  memmove(str_misc, ob.str_misc, DBBinaryChunkSize);
 }
 
 gxDatabaseConfig &gxDatabaseConfig::operator=(const gxDatabaseConfig &ob) 
@@ -615,13 +526,7 @@ void gxDatabaseConfig::Clear()
 
   version_number = Version();
 
-  is_encrypted = 1;
-
   database_name.Clear();
-  database_description.Clear();
-  database_program_name.Clear();
-  AES_fillrand((unsigned char *)crypt_hash, CryptDBHashSize);
-  AES_fillrand((unsigned char *)passwd_hash, CryptDBHashSize);
   for(i = 0; i < (unsigned)NumDataMembers; i++) col_sizes[i] = DefaultColSize;
   for(i = 0; i < (unsigned)NumDataMembers; i++) column_names[i].Clear();
   for(i = 0; i < (unsigned)NumDataMembers; i++) print_field[i] = 1;
@@ -648,17 +553,6 @@ void gxDatabaseConfig::Clear()
   for(i = 0; i < (unsigned)NumDataMembers; i++) label_pattern[i] = (gxINT32)0;
   for(i = 0; i < (unsigned)NumDataMembers; i++) label_protection[i] = (gxINT32)0;
   for(i = 0; i < (unsigned)NumDataMembers; i++) label_misc[i] = (gxINT32)0;
-  is_installed = 1;
-  install_day = (gxINT32)0;
-  install_year = (gxINT32)0;
-  time_int_a = (gxINT32)0;
-  time_int_c = (gxINT32)0;
-  time_int_m = (gxINT32)0;
-  time_int_i = (gxINT32)0;
-  AES_fillrand((unsigned char *)install_key_hash, CryptDBHashSize);
-  AES_fillrand((unsigned char *)database_hash, CryptDBHashSize);
-  AES_fillrand((unsigned char *)fau_misc, DBBinaryChunkSize);
-  AES_fillrand((unsigned char *)str_misc, DBBinaryChunkSize);
 
   // Extended grid functions  
   auto_size = 1;
@@ -1578,8 +1472,6 @@ int gxDatabaseConfig::Validate()
   }
 
   // NOTE: Valid all other string values here except font names
-  if(!is_string(&database_description)) database_description.Clear();
-  if(!is_string(&database_program_name)) database_program_name.Clear();
   if(!is_string(&print_doc_name)) print_doc_name.Clear();
   if(!is_string(&print_doc_custom_header)) print_doc_custom_header.Clear();
   if(!is_string(&print_doc_custom_footer)) print_doc_custom_footer.Clear();
@@ -1587,7 +1479,7 @@ int gxDatabaseConfig::Validate()
   // Validate and correct the column sizes to prevent display 
   // problems if the header is corrupt.
   for(i = 0; i < (unsigned)NumDataMembers; i++) {
-    //  if(col_sizes[i] < (FAU)MinColSize) col_sizes[i] = (FAU)DefaultColSize;
+    // if(col_sizes[i] < (FAU)MinColSize) col_sizes[i] = (FAU)DefaultColSize;
     // if(col_sizes[i] > (FAU)MaxColSize) col_sizes[i] = (FAU)DefaultColSize;
     if(col_sizes[i] < (gxINT32)MinColSize) col_sizes[i] = (gxINT32)DefaultColSize;
     if(col_sizes[i] > (gxINT32)MaxColSize) col_sizes[i] = (gxINT32)DefaultColSize;
@@ -1732,7 +1624,6 @@ unsigned gxDatabaseConfig::SizeOf()
   unsigned size = 0;
   
   size += sizeof(version_number);
-  size += sizeof(is_encrypted);
   size += sizeof(database_name);
   size += sizeof(column_names);
   size += sizeof(view_labels);
@@ -1760,19 +1651,6 @@ unsigned gxDatabaseConfig::SizeOf()
   size += sizeof(display_field);
   size += sizeof(cell_misc);
   size += sizeof(label_misc);
-  size += sizeof(is_installed);
-  size += sizeof(install_day);
-  size += sizeof(install_year);
-  size += sizeof(time_int_a);
-  size += sizeof(time_int_c);
-  size += sizeof(time_int_m);
-  size += sizeof(time_int_i);
-  size += sizeof(database_description);
-  size += sizeof(database_program_name);
-  size += sizeof(install_key_hash);
-  size += sizeof(database_hash);
-  size += sizeof(crypt_hash);
-  size += sizeof(passwd_hash);
   size += sizeof(auto_size);
   size += sizeof(cell_overflow);
   size += sizeof(view_grid_lines); 
@@ -1815,8 +1693,6 @@ unsigned gxDatabaseConfig::SizeOf()
   size += sizeof(label_text_fonts);
   size += sizeof(label_text_font_names);
   size += sizeof(text_delimiter);
-  size += sizeof(fau_misc);
-  size += sizeof(str_misc);
   return size;
 }
 

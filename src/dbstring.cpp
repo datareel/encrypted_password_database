@@ -37,23 +37,9 @@ Database fixed string class that can be used with encrypted strings.
 char DBStringNULLPtr::DBStringNUllChar = '\0';
 char DBStringNULLPtr::DBStringNUllStr[1] = { '\0' };
 int DBStringConfig::DBStringCaseCompare = 1;
-
-int DBStringConfig::compress_only = 0;
-// char DBStringConfig::mode = 0; // no encryption, when cryto is enabled
-// char DBStringConfig::mode = 3; // 256-bit encryption, when cryto is enabled
 char DBStringConfig::mode = 3; // Use 256-bit encryption by default
-const char *dummy_crypt_key = "as078q2n*&S(*&D1JKL:(8234;*&AS6as::laskd9ashd678712c-asdaios_qi2731189&&&*ksjdsa&*JA*";
-MemoryBuffer dummy_crypt_key_buf;
-MemoryBuffer DBStringConfig::crypt_key(dummy_crypt_key, strlen(dummy_crypt_key));
-int DBStringConfig::add_rsa_key = 0;
-unsigned DBStringConfig::rsa_ciphertext_len = 0;
-unsigned DBStringConfig::public_key_len = 0;
-int DBStringConfig::has_passphrase = 0;
-int DBStringConfig::use_private_rsa_key;
-unsigned DBStringConfig::private_key_len;
-int DBStringConfig::add_smart_card = 0;
-int DBStringConfig::use_smartcard_cert = 0;
-int DBStringConfig::use_smartcard_cert_file = 0;
+int DBStringConfig::AES_error_level = 0;
+MemoryBuffer DBStringConfig::crypt_key;
 
 DBStringConfig::DBStringConfig() 
 {
@@ -67,42 +53,42 @@ DBStringConfig::~DBStringConfig()
 
 void DBString::Clear()
 {
-  memset(sptr, 0, DBStringLength);
+  AES_fillrand((unsigned char *)sptr, DBStringLength);
+  sptr[0] = 0;
 }
 
-char *DBString::GetCString() const
-// Returns a null terminated C string or a null pointer
-// if an error occurs.
+char *DBString::GetString() const
+// Returns a null terminated C string or a null pointer.
 {
-  if(sptr[0] == 0) {
-    return DBStringNULLPtr::DBStringNUllStr;
-  }
+  DBStringConfig::AES_error_level = 0;
+  
+  if(sptr[0] == 0) return DBStringNULLPtr::DBStringNUllStr;
 
   // The sptr pointer cannot be modified during
   // a DBString::Copy() call.
   char *dup = new char[DBStringLength];
   memmove(dup, sptr, DBStringLength);
   
-  if(!DBStringConfig::compress_only) {
-    int crypt_error;
-    CryptoHeader eh;
 
-    // Get the length of the encrytpted buffer
-    memmove(&eh, dup, sizeof(eh));
-    unsigned cryptLen = eh.crypt_len;
-    
-    // Realign the encrypted buffer
-    memmove(dup, (dup+sizeof(eh)), cryptLen);
-
-    // Decrypt the compressed string
-    crypt_error = AES_Decrypt(dup, &cryptLen, 
-			      (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
-			      DBStringConfig::crypt_key.length());
-    if(crypt_error != AES_NO_ERROR) {
-      delete[] dup;
-      dup = 0;
-      return 0;
-    }
+  int crypt_error;
+  CryptoHeader eh;
+  
+  // Get the length of the encrytpted buffer
+  memmove(&eh, dup, sizeof(eh));
+  unsigned cryptLen = eh.crypt_len;
+  
+  // Realign the encrypted buffer
+  memmove(dup, (dup+sizeof(eh)), cryptLen);
+  
+  // Decrypt the compressed string
+  crypt_error = AES_Decrypt(dup, &cryptLen, 
+			    (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
+			    DBStringConfig::crypt_key.length());
+  if(crypt_error != AES_NO_ERROR) {
+    DBStringConfig::AES_error_level = crypt_error; 
+    delete[] dup;
+    dup = 0;
+    return 0;
   }
     
   Bytef *dest = 0;;
@@ -145,6 +131,8 @@ int DBString::SetString(const char *s, unsigned bytes)
     return 0; 
   }
 
+  DBStringConfig::AES_error_level = 0;  
+
   // Calculate the length of this string if no bytes size is specified
   if(bytes == 0) bytes = strlen(s);
   int truncate = 0;  
@@ -181,19 +169,6 @@ int DBString::SetString(const char *s, unsigned bytes)
 
   // Store the compression header and set the compressed string
   CompressHeader ch(destLen);
-  if(DBStringConfig::compress_only) {
-    // Store the compression header and compressed string
-    memmove(sptr, &ch, sizeof(ch));
-    memmove((sptr+sizeof(ch)), dest, destLen);
-    delete[] dest;
-    dest = 0;
-    // Fill the remaining bytes with random characters
-    if(destLen < DBStringLength) {
-      unsigned bytes_left = DBStringLength - (destLen+sizeof(ch));
-      AES_fillrand((unsigned char *)(sptr+(destLen+sizeof(ch))), bytes_left);
-    }
-    return truncate == 0; 
-  }
 
   // Copy the compression header and realign the dest buffer
   memmove((dest+sizeof(ch)), dest, destLen);
@@ -207,6 +182,7 @@ int DBString::SetString(const char *s, unsigned bytes)
 			    DBStringConfig::crypt_key.length(), 
 			    DBStringConfig::mode);
   if(crypt_error != AES_NO_ERROR) {
+    DBStringConfig::AES_error_level = crypt_error;
     if(dest) delete[] dest;
     dest = 0;
     return 0;
@@ -232,7 +208,7 @@ void DBString::Copy(const DBString &s)
 // Function used to copy DBString objects.
 {
   Clear();
-  char *dest = (char *)s.GetCString();
+  char *dest = (char *)s.GetString();
   if(!dest) return;
   if(dest[0] == 0) return;
   SetString(dest);
@@ -242,10 +218,10 @@ void DBString::Copy(const DBString &s)
 GXDLCODE_API int Compare(const DBString &a, const DBString &b)
 {
   int rv;
-  char *dest1 = (char *)a.GetCString();
+  char *dest1 = (char *)a.GetString();
   if(!dest1) return 0;
   if(dest1[0] == 0) return 0;
-  char *dest2 = (char *)b.GetCString();
+  char *dest2 = (char *)b.GetString();
   if(!dest2) {
     delete[] dest1;
     return 0;
@@ -282,7 +258,7 @@ GXDLCODE_API int operator!=(const DBString &a, const DBString &b)
 
 unsigned DBString::length() 
 { 
-  char *dest = GetCString();
+  char *dest = GetString();
   if(!dest) return 0;
   if(dest[0] == 0) return 0;
   int len = strlen(dest);
@@ -300,7 +276,7 @@ char *DBString::c_str(char *sbuf)
   if(!sbuf) return DBStringNULLPtr::DBStringNUllStr;
   strcpy(sbuf, DBStringNULLPtr::DBStringNUllStr); // Clear the output buffer
 
-  char *dest = GetCString();
+  char *dest = GetString();
   if(!dest) {
     strcpy(sbuf, DBStringNULLPtr::DBStringNUllStr);
     return sbuf;
@@ -317,7 +293,7 @@ char *DBString::c_str(char *sbuf)
 
 int DBString::is_null() 
 { 
-  char *dest = GetCString();
+  char *dest = GetString();
   if(!dest) return 1;
   return dest[0] == 0; 
 } 

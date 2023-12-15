@@ -53,7 +53,7 @@ const int DefaultNumEntries = 100;
 const int NumPanelEntries = 255;
 
 // Default grid column sizes
-const int DefaultColSize = 200;
+const int DefaultColSize = 400;
 
 // Min/Max grid column sizes
 const int MinColSize = 10;
@@ -91,7 +91,6 @@ typedef InfoHogKey<INFOHOG_t> INFOHOGKEY;
 // Database specific configuration parameters stored with every datafile
 enum gxDatabaseConfigMembers {
   VERSION_NUMBER = 0,
-  IS_ENCRYPTED,
   DATABASE_NAME,
   COLUMN_NAMES,
   VIEW_LABELS,
@@ -119,19 +118,6 @@ enum gxDatabaseConfigMembers {
   DISPLAY_FIELD,
   CELL_MISC,
   LABEL_MISC,
-  IS_INSTALLED,
-  INSTALL_DAY,
-  INSTALL_YEAR,
-  TIME_INT_A,
-  TIME_INT_C,
-  TIME_INT_M,
-  TIME_INT_I,
-  DATABASE_DESCRIPTION,
-  DATABASE_PROGRAM_NAME,
-  INSTALL_KEY_HASH,
-  DATABASE_HASH,
-  CRYPT_HASH,
-  PASSWD_HASH,
   AUTO_SIZE,
   CELL_OVERFLOW,
   VIEW_GRID_LINES, 
@@ -173,9 +159,7 @@ enum gxDatabaseConfigMembers {
   CELL_TEXT_FONT_NAMES,
   LABEL_TEXT_FONTS,
   LABEL_TEXT_FONT_NAMES,
-  TEXT_DELIMITER,
-  FAU_MISC,
-  STR_MISC
+  TEXT_DELIMITER
 };
 
 struct gxDatabaseConfig {
@@ -283,12 +267,10 @@ struct gxDatabaseConfig {
   // NOTE: This order must match the order of the class data members
   // or the addressing, read, write functions will not work.
   gxINT32 version_number;                    // DB config version number
-  gxINT32 is_encrypted;                      // True if database is encrypted
   DBString database_name;                // Persistent database name
   DBString column_names[NumDataMembers]; // Persistent column name
   gxINT32 view_labels;                       // True to view lables
   gxINT32 view_row_numbers;                  // True to view rows numbers
-
   gxINT32 col_sizes[NumDataMembers];        // Persistent grid column sizes
   gxINT32 print_field[NumDataMembers];      // List of print fields  
   gxINT32 cell_attrib[NumDataMembers];      // Cell attributes
@@ -312,22 +294,6 @@ struct gxDatabaseConfig {
   gxINT32 display_field[NumDataMembers];    // List of display fields
   gxINT32 cell_misc[NumDataMembers];        // Cell reserved misc space
   gxINT32 label_misc[NumDataMembers];       // Label reserved misc space
-
-  gxINT32 is_installed; // True if this program has previously been installed
-  gxINT32 install_day;  // The day this program was installed
-  gxINT32 install_year; // The year this program was installed
-  gxINT32 time_int_a;   // Database last access time
-  gxINT32 time_int_c;   // Database creation time
-  gxINT32 time_int_m;   // Database last modified time
-  gxINT32 time_int_i;   // Database program install time
-
-  DBString database_description;          // Persistent database description
-  DBString database_program_name;         // Persistent database program name
-
-  char install_key_hash[CryptDBHashSize]; // Persistent install key hash
-  char database_hash[CryptDBHashSize];    // Persistent database hash
-  char crypt_hash[CryptDBHashSize];       // Persistent encryption hash
-  char passwd_hash[CryptDBHashSize];      // Persistent password hash
 
   // Extended grid functions
   gxINT32 auto_size;
@@ -380,14 +346,6 @@ struct gxDatabaseConfig {
 
   // Extended text functions
   char text_delimiter[4];
-
-  // Future use
-  // NOTE: These arrays can overflow into the Infohog static data area
-  // provided that any extented values do not exceed the remaining Infohog
-  // static data area
-  // Infohog files should have a 65,025 byte static data area. 
-  char fau_misc[DBBinaryChunkSize]; // Int/Char reserved misc space (4096 bytes)
-  char str_misc[DBBinaryChunkSize]; // String reserved misc space   (4096 bytes)
 };
 
 // Interactive database configuration and GUI parameters

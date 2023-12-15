@@ -77,7 +77,7 @@ external to the wxWindow library.
 
 #include "db_auth.h"
 #include "dbstring.h"
-#include "m_crypto.h"
+#include "m_compress.h"
 #include "m_dbase.h"
 #include "as2print.h"
 

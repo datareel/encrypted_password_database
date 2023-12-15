@@ -1049,10 +1049,6 @@ void MainFrame::OnRebuildConfig(wxCommandEvent& event)
   // Reset the config and save the previous hashes
   db_config->Clear();
   db_config->database_name = nc.database_name;
-  memmove(db_config->install_key_hash, nc.install_key_hash, CryptDBHashSize);
-  memmove(db_config->database_hash, nc.database_hash, CryptDBHashSize);
-  memmove(db_config->crypt_hash, nc.crypt_hash, CryptDBHashSize);
-  memmove(db_config->passwd_hash, nc.passwd_hash, CryptDBHashSize);
   for(int i = 0; i < NumDataMembers; i++) {
     // NOTE: Use a clean copy of the column names
     // db_config->column_names[i] = nc.column_names[i];
