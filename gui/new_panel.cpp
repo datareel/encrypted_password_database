@@ -53,11 +53,8 @@ NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
   name_input = 0;
   ok_btn = cancel_btn = 0;
   is_ok = 0;
-
-#ifdef __USE_DB_ENCRYPTION__
   password_label = confirm_password_label = 0;
   password_input = confirm_password_input = 0;
-#endif
 }
   
 NewDatabasePanel::~NewDatabasePanel()
@@ -66,8 +63,6 @@ NewDatabasePanel::~NewDatabasePanel()
   if(name_input) delete name_input;
   if(ok_btn) delete ok_btn;
   if(cancel_btn) delete cancel_btn;
-
-#ifdef __USE_DB_ENCRYPTION__
   if(password_label) delete password_label;
   if(confirm_password_label) delete confirm_password_label;
   if(password_input) delete password_input;
@@ -77,18 +72,13 @@ NewDatabasePanel::~NewDatabasePanel()
   if(key_label) delete key_label;
   if(key_input) delete key_input;
   if(browse) delete browse;
-#endif
 }
 
 void NewDatabasePanel::ShowPanel()
 {
   name_input->Clear();
-
-#ifdef __USE_DB_ENCRYPTION__
   password_input->Clear();
   confirm_password_input->Clear();
-#endif
-
   is_ok = 0;
 
   ShowModal();
@@ -120,7 +110,6 @@ int NewDatabasePanel::TestInput()
     return 0;
   }
 
-#ifdef __USE_DB_ENCRYPTION__
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
     password_input->Clear();
     key_input->Clear();
@@ -273,7 +262,6 @@ int NewDatabasePanel::TestInput()
   password_input->Clear();
   confirm_password_input->Clear();
   pass_buf.Clear(1);
-#endif
 
   is_ok = 1;
 
@@ -321,13 +309,8 @@ void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 
 NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 {
-#ifdef __USE_DB_ENCRYPTION__
   int xpos=50; int ypos=50; int width=350; int height=550;
   int button_ypos = 450;
-#else
-  int xpos=50; int ypos=50; int width=350; int height=165;
-  int button_ypos = 100;
-#endif
 
   NewDatabasePanel *panel = new NewDatabasePanel(parent,
 						 NEWDATABASE_PANEL_ID,
@@ -345,9 +328,6 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 				     "",
 				     wxPoint(11, 37),
 				     wxSize(250,25));
-  
-
-#ifdef __USE_DB_ENCRYPTION__
 
   panel->password_box = new wxStaticBox(panel, -1, "Use Password", wxPoint(9, 73), wxSize(270,145));
   
@@ -384,9 +364,6 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
   panel->browse = panel->cancel_btn = new wxButton(panel, ID_NEWDATABASE_BROWSE, "Browse",
 						   wxPoint(15, 330),
 						   wxSize(75, 25));
-
-#endif
-
   panel->ok_btn = new wxButton(panel, ID_NEWDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),
 			       wxSize(46, 25));

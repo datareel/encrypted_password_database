@@ -18,7 +18,7 @@ PATHSEP = /
 ADD_INC_PATHS = -I../../include -I../../src -I../ -I$(DATAREEL_INCLUDE_PATH) -I$(FCRYPT_INCLUDE_PATH)
 
 # Define debug macros specific to the gxcode library
-64BIT_DEFMACS = -D__64_BIT_DATABASE_ENGINE__ -D_LARGEFILE64_SOURCE
+64BIT_DEFMACS = -D__64_BIT_DATABASE_ENGINE__ -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES
 ANSI_DEFMACS = -D__USE_ANSI_CPP__
 CPP_DEFMACS = -D__USE_CPP_IOSTREAM__ -D__CPP_EXCEPTIONS__
 DISPLAY_DEFMACS = -D__CONSOLE__
@@ -44,10 +44,10 @@ CPP = g++
 LINKER = ld
 
 # Define compiler and linker flags macros
-COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive
+COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2
 COMPILE_ONLY = -c
 OUTPUT = -o
-LINKER_FLAGS = -lpthread -lm -lssl -lcrypto
+LINKER_FLAGS = -lpthread -lm -lssl -lcrypto -lz
 
 # Set the project dependencies  
 # ===============================================================

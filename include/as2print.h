@@ -34,9 +34,7 @@ text files and format data for various print functions.
 #ifndef __GX_ASPRINT_HPP__
 #define __GX_ASPRINT_HPP__
 
-#include "app_defs.h"
-
-#include "globals.h"
+#include "m_globals.h"
 #include "gxdlcode.h"
 
 // Constants for print functions

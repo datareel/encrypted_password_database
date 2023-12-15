@@ -30,9 +30,8 @@ USA
 Cryptography code  
 */
 // ----------------------------------------------------------- // 
-#include "app_defs.h"
-
-#ifdef __USE_DB_ENCRYPTION__
+#include "m_globals.h"
+#include "m_crypto.h"
 
 GXDLCODE_API uLong CalcStringCompressLen(uLong len)
 {
@@ -143,8 +142,6 @@ GXDLCODE_API Bytef *UnCompressString(Bytef *dest, uLong *destLen,
   }
   return dest;
 } 
-
-#endif // __USE_DB_ENCRYPTION__
 // ----------------------------------------------------------- // 
 // ------------------------------- //
 // --------- End of File --------- //

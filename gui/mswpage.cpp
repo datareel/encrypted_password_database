@@ -149,7 +149,7 @@ int MSWPagePanel::HasChanged()
     return 0;
   }
   gxDatabaseConfig *db_config = &child_frame->DBParms()->db_config;
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   char dest[DBStringLength];
   int i;
@@ -305,7 +305,7 @@ void MSWPagePanel::LoadPanel()
     return;
   }
   gxDatabaseConfig *db_config = &child_frame->DBParms()->db_config;
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
   gxDatabase *f = child_frame->DBParms()->pod->OpenDataFile();
  
   if(!TestDatabase(0, 1, 1)) {
@@ -462,7 +462,7 @@ int MSWPagePanel::CommitChanges()
     return 0;
   }
   gxDatabaseConfig *db_config = &child_frame->DBParms()->db_config;
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
   gxDatabase *f = child_frame->DBParms()->pod->OpenDataFile();
   char dest[DBStringLength];
   int i;

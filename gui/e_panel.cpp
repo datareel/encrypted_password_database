@@ -53,12 +53,9 @@ EditTabPanel::EditTabPanel(wxWindow *parent, wxWindowID id, char *title,
   directory_btn = accept_btn = close_btn = cancel_btn = default_btn = 0;
   notebook = 0;
   panel1 = 0;
-
-#ifdef __USE_DB_ENCRYPTION__
   panel2 = 0;
   ekey_label = 0;
   mode_radio_box = 0;
-#endif
 
   Init();
 }
@@ -71,11 +68,8 @@ EditTabPanel::~EditTabPanel()
   if(directory_label) delete directory_label;
   if(directory_input) delete directory_input;
   if(directory_btn) delete directory_btn;
-
-#ifdef __USE_DB_ENCRYPTION__
   if(ekey_label) delete ekey_label;
   if(mode_radio_box) delete mode_radio_box;
-#endif
 
   // NOTE: Do not delete notebook panels here. The panels are 
   // deleted by the notebook destructor
@@ -111,14 +105,12 @@ int EditTabPanel::HasChanged()
     return 1; // A panel value has been modified
   }
 
-#ifdef __USE_DB_ENCRYPTION__
   int mode = (mode_radio_box->GetSelection()+1);
   int curr_mode = (int)DBStringConfig::mode;
 
   if(mode != curr_mode) {
     return 1; // A panel value has been modified
   }
-#endif
 
   return 0; 
 }
@@ -165,10 +157,8 @@ void EditTabPanel::OnDefault(wxCommandEvent &event)
 
   directory_input->SetValue(progcfg->docDir.c_str());
 
-#ifdef __USE_DB_ENCRYPTION__
   int mode = (int)DBStringConfig::mode-1;
   mode_radio_box->SetSelection(mode);
-#endif
 }
 
 void EditTabPanel::OnBrowseDirectory(wxCommandEvent &event)
@@ -193,10 +183,8 @@ void EditTabPanel::LoadPanel()
   directory_input->Clear();
   directory_input->SetValue(progcfg->docDir.c_str());
 
-#ifdef __USE_DB_ENCRYPTION__
   int mode = (int)DBStringConfig::mode-1;
   mode_radio_box->SetSelection(mode);
-#endif
 }
 
 void EditTabPanel::ShowPanel()
@@ -220,9 +208,7 @@ int EditTabPanel::CommitChanges()
   gxConfig CfgData(progcfg->cfgFile.c_str());
 
   gxString docDir((const char *)directory_input->GetValue().c_str());
-#ifdef __USE_DB_ENCRYPTION__
   int mode = (mode_radio_box->GetSelection()+1);
-#endif
 
   // Write any changes to the config file
   if(docDir != progcfg->docDir) {
@@ -240,12 +226,10 @@ int EditTabPanel::CommitChanges()
 			      (const char *)docDir.c_str());
   }
 
-#ifdef __USE_DB_ENCRYPTION__
   if((char)mode != DBStringConfig::mode) {
     DBStringConfig::mode = mode;
     CfgData.ChangeConfigValue("EncryptionMode", mode);
   }
-#endif
 
   return 1;
 }
@@ -317,7 +301,6 @@ void EditTabPanel::Init()
   notebook->AddPage(panel1, "File Locations", TRUE);
   
 
-#ifdef __USE_DB_ENCRYPTION__
   panel2 = new wxPanel(notebook, -1);
 
   static const wxString choices[3] = {
@@ -341,7 +324,6 @@ void EditTabPanel::Init()
 #endif
 
   notebook->AddPage(panel2, "Security");
-#endif // __USE_DB_ENCRYPTION__
 
   notebook->SetSelection(0);
   SetAutoLayout(TRUE);

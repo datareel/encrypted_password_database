@@ -31,10 +31,9 @@ These classes and functions are used to print data to ASCII
 text files and format data for various print functions.
 */
 // ----------------------------------------------------------- //   
-#include "app_defs.h"
-
 #include "gxdlcode.h"
 
+#include "m_globals.h"
 #include "as2print.h"
 
 #include <stdio.h>

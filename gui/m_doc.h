@@ -74,6 +74,9 @@ public: // Public Member functions
   POD *GetPOD();
   CryptDBGrid *GridFrame();
   gxDatabaseParms *DBParms();
+#ifdef __USE_MSW_PRINTING__
+  MSWPrintingParameters print_config;
+#endif
   wxGrid *GetGrid();
   int LoadGridObject(INFOHOG &infohog);
 

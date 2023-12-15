@@ -30,37 +30,37 @@ USA
 Application panel
 */
 // ----------------------------------------------------------- // 
-#ifndef __X_PANEL_HPP__
-#define __X_PANEL_HPP__
+#ifndef __Y_PANEL_HPP__
+#define __Y_PANEL_HPP__
 
 #include "app_defs.h"
 
 // --------------------------------------------------------------
 // Window IDs
 // --------------------------------------------------------------
-#define NEWDATABASE_PANEL_ID 730
+#define OPENDATABASE_PANEL_ID 9845
 // --------------------------------------------------------------
 
 // --------------------------------------------------------------
 // Identification for event handlers, controls, and menu commands
 // --------------------------------------------------------------
 enum { // Page setup panel IDs 
-  ID_NEWDATABASE_OK = 731,
-  ID_NEWDATABASE_CANCEL,
-  ID_NEWDATABASE_TEXTCONTROL1,
-  ID_NEWDATABASE_TEXTCONTROL2,
-  ID_NEWDATABASE_BROWSE
+  ID_OPENDATABASE_OK = 9846,
+  ID_OPENDATABASE_CANCEL,
+  ID_OPENDATABASE_BROWSE,
+  ID_OPENDATABASE_TEXTCONTROL1,
+  ID_OPENDATABASE_TEXTCONTROL2
 };
 // --------------------------------------------------------------
 
-class NewDatabasePanel : public wxDialog
+class OpenDatabasePanel : public wxDialog
 {
 public:
-  NewDatabasePanel(wxWindow *parent, wxWindowID id, char *title,
+  OpenDatabasePanel(wxWindow *parent, wxWindowID id, char *title,
 		   int xpos, int ypos, int width, int height,
 		   long style = wxDEFAULT_DIALOG_STYLE,
-		   char* name = (char *)"dialogBox");
-  ~NewDatabasePanel();
+		    char* name = (char *)"dialogBox");
+  ~OpenDatabasePanel();
   
 public: // Event handlers
   // Frame event handlers
@@ -69,48 +69,44 @@ public: // Event handlers
   // Button event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
-  void OnBrowse(wxCommandEvent &event);
   void OnTextControl1Enter(wxCommandEvent &event);
+  void OnBrowse(wxCommandEvent &event);
   void OnTextControl2Enter(wxCommandEvent &event);
   
 public: // Memeber functions
-  void ShowPanel();
+  void ShowPanel(gxString &fname);
   int TestInput();
   int IsOK() { return is_ok == 1; }
 
 public: // Control objects
-  wxStaticText *name_label;
-  wxTextCtrl *name_input;
-
-#ifdef __USE_DB_ENCRYPTION__
-  wxStaticBox *password_box;
-  wxStaticBox *key_box;
-  
   wxStaticText *password_label;
-  wxStaticText *confirm_password_label;
   wxTextCtrl *password_input;
-  wxTextCtrl *confirm_password_input;
-
-  wxStaticText *key_label;
-  wxTextCtrl *key_input;
-  wxButton *browse;
-  
-#endif
 
   wxButton *ok_btn;
   wxButton *cancel_btn;
-  
+
+  wxStaticBox *password_box;
+  wxStaticBox *key_box;
+  wxStaticText *key_label;
+  wxTextCtrl *key_input;
+  wxButton *browse;
+
 private: // Data members
   int is_ok;
-
+  gxString curr_fname;
+  int use_key;
+  int use_password;
+  int use_rsa_key;
+  int use_smartcard;
+  
 private:
   DECLARE_EVENT_TABLE()
 };
 
 // Standalone panel initialization function
-NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent);
+OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent);
 
-#endif // __X_PANEL_HPP__
+#endif // __Y_PANEL_HPP__
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //

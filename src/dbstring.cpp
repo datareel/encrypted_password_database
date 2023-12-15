@@ -30,14 +30,14 @@ USA
 Database fixed string class that can be used with encrypted strings.
 */
 // ----------------------------------------------------------- //   
-#include "app_defs.h"
+#include "m_globals.h"
+#include "dbstring.h"
 
 // Initialize DBString Global Variables
 char DBStringNULLPtr::DBStringNUllChar = '\0';
 char DBStringNULLPtr::DBStringNUllStr[1] = { '\0' };
 int DBStringConfig::DBStringCaseCompare = 1;
 
-#ifdef __USE_DB_ENCRYPTION__
 int DBStringConfig::compress_only = 0;
 // char DBStringConfig::mode = 0; // no encryption, when cryto is enabled
 // char DBStringConfig::mode = 3; // 256-bit encryption, when cryto is enabled
@@ -51,13 +51,9 @@ unsigned DBStringConfig::public_key_len = 0;
 int DBStringConfig::has_passphrase = 0;
 int DBStringConfig::use_private_rsa_key;
 unsigned DBStringConfig::private_key_len;
-#ifdef __ENABLE_SMART_CARD__
 int DBStringConfig::add_smart_card = 0;
 int DBStringConfig::use_smartcard_cert = 0;
 int DBStringConfig::use_smartcard_cert_file = 0;
-#endif
-
-#endif
 
 DBStringConfig::DBStringConfig() 
 {
@@ -74,7 +70,6 @@ void DBString::Clear()
   memset(sptr, 0, DBStringLength);
 }
 
-#ifdef __USE_DB_ENCRYPTION__
 char *DBString::GetCString() const
 // Returns a null terminated C string or a null pointer
 // if an error occurs.
@@ -104,10 +99,6 @@ char *DBString::GetCString() const
 			      (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
 			      DBStringConfig::crypt_key.length());
     if(crypt_error != AES_NO_ERROR) {
-#ifdef __APP_DEBUG_VERSION__
-      debug_log << "Error decrypting SPPC BL" << "\n" << flush; 
-      debug_log << AES_err_string(crypt_error) << "\n" << flush; 
-#endif
       delete[] dup;
       dup = 0;
       return 0;
@@ -138,7 +129,6 @@ char *DBString::GetCString() const
 
   return (char *)dest;
 }
-#endif
 
 int DBString::SetString(const char *s, unsigned bytes)
 // Set the string value for this object. This function will truncate 
@@ -159,7 +149,6 @@ int DBString::SetString(const char *s, unsigned bytes)
   if(bytes == 0) bytes = strlen(s);
   int truncate = 0;  
 
-#ifdef __USE_DB_ENCRYPTION__
   Clear(); // Reset the current string in case compression or encryption fails
   Bytef *dest = 0;
   uLong destLen;
@@ -199,11 +188,10 @@ int DBString::SetString(const char *s, unsigned bytes)
     delete[] dest;
     dest = 0;
     // Fill the remaining bytes with random characters
-    // NOTE: Removed to increase DB speed
-    // if(destLen < DBStringLength) {
-    //   unsigned bytes_left = DBStringLength - (destLen+sizeof(ch));
-    //  AES_fillrand((sptr+(destLen+sizeof(ch))), bytes_left);
-    // }
+    if(destLen < DBStringLength) {
+      unsigned bytes_left = DBStringLength - (destLen+sizeof(ch));
+      AES_fillrand((unsigned char *)(sptr+(destLen+sizeof(ch))), bytes_left);
+    }
     return truncate == 0; 
   }
 
@@ -219,10 +207,6 @@ int DBString::SetString(const char *s, unsigned bytes)
 			    DBStringConfig::crypt_key.length(), 
 			    DBStringConfig::mode);
   if(crypt_error != AES_NO_ERROR) {
-#ifdef __APP_DEBUG_VERSION__
-    debug_log << "Error encrypting SPPC BL" << "\n" << flush;
-    debug_log << AES_err_string(crypt_error) << "\n" << flush;
-#endif
     if(dest) delete[] dest;
     dest = 0;
     return 0;
@@ -237,52 +221,27 @@ int DBString::SetString(const char *s, unsigned bytes)
   dest = 0;
 
   // Fill the remaining bytes with random characters
-  // NOTE: Removed to increase DB speed
-  // if(cryptLen < DBStringLength) {
-  //   unsigned bytes_left = DBStringLength - (cryptLen+sizeof(eh));
-  //   AES_fillrand((sptr+(cryptLen+sizeof(eh))), bytes_left);
-  // }
-
-#else
-  if(bytes > DBStringLength) {
-    bytes = DBStringLength;
-    truncate = 1;
+  if(cryptLen < DBStringLength) {
+    unsigned bytes_left = DBStringLength - (cryptLen+sizeof(eh));
+    AES_fillrand((unsigned char *)(sptr+(cryptLen+sizeof(eh))), bytes_left);
   }
-  memmove(sptr, s, bytes);
-  sptr[bytes] = 0; // Null terminate the string
-
-  // Clear the bytes after the string's null terminator.
-  unsigned i;
-  unsigned num = DBStringLength - bytes;
-  char *ptr = sptr+bytes;
-  for(i = 0; i < num; i++) {
-    *ptr++ = 0;
-  }
-#endif
-
   return truncate == 0;
 }
 
 void DBString::Copy(const DBString &s)
 // Function used to copy DBString objects.
 {
-#ifdef __USE_DB_ENCRYPTION__
   Clear();
   char *dest = (char *)s.GetCString();
   if(!dest) return;
   if(dest[0] == 0) return;
   SetString(dest);
   delete dest;
-#else
-  if(!s.sptr) return;
-  SetString(s.sptr);
-#endif
 }
 
 GXDLCODE_API int Compare(const DBString &a, const DBString &b)
 {
   int rv;
-#ifdef __USE_DB_ENCRYPTION__
   char *dest1 = (char *)a.GetCString();
   if(!dest1) return 0;
   if(dest1[0] == 0) return 0;
@@ -298,9 +257,6 @@ GXDLCODE_API int Compare(const DBString &a, const DBString &b)
   rv = StringANCompare(dest1, dest2, DBStringConfig::DBStringCaseCompare);
   delete[] dest1;
   delete[] dest2;
-#else
-  rv = StringANCompare(a.sptr, b.sptr, DBStringConfig::DBStringCaseCompare);
-#endif
   return rv;
 }
 
@@ -326,16 +282,12 @@ GXDLCODE_API int operator!=(const DBString &a, const DBString &b)
 
 unsigned DBString::length() 
 { 
-#ifdef __USE_DB_ENCRYPTION__
   char *dest = GetCString();
   if(!dest) return 0;
   if(dest[0] == 0) return 0;
   int len = strlen(dest);
   delete[] dest;
   return len;
-#else
-  return strlen(sptr); 
-#endif
 }
 
 char *DBString::c_str(char *sbuf) 
@@ -348,7 +300,6 @@ char *DBString::c_str(char *sbuf)
   if(!sbuf) return DBStringNULLPtr::DBStringNUllStr;
   strcpy(sbuf, DBStringNULLPtr::DBStringNUllStr); // Clear the output buffer
 
-#ifdef __USE_DB_ENCRYPTION__
   char *dest = GetCString();
   if(!dest) {
     strcpy(sbuf, DBStringNULLPtr::DBStringNUllStr);
@@ -360,22 +311,15 @@ char *DBString::c_str(char *sbuf)
   }
   strcpy(sbuf, dest);
   delete[] dest;
-#else
-  strcpy(sbuf, sptr);
-#endif
 
   return sbuf; 
 }
 
 int DBString::is_null() 
 { 
-#ifdef __USE_DB_ENCRYPTION__
   char *dest = GetCString();
   if(!dest) return 1;
   return dest[0] == 0; 
-#else
-  return sptr[0] == 0; 
-#endif
 } 
 
 int DBString::is_not_null() 

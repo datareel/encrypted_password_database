@@ -122,7 +122,7 @@ mswPrintout::mswPrintout(const wxString &title) : wxPrintout(title.c_str())
 
   child_frame = frame->ActiveChild();
   db_config = &child_frame->DBParms()->db_config;
-  print_config = &child_frame->DBParms()->print_config;
+  print_config = &child_frame->print_config;
 
   frame->SetStatusText("Building the list to print...");
 
@@ -168,7 +168,7 @@ mswPrintout::mswPrintout()
 
   child_frame = frame->ActiveChild();
   db_config = &child_frame->DBParms()->db_config;
-  print_config = &child_frame->DBParms()->print_config;
+  print_config = &child_frame->print_config;
 
   if(!db_config->print_page_header) {
     print_config->top_margin = mswpTOP_MARGIN_NO_HEADER;

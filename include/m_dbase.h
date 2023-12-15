@@ -32,7 +32,7 @@ USA
 #ifndef __M_DATABASE_HPP__
 #define __M_DATABASE_HPP__
 
-#include "app_defs.h"
+#include "m_globals.h"
 
 // --------------------------------------------------------------
 // Constants
@@ -200,7 +200,9 @@ struct gxDatabaseConfig {
   int WriteAutoSize(gxDatabase *f);
   int WriteCellOverflow(gxDatabase *f);
   int WriteDisplayField(gxDatabase *f);
-
+  unsigned SizeOf();
+  
+#ifdef __wxWINALL__
   // Color functions
   int WriteGridLineColor(gxDatabase *f, wxColour *color);
   int GetGridLineColor(wxColour *color);
@@ -233,7 +235,8 @@ struct gxDatabaseConfig {
   int WritePrintHeaderFont(gxDatabase *f, wxFont *font);
   int GetPrintFooterFont(wxFont *font);
   int WritePrintFooterFont(gxDatabase *f, wxFont *font);
-
+#endif
+  
   // Print functions
   int WritePrintField(gxDatabase *f);
   int WritePrintGridLines(gxDatabase *f);
@@ -260,10 +263,10 @@ struct gxDatabaseConfig {
   void SetColName(int col, const char *s);
   void SetDatabaseName(const char *s);
   char *GetColName(int col, char *sbuf);
-  unsigned SizeOf();
   long Version();
 
   // Internal processing functions
+#ifdef __wxWINALL__
   int get_font(gxINT32 *elements, DBString *font_name, 
 	       wxFont *font);
   int write_font(gxDatabase *f, 
@@ -271,7 +274,9 @@ struct gxDatabaseConfig {
 		 gxDatabaseConfigMembers name_address,
 		 gxINT32 *elements, DBString *font_name,
 		 wxFont *font);
-  int is_string(DBString *s);
+#endif
+  int is_string(const char *s);
+  int is_string(const DBString *s) { return 1; } // DBStrings are encrypted so we always return true
   int test_color(gxINT32 &c);
 
   // WARNING: Do not change the order of the following data members
@@ -378,7 +383,7 @@ struct gxDatabaseConfig {
 
   // Future use
   // NOTE: These arrays can overflow into the Infohog static data area
-  // provided that any extented values do not exceed the reaming Infohog
+  // provided that any extented values do not exceed the remaining Infohog
   // static data area
   // Infohog files should have a 65,025 byte static data area. 
   char fau_misc[DBBinaryChunkSize]; // Int/Char reserved misc space (4096 bytes)
@@ -405,10 +410,12 @@ struct gxDatabaseParms
 
   int current_row;       // Current grid row
   int current_col;       // Current grid column
+#ifdef __wxWINALL__
   wxString current_name; // Current item name
+  wxString prev_name;    // Previous cell name
+#endif
   int prev_row;          // Previous grid row
   int prev_col;          // Previous grid column
-  wxString prev_name;    // Previous cell name
   int adding_cell_keyname;   // True if adding a new object from the grid
   int changing_cell_keyname; // True if changing a key name from the grid
 
@@ -425,18 +432,7 @@ struct gxDatabaseParms
   char database_revision;        // Database revision letter
   gxString username;  // Username associated with this database
   MemoryBuffer crypt_key; // Key used to encrypt and decrypt database files
-
-#ifdef __USE_MSW_PRINTING__
-  MSWPrintingParameters print_config;
-#endif
 };
-
-// Standalone database functions
-unsigned BtreeSearch(gxBtree *btx, int item, POD *pod,
-		     INFOHOG_t &ob, int find_all = 0); 
-
-void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
-		    INFOHOG_t &ob, unsigned &objects_found, int find_all);
 
 // Global data structures used to organize and store data file nodes addresses
 extern gxList<FAU> db_search_dllist; // Doubly linked list

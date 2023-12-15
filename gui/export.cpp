@@ -40,7 +40,6 @@ void ExportToASCII(wxWindow *parent)
     return;
   }
 
-#ifdef __USE_DB_ENCRYPTION__
   gxString mbuf;
   mbuf << clear << "Warning!!! You are about to write the encrypted database to a plain text file."
        << "\n" << "Text files are not encrypted and can be easily read from many applications."
@@ -54,7 +53,6 @@ void ExportToASCII(wxWindow *parent)
     *(frame->statusWin) << "Export operation canceled" << "\n"; 
     return;
   }
-#endif
 
   char dest[DBStringLength];  
   DBString *dbstring;

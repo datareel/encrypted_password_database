@@ -99,12 +99,10 @@ public:
   wxTextCtrl *directory_input;
   wxButton *directory_btn;
 
-#ifdef __USE_DB_ENCRYPTION__
   // Security controls
   wxPanel *panel2;
   wxStaticText *ekey_label;
   wxRadioBox *mode_radio_box;
-#endif
 
   DECLARE_EVENT_TABLE()
 };

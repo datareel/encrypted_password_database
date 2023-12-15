@@ -33,9 +33,7 @@ Cryptography code
 #ifndef __M_CRYPTO_HPP__
 #define __M_CRYPTO_HPP__
 
-#include "app_defs.h"
-
-#ifdef __USE_DB_ENCRYPTION__
+#include "m_globals.h"
 
 // String compression functions
 GXDLCODE_API uLong CalcStringCompressLen(uLong len);
@@ -43,8 +41,6 @@ GXDLCODE_API Bytef *CompressString(Bytef *dest, uLong *destLen,
 				   const Bytef *s, uLong bytes);
 GXDLCODE_API Bytef *UnCompressString(Bytef *dest, uLong *destLen, 
 				     const Bytef *s, uLong bytes);
-
-#endif // __USE_DB_ENCRYPTION__
 
 #endif // __M_CRYPTO_HPP__
 // ----------------------------------------------------------- // 

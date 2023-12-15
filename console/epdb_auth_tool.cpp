@@ -73,6 +73,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
+
   cout << "Opening database file " << fname.c_str() << "\n";
   
   err = f->Open(fname.c_str(),  gxDBASE_READWRITE);
@@ -82,8 +83,15 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  gxDatabaseConfig db_config;
+  FAU_t static_data_size = (FAU_t)(db_config.SizeOf() + DB_AUTH_STATIC_AREA_SIZE);  
+
   DatabaseStats(f);
-  
+
+
+  cout << "Size of gxDatabaseConfig = " << db_config.SizeOf() << "\n";
+  cout << "Size of DB_AUTH_STATIC_AREA_SIZE = " <<   DB_AUTH_STATIC_AREA_SIZE << "\n";
+  cout << "Total static_data_size = " <<  static_data_size << "\n";
   
   return ERROR_LEVEL;
 }

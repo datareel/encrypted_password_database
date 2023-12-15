@@ -344,9 +344,7 @@ MainFrame::MainFrame(wxWindow *parent,
 #endif
   e_tab_panel = InitEditTabPanel(this);
 
-#ifdef __USE_DB_ENCRYPTION__
   open_db_panel = InitOpenDatabasePanel(this);
-#endif
 
 #ifdef __USE_MSW_PRINTING__
   mswpage = InitMSWPagePanel(this);
@@ -555,7 +553,6 @@ void MainFrame::OnOpen(wxCommandEvent& event)
       return;
     }
 
-#ifdef __USE_DB_ENCRYPTION__
     // OpenDatabasePanel code is in the x_panel.h and x_panel.cpp modules
     open_db_panel->ShowPanel(database_file);
 
@@ -563,7 +560,6 @@ void MainFrame::OnOpen(wxCommandEvent& event)
       ::wxSetWorkingDirectory(work_dir.c_str());
       return;
     }
-#endif
 
     // Make another frame, containing a canvas
     CryptDBDocument *subframe = new CryptDBDocument(frame, progcfg->ProgramName.c_str(),
@@ -586,10 +582,8 @@ void MainFrame::OnOpen(wxCommandEvent& event)
 					      wxSize(width, height));
     subframe->grid_frame = grid_frame;
 
-#ifdef __USE_DB_ENCRYPTION__
     subframe->DBParms()->crypt_key = progcfg->global_dbparms.crypt_key;
     DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
-#endif
 
     // Open the database associated with this child frame
     CryptDBDocument *prev_frame = progcfg->active_child_frame; 
@@ -713,10 +707,8 @@ void MainFrame::OnNew(wxCommandEvent& event)
     CryptDBDocument *prev_frame = progcfg->active_child_frame; 
     progcfg->active_child_frame = subframe;
 
-#ifdef __USE_DB_ENCRYPTION__
     subframe->DBParms()->crypt_key = progcfg->global_dbparms.crypt_key;
     DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
-#endif
 
     subframe->DBParms()->pod = OpenDatabase(subframe, dbname, 
 					    subframe->DBParms()->pod,
@@ -1104,7 +1096,7 @@ int MainFrame::MSWTestPaperSize()
 // size is supported or false if the paper size is not supported.
 {
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   wxPaperSize paper_size = print_config->print_data.GetPaperId();
   switch(paper_size) {
@@ -1133,7 +1125,7 @@ void MainFrame::MSWPrint()
   if(!MSWTestPaperSize()) return;
 
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   mswPrintout printout_init;
   if(!printout_init.InitPrintout()) {
@@ -1167,7 +1159,7 @@ void MainFrame::OnMSWPrint(wxCommandEvent& event)
   }
 
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   print_config->print_list = 0;
   print_config->print_all_entries = 1;
@@ -1184,7 +1176,7 @@ void MainFrame::OnMSWPrintPreview(wxCommandEvent& event)
   }
 
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   print_config->print_list = 0;
   print_config->print_all_entries = 1;
@@ -1197,7 +1189,7 @@ void MainFrame::MSWPrintPreview()
   if(!MSWTestPaperSize()) return;
 
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   mswPrintout printout_init;
   if(!printout_init.InitPrintPreview()) {
@@ -1249,7 +1241,7 @@ void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& event)
 void MainFrame::OnMSWPrintSetup(wxCommandEvent& event)
 {
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   // Set the printer paper size and orientation
   print_config->SetPaperSize();
@@ -1867,9 +1859,7 @@ CryptDBDocument *MainFrame::get_active_child()
   while(ptr) {
     wxMDIChildFrame *cf_ptr = (wxMDIChildFrame *)ptr->data;
     if(child_frame == cf_ptr) {
-#ifdef __USE_DB_ENCRYPTION__
       DBStringConfig::crypt_key = ptr->data->DBParms()->crypt_key;
-#endif
       return ptr->data;
     }
     ptr = ptr->next;

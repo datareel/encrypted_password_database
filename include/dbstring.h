@@ -33,25 +33,18 @@ Database fixed string class that can be used with encrypted strings.
 #ifndef __GX_DBSTRING_HPP__
 #define __GX_DBSTRING_HPP__
 
-#include "app_defs.h"
+#include "m_globals.h"
 
 // This constant sets the string length for all DBString objects.
-#ifdef __USE_DB_ENCRYPTION__
 // 100 bytes of overhead includes space for compress header 
 // and compression overhead plus crypto header and 256-bit 
 // encryption overhead. 
 const unsigned cytpro_overhead = 100; 
 const unsigned DBStringLength = 255+cytpro_overhead; // Length plus overhead
-#else
-// The total length for all DBString objects is equal to the length
-// specified in this constant plus one byte for a null terminator.
-const unsigned DBStringLength = 255; // Length not including null terminator
-#endif
 
 const unsigned CryptDBHashSize = DBStringLength;
 const unsigned DBBinaryChunkSize = 4096;
 
-#ifdef __USE_DB_ENCRYPTION__
 struct GXDLCODE_API CompressHeader
 {
   CompressHeader() { compress_len = (gxUINT32)0; }
@@ -69,7 +62,6 @@ struct GXDLCODE_API CryptoHeader
     
   gxUINT32 crypt_len;
 };
-#endif
 
 // Null string class used to reserve address space for null strings
 class GXDLCODE_API DBStringNULLPtr
@@ -89,7 +81,6 @@ struct GXDLCODE_API DBStringConfig
   ~DBStringConfig();
 
   static int DBStringCaseCompare;
-#ifdef __USE_DB_ENCRYPTION__
   static int compress_only;
   static char mode;
   static MemoryBuffer crypt_key;
@@ -105,18 +96,12 @@ struct GXDLCODE_API DBStringConfig
   static int use_private_rsa_key;
   static char private_key[RSA_max_keybuf_len];
   static unsigned private_key_len;
-  
-#ifdef __ENABLE_SMART_CARD__
   static SmartCardOB sc;
   static gxString smartcard_cert_username;
   static int add_smart_card;
   static int use_smartcard_cert;
   static int use_smartcard_cert_file;
   static gxString smartcard_cert_file;
-#endif
-
-  
-#endif
 }; 
 
 // Database string class 
@@ -135,11 +120,13 @@ public:
     SetString(s.c_str()); 
     return *this; 
   }
+#ifdef __wxWINALL__
   DBString &operator=(const wxString &s) { 
     SetString(s.c_str()); 
     return *this; 
   }
-  DBString &operator=(const DBString &s) {
+#endif
+ DBString &operator=(const DBString &s) {
     if(this != &s) Copy(s); // Prevent self assignment 
     return *this;
   }
@@ -156,10 +143,8 @@ public: // C String, pointer, and length functions
   int is_not_null();
   char *GetSPtr() { return sptr; }
 
-#ifdef __USE_DB_ENCRYPTION__
 private:
   char *GetCString() const; 
-#endif
 
 public: // Database functions
   size_t SizeOf() { return sizeof(sptr); }
@@ -172,11 +157,7 @@ public: // Overloaded operators
   GXDLCODE_API friend int operator!=(const DBString &a, const DBString &b);
 
 private: // The DBString structure can have only one data member
-#ifdef __USE_DB_ENCRYPTION__
   char sptr[DBStringLength]; // Encrypted string
-#else
-  char sptr[DBStringLength+1]; // Fixed string length plus null terminator
-#endif
 };
 
 #endif  // __GX_DBSTRING_HPP__

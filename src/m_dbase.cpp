@@ -30,7 +30,8 @@ USA
 Application database code
 */
 // ----------------------------------------------------------- // 
-#include "app_defs.h"
+#include "m_globals.h"
+#include "m_dbase.h"
 
 // Global data structures used to organize and store data file nodes addresses
 gxList<FAU> db_search_dllist;            // Doubly linked list
@@ -49,11 +50,6 @@ int gxDatabaseConfig::TestStaticArea(gxDatabase *f)
   static_area = fh.gxd_hs_fptr - (FAU_t)f->FileHeaderSize();
   if(static_area < sizeof(gxDatabaseConfig)) return 0;
   return 1;
-}
-
-unsigned gxDatabaseConfig::SizeOf()
-{
-  return sizeof(gxDatabaseConfig);
 }
 
 int gxDatabaseConfig::ReadConfig(gxDatabase *f)
@@ -619,17 +615,13 @@ void gxDatabaseConfig::Clear()
 
   version_number = Version();
 
-#ifdef __USE_DB_ENCRYPTION__
   is_encrypted = 1;
-#else
-  is_encrypted = (gxINT32)0;
-#endif
 
   database_name.Clear();
   database_description.Clear();
   database_program_name.Clear();
-  memset(crypt_hash, 0 , CryptDBHashSize);
-  memset(passwd_hash, 0, CryptDBHashSize);
+  AES_fillrand((unsigned char *)crypt_hash, CryptDBHashSize);
+  AES_fillrand((unsigned char *)passwd_hash, CryptDBHashSize);
   for(i = 0; i < (unsigned)NumDataMembers; i++) col_sizes[i] = DefaultColSize;
   for(i = 0; i < (unsigned)NumDataMembers; i++) column_names[i].Clear();
   for(i = 0; i < (unsigned)NumDataMembers; i++) print_field[i] = 1;
@@ -663,10 +655,10 @@ void gxDatabaseConfig::Clear()
   time_int_c = (gxINT32)0;
   time_int_m = (gxINT32)0;
   time_int_i = (gxINT32)0;
-  memset(install_key_hash, 0, CryptDBHashSize);
-  memset(database_hash, 0, CryptDBHashSize);
-  memset(fau_misc, 0, DBBinaryChunkSize);
-  memset(str_misc, 0, DBBinaryChunkSize);
+  AES_fillrand((unsigned char *)install_key_hash, CryptDBHashSize);
+  AES_fillrand((unsigned char *)database_hash, CryptDBHashSize);
+  AES_fillrand((unsigned char *)fau_misc, DBBinaryChunkSize);
+  AES_fillrand((unsigned char *)str_misc, DBBinaryChunkSize);
 
   // Extended grid functions  
   auto_size = 1;
@@ -738,6 +730,7 @@ int gxDatabaseConfig::WriteTextDelimiter(gxDatabase *f, char dchar)
   return 1;
 }
 
+#ifdef __wxWINALL__
 int gxDatabaseConfig::WriteGridLineColor(gxDatabase *f, wxColour *color)
 {
   FAU_t address = GetFileAddress(f, GRID_LINE_COLOR);
@@ -1151,6 +1144,8 @@ int gxDatabaseConfig::WriteHyperlinkFont(gxDatabase *f, wxFont *font)
 		    hyperlink_font, &hyperlink_font_name, font);
 }
 
+#endif
+
 int gxDatabaseConfig::WritePrintGridLines(gxDatabase *f)
 {
   if(!TestStaticArea(f)) return 0;
@@ -1349,6 +1344,7 @@ int gxDatabaseConfig::WritePrintPageScale(gxDatabase *f)
   return 1;
 }
 
+#ifdef __wxWINALL__
 int gxDatabaseConfig::GetPrintHeaderColor(wxColour *color)
 {
   unsigned char color_buf[4];
@@ -1424,6 +1420,8 @@ int gxDatabaseConfig::WritePrintFooterFont(gxDatabase *f, wxFont *font)
 		    print_footer_font, &print_footer_font_name, font);
 
 }
+
+#endif
 
 int gxDatabaseConfig::WriteDBName(gxDatabase *f, const char *s)
 {
@@ -1532,26 +1530,22 @@ int gxDatabaseConfig::test_color(gxINT32 &c)
   return 1;
 }
 
-int gxDatabaseConfig::is_string(DBString *s)
+int gxDatabaseConfig::is_string(const char *s)
 {
   if(!s) return 0;
-
-#ifdef __USE_DB_ENCRYPTION__
-  return 1; // Check not required for encrytpted strings
-#else 
 
   int i;
   int is_string = 0; 
   int null_position = -1;
 
   for(i = 0; i < (int)DBStringLength; i++) {
-    if(s->GetSPtr()[i] == 0) {
+    if(s[i] == 0) {
       null_position = i; // This is a null terminated string 
       if(i == 0) is_string = 1; // Allow null strings
       break; 
     }
-    if((isgraph(s->GetSPtr()[i])) || 
-       (s->GetSPtr()[i] == ' ')) {
+    if((isgraph(s[i])) || 
+       (s[i] == ' ')) {
       is_string++; // Count the number of printable characters
     }
     else {
@@ -1562,7 +1556,6 @@ int gxDatabaseConfig::is_string(DBString *s)
   }
   if(null_position < 0) return 0;
   if(!is_string) return 0;
-#endif // __USE_DB_ENCRYPTION__
 
   return 1; 
 }
@@ -1734,6 +1727,99 @@ int gxDatabaseConfig::WriteConfig(gxDatabase *f, int flushdb)
   return 1;
 }
 
+unsigned gxDatabaseConfig::SizeOf()
+{
+  unsigned size = 0;
+  
+  size += sizeof(version_number);
+  size += sizeof(is_encrypted);
+  size += sizeof(database_name);
+  size += sizeof(column_names);
+  size += sizeof(view_labels);
+  size += sizeof(view_row_numbers);
+  size += sizeof(col_sizes);
+  size += sizeof(print_field);
+  size += sizeof(cell_attrib);
+  size += sizeof(cell_align);
+  size += sizeof(cell_border);
+  size += sizeof(cell_color);
+  size += sizeof(cell_fill);
+  size += sizeof(cell_text_color);
+  size += sizeof(cell_text_font);
+  size += sizeof(cell_type);
+  size += sizeof(cell_pattern);
+  size += sizeof(cell_protection);
+  size += sizeof(label_align);
+  size += sizeof(label_border);
+  size += sizeof(label_color);
+  size += sizeof(label_fill);
+  size += sizeof(label_text_font);
+  size += sizeof(label_text_color);
+  size += sizeof(label_pattern);
+  size += sizeof(label_protection);
+  size += sizeof(display_field);
+  size += sizeof(cell_misc);
+  size += sizeof(label_misc);
+  size += sizeof(is_installed);
+  size += sizeof(install_day);
+  size += sizeof(install_year);
+  size += sizeof(time_int_a);
+  size += sizeof(time_int_c);
+  size += sizeof(time_int_m);
+  size += sizeof(time_int_i);
+  size += sizeof(database_description);
+  size += sizeof(database_program_name);
+  size += sizeof(install_key_hash);
+  size += sizeof(database_hash);
+  size += sizeof(crypt_hash);
+  size += sizeof(passwd_hash);
+  size += sizeof(auto_size);
+  size += sizeof(cell_overflow);
+  size += sizeof(view_grid_lines); 
+  size += sizeof(grid_line_color);
+  size += sizeof(view_skip_lines);
+  size += sizeof(skip_line_color);
+  size += sizeof(grid_background_color);
+  size += sizeof(grid_text_color);
+  size += sizeof(grid_label_background_color);
+  size += sizeof(grid_label_text_color);
+  size += sizeof(hyperlink_color);
+  size += sizeof(grid_label_font);
+  size += sizeof(grid_label_font_name);
+  size += sizeof(grid_text_font);
+  size += sizeof(grid_text_font_name);
+  size += sizeof(hyperlink_font);
+  size += sizeof(hyperlink_font_name);
+  size += sizeof(print_doc_name);
+  size += sizeof(print_doc_time_and_date);
+  size += sizeof(print_grid_lines);
+  size += sizeof(print_orientation);
+  size += sizeof(print_left_margin_size);
+  size += sizeof(print_paper_size);
+  size += sizeof(print_page_header);
+  size += sizeof(print_doc_custom_header);
+  size += sizeof(print_header_color);
+  size += sizeof(print_header_font);
+  size += sizeof(print_header_font_name);
+  size += sizeof(print_page_footer);
+  size += sizeof(print_doc_custom_footer);
+  size += sizeof(print_footer_color);
+  size += sizeof(print_footer_font);
+  size += sizeof(print_footer_font_name);
+  size += sizeof(print_skip_lines);
+  size += sizeof(print_grid_labels);
+  size += sizeof(print_row_numbers);
+  size += sizeof(print_page_scale);
+  size += sizeof(cell_text_fonts); 
+  size += sizeof(cell_text_font_names);
+  size += sizeof(label_text_fonts);
+  size += sizeof(label_text_font_names);
+  size += sizeof(text_delimiter);
+  size += sizeof(fau_misc);
+  size += sizeof(str_misc);
+  return size;
+}
+
 gxDatabaseParms::gxDatabaseParms()
 {
   // Display status messages by default
@@ -1768,12 +1854,8 @@ gxDatabaseParms::gxDatabaseParms()
   dbgrid_labels[7] = "Notes";
                       
   // Database specific configuration parameters stored with every datafile
-  if(progcfg) {
-    db_config.database_name = progcfg->ProgramName.c_str();
-  }
-  else {
-    db_config.database_name = "Database"; 
-  }
+  db_config.database_name = "EncryptedPasswordDatabase"; 
+
   for(i = 0; i < NumDataMembers; i++) {
     db_config.col_sizes[i] = (FAU)DefaultColSize;
   }
@@ -1787,118 +1869,17 @@ gxDatabaseParms::gxDatabaseParms()
   // Database Interface
   pod = 0;
   admin_rights = 1;
-  static_area = InfoHogStaticArea;
+  
+  static_area = (FAU_t)(DB_AUTH_STATIC_AREA_SIZE * 2);
   num_trees = InfoHogNumTrees;
   node_order = InfoHogNodeOrder;
-#ifdef __USE_DB_ENCRYPTION__
   data_file_extension = ".ehd";
   index_file_extension = ".ehx";
-#else
-  data_file_extension = ".ihd";
-  index_file_extension = ".ihx";
-#endif
   data_file = "EncryptedPasswordDatabase";
   data_file += data_file_extension;
   index_file = "EncryptedPasswordDatabase";
   index_file += index_file_extension;
   database_revision = 'E'; // Database revision letter
-}
-
-unsigned BtreeSearch(gxBtree *btx, int item, POD *pod,
-		     INFOHOG_t &ob, int find_all) 
-{
-  INFOHOGKEY key, compare_key;
-  unsigned objects_found = 0;
-  dllist->ClearList();
-  
-  // Walk through the tree starting at the first key
-  if(btx->FindFirst(key)) {
-    INFOHOG infohog(pod);
-    if(!infohog.ReadObject(key.ObjectID())) {
-      return objects_found;
-    }
-    BtreeKeySearch(key, item, pod, ob, objects_found, find_all);
-    
-    while(btx->FindNext(key, compare_key)) {
-      ::wxYield();
-      INFOHOG infohog(pod);
-      if(!infohog.ReadObject(key.ObjectID())) {
-	return objects_found;
-      }
-      BtreeKeySearch(key, item, pod, ob, objects_found, find_all);
-    }
-  }
-  return objects_found;
-}
-
-void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
-		    INFOHOG_t &ob, unsigned &objects_found, int find_all)
-{
-  ::wxYield();
-
-  int offset;
-  INFOHOG_t buf;
-  FAU object_id;
-
-  char dest1[DBStringLength];  
-  char dest2[DBStringLength];  
-  if(item == 0) {
-    if(find_all == 0) { // Search for single match
-      if(key.ObjectName() == ob) { 
-	object_id = key.ObjectID();
-	dllist->Add(object_id);
-	objects_found++;
-      }
-    }
-    else { // Search for all matches
-      buf = key.ObjectName();
-      char *s1 = buf.c_str(dest1);
-      char *s2 = ob.c_str(dest2);
-      offset = IFindMatch(s1, s2, 0);
-      if(offset != -1) {
-	object_id = key.ObjectID();
-	dllist->Add(object_id);
-	objects_found++;
-      }
-    }
-  }
-  else {
-    INFOHOG infohog(pod);
-    infohog.ReadObject((FAU_t)key.ObjectID());
-
-    if(find_all == 0) { // Search for single match
-      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
-	buf = *((INFOHOG_t *)infohog.GetMember(item));
-	gxString sbuf1 = buf.c_str(dest1);
-	gxString sbuf2 = ob.c_str(dest2);
-	if(sbuf1 == sbuf2) { 
-	  object_id = key.ObjectID();
-	  dllist->Add(object_id);
-	  objects_found++;
-	}
-      }
-    }
-    else { // Search for all matche
-      *(frame->statusWin) << "Searching for all strings..." << "\n";
-      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
-	buf = *((INFOHOG_t *)infohog.GetMember(item));
-	char *s1 = buf.c_str(dest1);
-	char *s2 = ob.c_str(dest2);
-
-	*(frame->statusWin) << s1 << " " << s2 << "\n";
-
-	offset = IFindMatch(s1, s2, 0);
-	if(offset != -1) {
-	  object_id = key.ObjectID();
-	  dllist->Add(object_id);
-	  objects_found++;
-	}
-      }
-      else {
-	*(frame->statusWin) << "No object found..." << "\n";
-      }
-    }
-  }
 }
 // ----------------------------------------------------------- //
 // ------------------------------- //

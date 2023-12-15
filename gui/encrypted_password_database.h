@@ -39,7 +39,6 @@ wxWindow 2.X and 3.X application frame work.
 // External project components
 // --------------------------------------------------------------
 #include "m_globals.h"
-#include "as2print.h"
 // --------------------------------------------------------------
 
 // --------------------------------------------------------------
@@ -279,12 +278,14 @@ int CheckError(gxDatabase *f, wxTextCtrl *statusWin);
 int CheckError(gxDatabaseError err, wxTextCtrl *statusWin);
 void DisplayDataFileStats(POD *pod, wxTextCtrl *statusWin);
 void DisplayIndexFileStats(POD *pod, wxTextCtrl *statusWin);
+unsigned BtreeSearch(gxBtree *btx, int item, POD *pod,
+		     INFOHOG_t &ob, int find_all = 0); 
+void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
+		    INFOHOG_t &ob, unsigned &objects_found, int find_all);
 // --------------------------------------------------------------
 
 // Application and framework include files
-#include "dbstring.h"   // Database string
 #include "mswprint.h"   // Microsoft Windows printing framework 
-#include "m_dbase.h"    // Database code
 #include "a_panel.h"    // Add panel
 #include "c_panel.h"    // Change panel
 #include "d_panel.h"    // Display panel
@@ -295,7 +296,6 @@ void DisplayIndexFileStats(POD *pod, wxTextCtrl *statusWin);
 #include "lp_panel.h"   // Line printer setup panel
 #include "mciplay.h"    // Multi-media players
 #include "mswpage.h"    // Page setup panel
-#include "m_crypto.h"   // Cryptography code  
 #include "m_doc.h"      // Document framework
 #include "m_grid.h"     // Grid framework
 #include "pspage.h"     // Postscript page setup panel
@@ -304,8 +304,8 @@ void DisplayIndexFileStats(POD *pod, wxTextCtrl *statusWin);
 #include "st_frame.h"   // Status frame
 #include "st_panel.h"   // Status panel
 #include "winapp.h"     // wxWindows application class
-#include "x_panel.h"    // Application panel
-#include "y_panel.h"    // Application panel
+#include "new_panel.h"    // New DB panel
+#include "open_panel.h"    // Open DB panel
 #include "p_config.h"   // Program configuration data
 #include "m_frame.h"    // Main frame for this application
 

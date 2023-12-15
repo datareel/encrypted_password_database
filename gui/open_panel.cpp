@@ -32,8 +32,6 @@ Application panel
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
 
-#ifdef __USE_DB_ENCRYPTION__
-
 BEGIN_EVENT_TABLE(OpenDatabasePanel, wxDialog)
   EVT_CLOSE(OpenDatabasePanel::OnCloseWindow)
   EVT_BUTTON (ID_OPENDATABASE_OK, OpenDatabasePanel::OnOK)
@@ -330,8 +328,6 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
   
   return panel;
 }
-
-#endif // __USE_DB_ENCRYPTION__
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //

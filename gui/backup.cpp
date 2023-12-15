@@ -76,7 +76,7 @@ void BackUp(wxWindow *parent)
     
   POD newdb;
   INFOHOGKEY key, compare_key;
-  FAU_t static_data_size = (FAU_t)(sizeof(gxDatabaseConfig) + (InfoHogStaticArea + DB_AUTH_STATIC_AREA_SIZE));
+  FAU_t static_data_size = (FAU_t)(DB_AUTH_STATIC_AREA_SIZE *2);
   gxDatabaseError err = newdb.Open(datafile.c_str(), indexfile.c_str(), key,
 				   InfoHogNodeOrder, gxDBASE_READWRITE,
 				   InfoHogUseIndexFile, 

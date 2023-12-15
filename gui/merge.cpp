@@ -83,7 +83,6 @@ void Merge(wxWindow *parent)
   indexfile += child_frame->DBParms()->index_file_extension;
     
 
-#ifdef __USE_DB_ENCRYPTION__
   gxDatabase f;
   if(f.Open(datafile.c_str(), gxDBASE_READONLY) != gxDBASE_NO_ERROR) {
     ProgramError->Message("Error opening the merge database copy!\n \
@@ -135,7 +134,6 @@ Exiting the merge operation");
 
   delete[] dup;
   dup = 0;
-#endif
 
   POD newdb;
   INFOHOGKEY key, compare_key;

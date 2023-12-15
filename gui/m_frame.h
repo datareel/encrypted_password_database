@@ -157,9 +157,7 @@ public: // Public data members
   // Tabbed panel functions
   EditTabPanel *e_tab_panel;
 
-#ifdef __USE_DB_ENCRYPTION__
   OpenDatabasePanel *open_db_panel;
-#endif
 
 #ifdef __USE_MSW_PRINTING__
   MSWPagePanel *mswpage;

@@ -549,7 +549,7 @@ void DisplayPanel::OnPrint(wxCommandEvent &event)
     return;
   }
 
-  MSWPrintingParameters *print_config = &child_frame->DBParms()->print_config;
+  MSWPrintingParameters *print_config = &child_frame->print_config;
 
   // Record the current pointer in the virtual list
   gxListNode<FAU> *curr_dllistptr = dllistptr;

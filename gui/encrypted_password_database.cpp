@@ -300,10 +300,7 @@ void InitProgramConfig(int argc, char *argv[])
   int custom_color_green;
   int custom_color_blue;
   int i;
-
-#ifdef __USE_DB_ENCRYPTION__
   char *mode = 0;
-#endif
 
   // Load the configuration file
   gxConfig *CfgData = new gxConfig;
@@ -343,11 +340,7 @@ void InitProgramConfig(int argc, char *argv[])
     dataDir = CfgData->GetStrValue("DataDirectory");
     docDir = CfgData->GetStrValue("DocumentDirectory");
     reToolBar = CfgData->GetStrValue("ViewToolBar");
-
-
-#ifdef __USE_DB_ENCRYPTION__
     mode = CfgData->GetStrValue("EncryptionMode");
-#endif
 
     // Set the custom color table
     for(i = 0; i < 16; i++) {
@@ -386,7 +379,6 @@ void InitProgramConfig(int argc, char *argv[])
     }
   }
 
-#ifdef __USE_DB_ENCRYPTION__
   if(mode) {
     gxString mode_str = mode;
     if(mode_str.Atoi() > 0) {
@@ -395,7 +387,6 @@ void InitProgramConfig(int argc, char *argv[])
       }
     }
   }
-#endif
 
   if(reToolBar != 0) {
     if(CaseICmp((const char*)reToolBar, "FALSE") == 0) {
@@ -496,8 +487,8 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
   ::wxYield();
 
-  FAU_t static_data_size = (FAU_t)(sizeof(gxDatabaseConfig) + (InfoHogStaticArea + DB_AUTH_STATIC_AREA_SIZE));
-				   
+  FAU_t static_data_size = (FAU_t)(DB_AUTH_STATIC_AREA_SIZE *2);
+
   // Create or open an existing database using a single index file
   gxDatabaseError err = pod->Open(data_file.c_str(), 
 				  index_file.c_str(), key_type,
@@ -745,10 +736,116 @@ int SaveCustomColors(wxColourData *retData)
 }
 // --------------------------------------------------------------
 
+
+unsigned BtreeSearch(gxBtree *btx, int item, POD *pod,
+		     INFOHOG_t &ob, int find_all) 
+{
+  INFOHOGKEY key, compare_key;
+  unsigned objects_found = 0;
+  dllist->ClearList();
+  
+  // Walk through the tree starting at the first key
+  if(btx->FindFirst(key)) {
+    INFOHOG infohog(pod);
+    if(!infohog.ReadObject(key.ObjectID())) {
+      return objects_found;
+    }
+    BtreeKeySearch(key, item, pod, ob, objects_found, find_all);
+    
+    while(btx->FindNext(key, compare_key)) {
+#ifdef __wxWINALL__
+      ::wxYield();
+#endif
+      INFOHOG infohog(pod);
+      if(!infohog.ReadObject(key.ObjectID())) {
+	return objects_found;
+      }
+      BtreeKeySearch(key, item, pod, ob, objects_found, find_all);
+    }
+  }
+  return objects_found;
+}
+
+void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
+		    INFOHOG_t &ob, unsigned &objects_found, int find_all)
+{
+#ifdef __wxWINALL__
+  ::wxYield();
+#endif
+
+  int offset;
+  INFOHOG_t buf;
+  FAU object_id;
+
+  char dest1[DBStringLength];  
+  char dest2[DBStringLength];  
+  if(item == 0) {
+    if(find_all == 0) { // Search for single match
+      if(key.ObjectName() == ob) { 
+	object_id = key.ObjectID();
+	dllist->Add(object_id);
+	objects_found++;
+      }
+    }
+    else { // Search for all matches
+      buf = key.ObjectName();
+      char *s1 = buf.c_str(dest1);
+      char *s2 = ob.c_str(dest2);
+      offset = IFindMatch(s1, s2, 0);
+      if(offset != -1) {
+	object_id = key.ObjectID();
+	dllist->Add(object_id);
+	objects_found++;
+      }
+    }
+  }
+  else {
+    INFOHOG infohog(pod);
+    infohog.ReadObject((FAU_t)key.ObjectID());
+
+    if(find_all == 0) { // Search for single match
+      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
+	buf = *((INFOHOG_t *)infohog.GetMember(item));
+	gxString sbuf1 = buf.c_str(dest1);
+	gxString sbuf2 = ob.c_str(dest2);
+	if(sbuf1 == sbuf2) { 
+	  object_id = key.ObjectID();
+	  dllist->Add(object_id);
+	  objects_found++;
+	}
+      }
+    }
+    else { // Search for all matche
+#ifdef __wxWINALL__
+      *(frame->statusWin) << "Searching for all strings..." << "\n";
+#endif
+      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
+	buf = *((INFOHOG_t *)infohog.GetMember(item));
+	char *s1 = buf.c_str(dest1);
+	char *s2 = ob.c_str(dest2);
+
+#ifdef __wxWINALL__
+	*(frame->statusWin) << s1 << " " << s2 << "\n";
+#endif
+	offset = IFindMatch(s1, s2, 0);
+	if(offset != -1) {
+	  object_id = key.ObjectID();
+	  dllist->Add(object_id);
+	  objects_found++;
+	}
+      }
+      else {
+#ifdef __wxWINALL__
+	*(frame->statusWin) << "No object found..." << "\n";
+#endif
+      }
+    }
+  }
+}
+
 // --------------------------------------------------------------
 // Application and framework include source code files 
 // --------------------------------------------------------------
-#include "dbstring.cpp"
 #include "a_panel.cpp"
 #include "backup.cpp"
 #include "compare.cpp"
@@ -766,8 +863,6 @@ int SaveCustomColors(wxColourData *retData)
 #include "merge.cpp"
 #include "mswpage.cpp"
 #include "mswprint.cpp"
-#include "m_crypto.cpp"
-#include "m_dbase.cpp"
 #include "m_doc.cpp"
 #include "m_grid.cpp"
 #include "m_tbar.cpp"
@@ -782,8 +877,8 @@ int SaveCustomColors(wxColourData *retData)
 #include "template.cpp"
 #include "txtprint.cpp"
 #include "winapp.cpp"
-#include "x_panel.cpp"
-#include "y_panel.cpp"
+#include "new_panel.cpp"
+#include "open_panel.cpp"
 
 #include "m_frame.cpp"
 // --------------------------------------------------------------

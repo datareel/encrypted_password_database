@@ -33,24 +33,7 @@ Encrypted database auth functions
 #ifndef __DB_AUTH_HPP__
 #define __DB_AUTH_HPP__
 
-// Fcrypt includes
-#include "cryptdb.h"
-#include "aesdb.h"
-#include "rsadb.h"
-#include "smart_card.h"
-
-// DataReel include files
-#include "gxdlcode.h"
-#include "membuf.h"
-#include "gxstring.h"
-#include "gxuint32.h"
-#include "gxuint16.h"
-#include "gxstream.h"
-#include "devcache.h"
-#include "dfileb.h"
-#include "gxlist.h"
-#include "gxs_b64.h"
-
+#include "m_globals.h"
 
 #endif // __DB_AUTH_HPP__
 // ----------------------------------------------------------- // 
