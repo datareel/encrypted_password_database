@@ -50,23 +50,44 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include "memblock.h"
 #include "gxlist.h"
 
+MemoryBuffer key;
+gxString password;
+gxString key_file;
+gxString rsa_public_key_file;
+gxString smardcard_cert_file;
+char public_key[RSA_max_keybuf_len];
+unsigned public_key_len = 0;
+gxString rsa_key_passphrase;
+int has_passphrase = 0;
+int ERROR_LEVEL = 0;
+gxString executable_name;
+gxString HOMEdir;
+gxString USERNAME;
+SmartCardOB sc;
+gxString smartcard_cert_username;
+int use_cert_file = 0;
+gxString smartcard_cert_file;
 
 int PrintDBConfig(gxDatabaseConfig &db_config);
 
-int ERROR_LEVEL = 0;
-gxString executable_name;
 
 int main(int argc, char **argv)
 {
+  HOMEdir = getenv("HOME");
+  USERNAME = getenv("USERNAME");
+  
   executable_name = argv[0];
 
   if(argc < 2) {
     cout << "ERROR: You must supply a file name" << "\n";
     return 1;
   }
+
+  gxString sbuf;
   gxString fname;
   gxDatabaseError err;
-
+  int rv;
+  
   fname = argv[1];
 
   if(!futils_exists(fname.c_str()) || !futils_isfile(fname.c_str())) {
@@ -80,11 +101,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-
   cout << "Opening database file " << fname.c_str() << "\n";
-
-
-  
   err = f->Open(fname.c_str(),  gxDBASE_READWRITE);
   if(err != gxDBASE_NO_ERROR) {
     cout << "ERROR: " << gxDatabaseExceptionMessage(err) << "\n";
@@ -127,13 +144,72 @@ int main(int argc, char **argv)
     }
   }
 
+  key_file = "${HOME}/.encrypted_password_database/keys/master.key";
+  key_file.ReplaceString("${HOME}", HOMEdir.c_str());
+  if(!futils_exists(key_file.c_str()) || !futils_isfile(key_file.c_str())) {
+    cout << "ERROR: Key file " << key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+    return 1;
+  }
+  cout << "Reading symmetric key file" << "\n";
+  if(read_key_file(key_file.c_str(), key, sbuf) != 0) {
+    cout << "ERROR: " << sbuf.c_str() << "\n" << flush;
+    return 1;
+  }
+
+  rsa_public_key_file = "${HOME}/.encrypted_password_database/keys/public.pem";
+  rsa_public_key_file.ReplaceString("${HOME}", HOMEdir.c_str());
   
-  // TODO: Add inputs need to read the key or password for the DB file
-  // DBStringConfig::crypt_key.Clear();
-  // DBStringConfig::crypt_key.Cat(sbuf.c_str(), sbuf.length());
-  // db_config.ReadConfig(f);
+  if(!futils_exists(rsa_public_key_file.c_str()) || !futils_isfile(rsa_public_key_file.c_str())) {
+    cout << "ERROR: Public RSA key file " << rsa_public_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+    return 1;
+  }
+  rv = RSA_read_key_file(rsa_public_key_file.c_str(), public_key, sizeof(public_key), &public_key_len, &has_passphrase);
+  if(rv != RSA_NO_ERROR) {
+    std::cerr << "ERROR: " << RSA_err_string(rv) << "\n" << std::flush;
+    return 1;
+  }
+
+
+  smartcard_cert_file = "${HOME}/.encrypted_password_database/certs/smartcard_cert.pem";
+  smartcard_cert_file.ReplaceString("${HOME}", HOMEdir.c_str());
+  if(!futils_exists(smartcard_cert_file.c_str()) || !futils_isfile(smartcard_cert_file.c_str())) {
+    cerr << "ERROR: Smart card cert file " << smartcard_cert_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+    return 1;
+  }
+  if(SC_read_cert_file(&sc, smartcard_cert_file.c_str()) != 0) {
+    cerr << "ERROR: " << sc.err_string << "\n" << flush;
+    return 1;
+  }
+
+  
+  DBStringConfig::crypt_key = key;
+  db_config.ReadConfig(f);
+  char *s = db_config.database_name.GetString();
+  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
+    cout << "ERROR: Error decrypting database hash " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
+    return 1;
+  }
+  if(!s) {
+    cout << "ERROR: Database hash is a null value" << "\n";
+    return 1;
+  }
+
+  rv = db_auth.AddRSAKeyToStaticArea(key, public_key, public_key_len, USERNAME);
+  if(rv != 0) {
+    cout << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n";
+    //  return 1;
+  }
+
+  use_cert_file = 1;
+  rv = db_auth.AddSmartCardCertToStaticArea(&sc, use_cert_file, key, USERNAME);
+  if(rv != 0) {
+    cout << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
+    return 1;
+  }
+  
+
   // PrintDBConfig(db_config);
-  
+    
   return ERROR_LEVEL;
 }
 

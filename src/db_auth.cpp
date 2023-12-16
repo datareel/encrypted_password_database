@@ -271,7 +271,7 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
 
   while(ptr) {
-    if(ptr->data.username == rsa_key_username) {
+    if((ptr->data.username == rsa_key_username) && (ptr->data.block_header.block_type == 1)) {
       ERROR_LEVEL = 1;
       err << clear << "An RSA key for username " << ptr->data.username << " already exists";
       return ERROR_LEVEL;
@@ -390,7 +390,7 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
 
   while(ptr) {
-    if(ptr->data.username == smartcard_cert_username) {
+    if((ptr->data.username == smartcard_cert_username) && (ptr->data.block_header.block_type == 2)) {
       ERROR_LEVEL = 1;
       err << clear << "A smart card cert for username " << ptr->data.username << " already exists";
       return ERROR_LEVEL;
@@ -466,7 +466,7 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     memset(rsa_decrypted_message, 0, sizeof(rsa_decrypted_message));
     memset(hash, 0, sizeof(hash));
     decrypted_data_len = 0;
-    if(rsa_key_username == list_ptr->data.username) {
+    if((rsa_key_username == list_ptr->data.username) && (list_ptr->data.block_header.block_type == 1)) {
       found_key = 1;
       break;
     }
@@ -560,7 +560,7 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     memset(rsa_decrypted_message, 0, sizeof(rsa_decrypted_message));
     memset(hash, 0, sizeof(hash));
     decrypted_data_len = 0;
-    if(smartcard_cert_username == list_ptr->data.username) {
+    if((smartcard_cert_username == list_ptr->data.username) && (list_ptr->data.block_header.block_type == 2)) {
      found_key = 1;
       break;
     }

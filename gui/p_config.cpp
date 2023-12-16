@@ -71,7 +71,8 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   docDir << clear << homeDir << "/" << "docs";
   logDir << clear << homeDir << "logs";
   workDir = (const char *)wxGetCwd();
-
+  USERNAME = getenv("USERNAME");
+  
   // Set the configuration file path                                           
   cfgFile << clear << homeDir << path_sep << default_cfgFile;
   logFile << clear << logDir << path_sep << default_logFile;

@@ -60,7 +60,7 @@ struct wxappfwProgramConfig {
   gxString historyFile;     // History file
   gxString default_historyFile; // Default history file
   gxString arg0_dir;            // ARG 0 present working directory
-
+  gxString USERNAME;
 #if defined (__UNIX__)
   gxString logDir;
 #endif
