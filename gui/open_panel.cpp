@@ -124,6 +124,70 @@ void OpenDatabasePanel::ShowPanel(gxString &fname)
   ShowModal();
 }
 
+int OpenDatabasePanel::SmartCardOpenDatabase()
+{
+  int rv;
+  gxString sbuf;
+  SmartCardOB sc;
+  gxString smartcard_username;
+
+  use_smartcard = 1;
+  if(sc_keyid_input->GetValue().IsNull()) {
+    ProgramError->Message("You must provide a cert ID for the smart card");   
+    is_ok = 0;
+    return 0;
+  }
+    
+  if(sc_username_input->GetValue().IsNull()) {
+    ProgramError->Message("You must provide a user name for the smart card");   
+    is_ok = 0;
+    return 0;
+  }
+
+  if(sc_pin_input->GetValue().IsNull()) {
+    ProgramError->Message("You must input your smart card PIN number");   
+    is_ok = 0;
+    return 0;
+  }
+
+  smartcard_username = (const char *)sc_username_input->GetValue();
+  sc.SetEnginePath(progcfg->SC_enginePath.c_str());
+  sc.SetModulePath(progcfg->SC_modulePath.c_str()); 
+  sc.SetEngineID(progcfg->SC_engine_ID.c_str());
+  
+  sbuf = (const char *)sc_keyid_input->GetValue();
+  sc.SetCertID(sbuf.c_str());      
+  sbuf = (const char *)sc_pin_input->GetValue();
+  sc_pin_input->Clear();
+  sc.SetPin(sbuf.c_str());
+  sbuf.Clear(1);
+  
+  gxDatabase f;
+  gxDatabaseError dberr = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
+  if(dberr != gxDBASE_NO_ERROR) {
+    sbuf << clear << "Error opening database" << "\n" <<   gxDatabaseExceptionMessage(dberr); 
+    ProgramError->Message(sbuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  
+  DatabaseUserAuth db_auth;
+  db_auth.f = &f; // Set the file pointer
+  
+  rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
+  if(rv != 0) {
+    ProgramError->Message(db_auth.err.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  
+  f.Close();
+  
+  progcfg->global_dbparms.crypt_key = DBStringConfig::crypt_key;
+  is_ok = 1;
+  return 1;
+}
+
 int OpenDatabasePanel::RSAOpenDatabase()
 {
   int rv;
@@ -170,11 +234,8 @@ int OpenDatabasePanel::RSAOpenDatabase()
   gxDatabase f;
   gxDatabaseError dberr = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
   if(dberr != gxDBASE_NO_ERROR) {
-#ifdef __APP_DEBUG_VERSION__
-    debug_log << "ERROR - Cannot open " << curr_fname.c_str() << "\n" << flush;
-    debug_log << gxDatabaseExceptionMessage(dberr) << "\n" << flush;
-#endif
-    ProgramError->Message("Error opening database");   
+    sbuf << clear << "Error opening database" << "\n" <<   gxDatabaseExceptionMessage(dberr); 
+    ProgramError->Message(sbuf.c_str());   
     is_ok = 0;
     return 0;
   }
@@ -196,6 +257,120 @@ int OpenDatabasePanel::RSAOpenDatabase()
   return 1;
 }
 
+int OpenDatabasePanel::AESKeyOpenDatabase()
+{
+  if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
+    ProgramError->Message("The key file does not exist or cannot be read");   
+    is_ok = 0;
+    return 0;
+  }
+  
+  gxString sbuf, ebuf;
+  MemoryBuffer key;
+  if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
+    ProgramError->Message(ebuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  
+  progcfg->global_dbparms.crypt_key = key;
+  key_input->Clear();
+
+  gxDatabase f;
+  gxDatabaseError rv = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
+  if(rv != gxDBASE_NO_ERROR) {
+    sbuf << clear << "Error opening database" << "\n" <<   gxDatabaseExceptionMessage(rv); 
+    ProgramError->Message(sbuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  gxDatabaseConfig dbconfig;
+  if(!dbconfig.ReadConfig(&f)) {
+    ProgramError->Message("Error reading database config");   
+    is_ok = 0;
+    f.Close();
+    return 0;
+  }
+  f.Close();
+
+  DatabaseUserAuth db_auth;
+  db_auth.f = &f; // Set the file pointer
+
+  DBStringConfig::crypt_key = key;
+  char *s = dbconfig.database_name.GetString();
+  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
+    sbuf << clear << "Error decrypting database hash with key provided" << "\n" << AES_err_string(DBStringConfig::AES_error_level);
+    ProgramError->Message(sbuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  if(!s) {
+    ProgramError->Message("Error decrypting database hash with key provided");   
+    is_ok = 0;
+    return 0;
+  }
+
+  progcfg->global_dbparms.crypt_key = key;
+  key.Clear(1);
+  is_ok = 1;
+  return 1;
+}
+
+int OpenDatabasePanel::PasswordOpenDatabase()
+{
+  gxString sbuf;
+  gxString pass_buf = (const char *)password_input->GetValue();
+  if(pass_buf.length() < 8) { 
+    ProgramError->Message("Your password should be at least 8 characters long");
+    is_ok = 0;
+    return 0;
+    password_input->Clear();
+    progcfg->global_dbparms.crypt_key.Clear();
+    progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
+    pass_buf.Clear(1);
+  }
+
+  gxDatabase f;
+  gxDatabaseError rv = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
+  if(rv != gxDBASE_NO_ERROR) {
+    sbuf << clear << "Error opening database" << "\n" <<   gxDatabaseExceptionMessage(rv); 
+    ProgramError->Message(sbuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  gxDatabaseConfig dbconfig;
+  if(!dbconfig.ReadConfig(&f)) {
+    ProgramError->Message("Error reading database config");   
+    is_ok = 0;
+    f.Close();
+    return 0;
+  }
+  f.Close();
+  
+  DatabaseUserAuth db_auth;
+  db_auth.f = &f; // Set the file pointer
+
+  DBStringConfig::crypt_key.Clear();
+  DBStringConfig::crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
+
+  char *s = dbconfig.database_name.GetString();
+  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
+    sbuf << clear << "Error decrypting database hash with password provided" << "\n" << AES_err_string(DBStringConfig::AES_error_level);
+    ProgramError->Message(sbuf.c_str());   
+    is_ok = 0;
+    return 0;
+  }
+  if(!s) {
+    ProgramError->Message("Error decrypting database hash with password provided");   
+    is_ok = 0;
+    return 0;
+  }
+
+  progcfg->global_dbparms.crypt_key = DBStringConfig::crypt_key;
+  is_ok = 1;
+  return 1;
+}
+
 int OpenDatabasePanel::TestInput()
 {
   use_key = 0;
@@ -203,8 +378,6 @@ int OpenDatabasePanel::TestInput()
   use_rsa_key = 0;
   use_smartcard = 0;
 
-  gxString sbuf;
-  
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) {
     password_input->Clear();
@@ -236,27 +409,13 @@ int OpenDatabasePanel::TestInput()
   if(use_rsa_key) {
     return RSAOpenDatabase();
   }
+
+  if(use_smartcard) {
+    return SmartCardOpenDatabase();
+  }
   
   if(use_key) {
-    if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
-      ProgramError->Message("The key file does not exist or cannot be read");   
-      is_ok = 0;
-      return 0;
-    }
-
-    gxString ebuf;
-    MemoryBuffer key;
-    if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
-      ProgramError->Message(ebuf.c_str());   
-      is_ok = 0;
-      return 0;
-    }
-
-    progcfg->global_dbparms.crypt_key = key;
-  
-    password_input->Clear();
-    key_input->Clear();
-    use_key = 1;
+    return AESKeyOpenDatabase();
   }
 
   if(password_input->GetValue().IsNull() && !use_key && !use_rsa_key && !use_smartcard) {
@@ -267,93 +426,10 @@ int OpenDatabasePanel::TestInput()
   }
 
   if(use_password) {
-    gxString pass_buf = (const char *)password_input->GetValue();
-    if(pass_buf.length() < 8) { 
-      ProgramError->Message("Your password should be at least 8 characters long");
-      is_ok = 0;
-      return 0;
-    }
-    password_input->Clear();
-    key_input->Clear();
-    progcfg->global_dbparms.crypt_key.Clear();
-    progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
-    pass_buf.Clear(1);
+    return PasswordOpenDatabase();
   }
 
-  gxDatabase f;
-  gxDatabaseError rv = f.Open(curr_fname.c_str(), gxDBASE_READONLY); 
-  if(rv != gxDBASE_NO_ERROR) {
-#ifdef __APP_DEBUG_VERSION__
-    debug_log << "ERROR - Cannot open " << curr_fname.c_str() << "\n" << flush;
-    debug_log << gxDatabaseExceptionMessage(rv) << "\n" << flush;
-#endif
-    ProgramError->Message("Error opening specified database");   
-    is_ok = 0;
-    return 0;
-  }
-  gxDatabaseConfig dbconfig;
-  if(!dbconfig.ReadConfig(&f)) {
-    ProgramError->Message("Error reading database config");   
-    is_ok = 0;
-    f.Close();
-    return 0;
-  }
-  f.Close();
-
-  char *dup = new char[DBStringLength];
-  memmove(dup, &dbconfig.database_name, DBStringLength);
-  if(dup[0] == 0) {
-    ProgramError->Message("Invalid password hash in database config");   
-    is_ok = 0;
-    delete[] dup;
-    return 0;
-  }
-
-  int crypt_error;
-  CryptoHeader eh;
-
-  // Get the length of the encrytpted buffer
-  memmove(&eh, dup, sizeof(eh));
-  unsigned cryptLen = eh.crypt_len;
-    
-  // Realign the encrypted buffer
-  memmove(dup, (dup+sizeof(eh)), cryptLen);
-
-  // Decrypt the compressed string
-  crypt_error = AES_Decrypt(dup, &cryptLen, 
-			    (const unsigned char *)progcfg->global_dbparms.crypt_key.m_buf(), 
-			    progcfg->global_dbparms.crypt_key.length());
-  if(crypt_error != AES_NO_ERROR) {
-#ifdef __APP_DEBUG_VERSION__
-    debug_log << "Error decrypting password hash" << "\n" << flush; 
-    debug_log << AES_err_string(crypt_error) << "\n" << flush; 
-#endif
-    delete[] dup;
-    dup = 0;
-    if(crypt_error == AES_ERROR_BAD_SECRET) {
-      if(use_password) {
-	ProgramError->Message("The password you entered is not correct\nCannot open database");
-      }
-      else if(use_key) {
-	ProgramError->Message("The key you used is not vaild\nCannot open database");
-      }
-      else {
-	ProgramError->Message("Cannot open database with the credentials you provided");
-      }
-    }
-    else {
-      sbuf << clear << "Error decrypting password hash " << AES_err_string(crypt_error) << "\nCannot open database";
-      ProgramError->Message(sbuf.c_str());
-    }
-    is_ok = 0;
-    password_input->Clear();
-    return 0;
-  }
-
-  delete[] dup;
-  dup = 0;
   is_ok = 1;
-
   return 1;
 }
 

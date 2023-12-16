@@ -367,7 +367,7 @@ int NewDatabasePanel::TestInput()
     }
   
     if(rsa_username_input->GetValue().IsNull()) {
-      ProgramError->Message("You use provide a user name for the public RSA key");   
+      ProgramError->Message("You must provide a user name for the public RSA key");   
       is_ok = 0;
       return 0;
     }
@@ -388,14 +388,14 @@ int NewDatabasePanel::TestInput()
   if(sc_use_checkbox->IsChecked()) {
     use_smartcard = 1;
     if(sc_keyid_input->GetValue().IsNull()) {
-      ProgramError->Message("You use provide a cert ID for the smart card");   
+      ProgramError->Message("You must use provide a cert ID for the smart card");   
       is_ok = 0;
       return 0;
     }
     
       
     if(sc_username_input->GetValue().IsNull()) {
-      ProgramError->Message("You use provide a user name for the smart card cert");   
+      ProgramError->Message("You must provide a user name for the smart card");   
       is_ok = 0;
       return 0;
     }

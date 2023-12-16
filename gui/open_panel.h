@@ -91,6 +91,9 @@ public: // Memeber functions
   void ShowPanel(gxString &fname);
   int TestInput();
   int RSAOpenDatabase();
+  int SmartCardOpenDatabase();
+  int AESKeyOpenDatabase();
+  int PasswordOpenDatabase();
   int IsOK() { return is_ok == 1; }
 
 public: // Control objects
