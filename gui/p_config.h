@@ -136,6 +136,12 @@ struct wxappfwProgramConfig {
 
   // Colors and fonts
   wxColour custom_colors[16];
+
+  // Smart card settings
+  gxString SC_enginePath;
+  gxString SC_modulePath;
+  gxString SC_engine_ID;
+  gxString SC_cert_id;
 };
 
 #endif  // __P_CONFIG_HPP__ 

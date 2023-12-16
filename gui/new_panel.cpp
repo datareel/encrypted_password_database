@@ -36,9 +36,14 @@ BEGIN_EVENT_TABLE(NewDatabasePanel, wxDialog)
   EVT_CLOSE(NewDatabasePanel::OnCloseWindow)
   EVT_BUTTON (ID_NEWDATABASE_OK, NewDatabasePanel::OnOK)
   EVT_BUTTON (ID_NEWDATABASE_CANCEL, NewDatabasePanel::OnCancel)
-  EVT_BUTTON (ID_NEWDATABASE_BROWSE, NewDatabasePanel::OnBrowse)
-  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL1, NewDatabasePanel::OnTextControl1Enter)
-  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL2, NewDatabasePanel::OnTextControl2Enter)
+  EVT_BUTTON (ID_NEWDATABASE_KEY_BROWSE, NewDatabasePanel::OnKeyFileBrowse)
+  EVT_BUTTON (ID_NEWDATABASE_RSA_KEY_BROWSE, NewDatabasePanel::OnRSAKeyFileBrowse)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_CONFIRM_PASSWORD, NewDatabasePanel::OnTextControlPasswordEnter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_KEY_FILE, NewDatabasePanel::OnTextControlKeyFileEnter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME, NewDatabasePanel::OnTextControlRSAKeyFileEnter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_RSA_KEY, NewDatabasePanel::OnTextControlRSAUsernameEnter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME, NewDatabasePanel::OnTextControlSCUsernameEnter)
+  EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID, NewDatabasePanel::OnTextControlSCCertIDEnter)
 END_EVENT_TABLE()
 
 NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
@@ -55,6 +60,32 @@ NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
   is_ok = 0;
   password_label = confirm_password_label = 0;
   password_input = confirm_password_input = 0;
+  password_box = 0;
+  key_box = 0;
+  key_label = 0;
+  key_input = 0;
+  browse = 0;
+  rsa_key_box = 0;
+  rsa_username_label = 0;
+  rsa_username_input = 0;
+  rsa_key_label = 0;
+  rsa_key_input = 0;
+  rsa_browse = 0;
+  sc_box = 0;
+  sc_username_label = 0;
+  sc_username_input = 0;
+  sc_keyid_label = 0;
+  sc_keyid_input = 0;
+  sc_use_checkbox = 0;
+
+  use_key = 0;
+  use_password = 0;
+  use_rsa_key = 0;
+  use_smartcard = 0;
+  use_cert_file = 0;
+  
+  memset(public_key, 0, sizeof(public_key));
+  memset(random_key, 0, sizeof(random_key));
 }
   
 NewDatabasePanel::~NewDatabasePanel()
@@ -72,6 +103,21 @@ NewDatabasePanel::~NewDatabasePanel()
   if(key_label) delete key_label;
   if(key_input) delete key_input;
   if(browse) delete browse;
+  if(rsa_key_box) delete rsa_key_box;
+  if(rsa_username_label) delete rsa_username_label;
+  if(rsa_username_input) delete rsa_username_input;
+  if(rsa_key_label) delete rsa_key_label;
+  if(rsa_key_input) delete rsa_key_input;
+  if(rsa_browse) delete rsa_browse;
+  if(sc_box) delete sc_box;
+  if(sc_username_label) delete sc_username_label;
+  if(sc_username_input) delete sc_username_input;
+  if(sc_keyid_label) delete sc_keyid_label;
+  if(sc_keyid_input) delete sc_keyid_input;
+  if(sc_use_checkbox) delete sc_use_checkbox;
+
+  memset(public_key, 0, sizeof(public_key));
+  memset(random_key, 0, sizeof(random_key));
 }
 
 void NewDatabasePanel::ShowPanel()
@@ -84,73 +130,72 @@ void NewDatabasePanel::ShowPanel()
   ShowModal();
 }
 
-void NewDatabasePanel::OnTextControl1Enter(wxCommandEvent &event)
+void NewDatabasePanel::OnKeyFileBrowse(wxCommandEvent &event)
+{
+  wxFileDialog dialog(this, "Open symmetric encryption key file:",
+		      progcfg->docDir.c_str(), "",
+		      "*.key",
+		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
+  
+  if(dialog.ShowModal() == wxID_OK) {
+    key_input->Clear();
+    key_input->AppendText(dialog.GetPath());
+  }
+}
+
+void NewDatabasePanel::OnRSAKeyFileBrowse(wxCommandEvent &event)
+{
+  wxFileDialog dialog(this, "Open RSA public key file:",
+		      progcfg->docDir.c_str(), "",
+		      "*.pem",
+		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
+  
+  if(dialog.ShowModal() == wxID_OK) {
+    rsa_key_input->Clear();
+    rsa_key_input->AppendText(dialog.GetPath());
+  }
+}
+
+void NewDatabasePanel::OnTextControlPasswordEnter(wxCommandEvent &event)
 {
   if(!TestInput()) return;  
   Show(FALSE);
 }
 
-void NewDatabasePanel::OnTextControl2Enter(wxCommandEvent &event)
+void NewDatabasePanel::OnTextControlKeyFileEnter(wxCommandEvent &event)
 {
   if(!TestInput()) return;  
   Show(FALSE);
 }
 
-int NewDatabasePanel::TestInput()
+void NewDatabasePanel::OnTextControlRSAKeyFileEnter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
+void NewDatabasePanel::OnTextControlRSAUsernameEnter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
+void NewDatabasePanel::OnTextControlSCUsernameEnter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
+void NewDatabasePanel::OnTextControlSCCertIDEnter(wxCommandEvent &event)
+{
+  if(!TestInput()) return;  
+  Show(FALSE);
+}
+
+int NewDatabasePanel::CheckPassword()
 {
   gxString sbuf;
-
-#ifdef __APP_DEBUG_VERSION__
-    debug_log << "NewDatabasePanel::TestInput() call" << "\n" << flush;
-#endif
-
-  if(name_input->GetValue().IsNull()) {
-    ProgramError->Message("You must enter a name for this database");   
-    is_ok = 0;
-    return 0;
-  }
-
-  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
-    password_input->Clear();
-    key_input->Clear();
-    ProgramError->Message("You must use a password or a key file to create this database");   
-    is_ok = 0;
-    return 0;
-  }
-
-
-  if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()) {
-    password_input->Clear();
-    key_input->Clear();
-    ProgramError->Message("You can only use use a password or a key file to create this database");   
-    is_ok = 0;
-    return 0;
-  }
-
-  if(!key_input->GetValue().IsNull()) {
-    if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
-      ProgramError->Message("The key file does not exist or cannot be read");   
-      is_ok = 0;
-      return 0;
-    }
-
-    gxString ebuf;
-    MemoryBuffer key;
-    if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
-      ProgramError->Message(ebuf.c_str());   
-      is_ok = 0;
-      return 0;
-    }
-
-    progcfg->global_dbparms.crypt_key = key;
   
-    password_input->Clear();
-    confirm_password_input->Clear();
-    key_input->Clear();
-    is_ok = 1;
-    return 1;
-  }
-
   if(password_input->GetValue().IsNull()) {
     password_input->Clear();
     ProgramError->Message("You must enter a password for this database");   
@@ -256,13 +301,161 @@ int NewDatabasePanel::TestInput()
     }
   }
 
+  // Set the password for this database
   progcfg->global_dbparms.crypt_key.Clear(1);
   progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
   
   password_input->Clear();
   confirm_password_input->Clear();
   pass_buf.Clear(1);
+  return 1;
+}
 
+
+int NewDatabasePanel::TestInput()
+{
+  use_key = 0;
+  use_password = 0;
+  use_rsa_key = 0;
+  use_smartcard = 0;
+
+  gxString sbuf;
+  int rv;
+  
+#ifdef __APP_DEBUG_VERSION__
+    debug_log << "NewDatabasePanel::TestInput() call" << "\n" << flush;
+#endif
+
+  if(name_input->GetValue().IsNull()) {
+    ProgramError->Message("You must enter a name for this database");   
+    is_ok = 0;
+    return 0;
+  }
+  
+  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
+     && rsa_key_input->GetValue().IsNull() && !sc_use_checkbox->IsChecked()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You must use a password, key, or smart card to create this database");
+    is_ok = 0;
+    return 0;
+  }
+
+  if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You cannot both password and symmetric key to create this database");   
+    is_ok = 0;
+    return 0;
+  }
+
+  if(!rsa_key_input->GetValue().IsNull()) {
+    use_rsa_key = 1;
+    
+    if(!futils_exists(rsa_key_input->GetValue().c_str()) || !futils_isfile(rsa_key_input->GetValue().c_str())) {
+      ProgramError->Message("The public RSA key file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+   
+    rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), public_key, sizeof(public_key), &public_key_len);
+    if(rv != RSA_NO_ERROR) {
+      sbuf << clear << "Error reading public key file " << RSA_err_string(rv);
+      ProgramError->Message(sbuf.c_str());
+      is_ok = 0;
+      return 0;
+    }
+  
+    if(rsa_username_input->GetValue().IsNull()) {
+      ProgramError->Message("You use provide a user name for the public RSA key");   
+      is_ok = 0;
+      return 0;
+    }
+    
+    rsa_key_username = (const char *)rsa_username_input->GetValue();
+
+    if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
+      // Use a random key if no password or symmectric are provided with RSA
+      AES_fillrand(random_key, sizeof(random_key));
+
+      // Set the random key for this database
+      progcfg->global_dbparms.crypt_key.Clear(1);
+      progcfg->global_dbparms.crypt_key.Cat(random_key, sizeof(random_key));
+
+    }
+  }
+
+  if(sc_use_checkbox->IsChecked()) {
+    use_smartcard = 1;
+    if(sc_keyid_input->GetValue().IsNull()) {
+      ProgramError->Message("You use provide a cert ID for the smart card");   
+      is_ok = 0;
+      return 0;
+    }
+    
+      
+    if(sc_username_input->GetValue().IsNull()) {
+      ProgramError->Message("You use provide a user name for the smart card cert");   
+      is_ok = 0;
+      return 0;
+    }
+
+    smartcard_username = (const char *)sc_username_input->GetValue();
+    sc.SetEnginePath(progcfg->SC_enginePath.c_str());
+    sc.SetModulePath(progcfg->SC_modulePath.c_str()); 
+    sc.SetEngineID(progcfg->SC_engine_ID.c_str());
+    sbuf = (const char *)sc_keyid_input->GetValue();
+    sc.SetCertID(sbuf.c_str());      
+    use_cert_file = 0;
+    
+    if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()) {
+      // Use a random key if no password or symmectric are provided with RSA
+      AES_fillrand(random_key, sizeof(random_key));
+      
+      // Set the random key for this database
+      progcfg->global_dbparms.crypt_key.Clear(1);
+      progcfg->global_dbparms.crypt_key.Cat(random_key, sizeof(random_key));
+    }
+    
+  }
+
+  if(!key_input->GetValue().IsNull()) {
+    use_key = 1;
+    
+    if(!futils_exists(key_input->GetValue().c_str()) || !futils_isfile(key_input->GetValue().c_str())) {
+      ProgramError->Message("The key file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+    
+    gxString ebuf;
+    MemoryBuffer key;
+    if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
+      ProgramError->Message(ebuf.c_str());   
+      is_ok = 0;
+      return 0;
+    }
+
+    // set the key
+    progcfg->global_dbparms.crypt_key = key;
+  
+    password_input->Clear();
+    confirm_password_input->Clear();
+    key_input->Clear();
+    is_ok = 1;
+    return 1;
+  }
+
+  if(!password_input->GetValue().IsNull()) {
+    use_password = 1;
+    if(!CheckPassword()) {
+      is_ok = 0;
+      return 0;
+      
+    }
+  }
+
+  
   is_ok = 1;
 
 #ifdef __APP_DEBUG_VERSION__
@@ -285,19 +478,6 @@ void NewDatabasePanel::OnCancel(wxCommandEvent &WXUNUSED(event))
   Show(FALSE);
 }
 
-void NewDatabasePanel::OnBrowse(wxCommandEvent &WXUNUSED(event))
-{
-  wxFileDialog dialog(this, "Open symmetric encryption key file:",
-		      progcfg->docDir.c_str(), "",
-		      "*.key",
-		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
-  
-  if(dialog.ShowModal() == wxID_OK) {
-    key_input->Clear();
-    key_input->AppendText(dialog.GetPath());
-  }
-}
-
 void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 // Define the behaviour for the dialog closing when the user has 
 // tried to close a dialog box using the window manager (X) or 
@@ -309,8 +489,8 @@ void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 
 NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=350; int height=550;
-  int button_ypos = 450;
+  int xpos=50; int ypos=50; int width=350; int height=1000;
+  int button_ypos = 900;
 
   NewDatabasePanel *panel = new NewDatabasePanel(parent,
 						 NEWDATABASE_PANEL_ID,
@@ -320,50 +500,44 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 						 (char *)"Create New Database");
   
   if(!panel) return 0;
-  panel->name_label = new wxStaticText(panel, -1,
-				       "Database name",
-				       wxPoint(11, 13));
+  panel->name_label = new wxStaticText(panel, -1, "Name for New Database", wxPoint(11, 13));
+  panel->name_input = new wxTextCtrl(panel, -1, "", wxPoint(11, 37), wxSize(250,25));
   
-  panel->name_input = new wxTextCtrl(panel, -1,
-				     "",
-				     wxPoint(11, 37),
-				     wxSize(250,25));
+  panel->password_box = new wxStaticBox(panel, -1, "Create Using Password", wxPoint(9, 93), wxSize(270,150));
+  panel->password_label = new wxStaticText(panel, -1, "Password", wxPoint(15, 115));
+  panel->password_input = new wxTextCtrl(panel, -1, "", wxPoint(15, 141), wxSize(250,25), wxTE_PASSWORD);
+  panel->confirm_password_label = new wxStaticText(panel, -1, "Confirm Password", wxPoint(15, 179));
+  panel->confirm_password_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_CONFIRM_PASSWORD,
+						 "", wxPoint(15, 205), wxSize(250, 25), wxTE_PROCESS_ENTER|wxTE_PASSWORD);
+  
+  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(9, 270), wxSize(270,135));
+  panel->key_label = new wxStaticText(panel, -1, "File Name", wxPoint(15, 296));
+  panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_KEY_FILE,
+				    "", wxPoint(15, 322), wxSize(250, 25));
+  panel->browse =  new wxButton(panel, ID_NEWDATABASE_KEY_BROWSE, "Browse",
+				wxPoint(15, 360), wxSize(75, 25));
+  
+  panel->rsa_key_box = new wxStaticBox(panel, -1, "Use Public RSA Key", wxPoint(9, 440), wxSize(270,200));
+  panel->rsa_username_label = new wxStaticText(panel, -1, "RSA Key Username", wxPoint(15, 470));
+  panel->rsa_username_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME, 
+					     progcfg->USERNAME.c_str(), wxPoint(15, 492), wxSize(250, 25));
+  panel->rsa_key_label = new wxStaticText(panel, -1, "Public Key File Name", wxPoint(15, 528));
+  panel->rsa_key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_RSA_KEY, 
+					"", wxPoint(15, 554), wxSize(250, 25));
+  panel->rsa_browse = new wxButton(panel, ID_NEWDATABASE_RSA_KEY_BROWSE, "Browse",
+				   wxPoint(15, 600), wxSize(75, 25));
 
-  panel->password_box = new wxStaticBox(panel, -1, "Use Password", wxPoint(9, 73), wxSize(270,145));
+  panel->sc_box = new wxStaticBox(panel, -1, "Smart Card", wxPoint(9, 672), wxSize(270,180));
+  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 698));
+  panel->sc_username_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
+					    progcfg->USERNAME.c_str(), wxPoint(15, 724), wxSize(250,25));
   
-  panel->password_label = new wxStaticText(panel, -1,
-					   "Password",
-					   wxPoint(15, 95));
+  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 755));
+  panel->sc_keyid_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID, 
+					 "01", wxPoint(15, 776), wxSize(250, 25));
+  panel->sc_use_checkbox = new wxCheckBox(panel, -1, "Use Smart Card", wxPoint(15, 812), wxSize(250, 25));
+  panel->sc_use_checkbox->SetValue(false);
   
-  panel->password_input = new wxTextCtrl(panel, -1,
-					 "",
-					 wxPoint(15, 121),
-					 wxSize(250,25),
-					 wxTE_PASSWORD);
-  
-  panel->confirm_password_label = new wxStaticText(panel, -1,
-						   "Confirm Password",
-						   wxPoint(15, 149));
-  
-  panel->confirm_password_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL1,
-						 "",
-						 wxPoint(15, 175),
-						 wxSize(250, 25),
-						 wxTE_PROCESS_ENTER|wxTE_PASSWORD);
-
-  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(9, 240), wxSize(270,135));
-  panel->key_label = new wxStaticText(panel, -1,
-				      "File Name",
-				      wxPoint(15, 266));
-  
-  panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL2,
-				    "",
-				    wxPoint(15, 292),
-				    wxSize(250, 25)),
-
-  panel->browse = panel->cancel_btn = new wxButton(panel, ID_NEWDATABASE_BROWSE, "Browse",
-						   wxPoint(15, 330),
-						   wxSize(75, 25));
   panel->ok_btn = new wxButton(panel, ID_NEWDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),
 			       wxSize(46, 25));

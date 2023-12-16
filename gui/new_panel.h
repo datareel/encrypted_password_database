@@ -47,9 +47,14 @@ Application panel
 enum { // Page setup panel IDs 
   ID_NEWDATABASE_OK = 731,
   ID_NEWDATABASE_CANCEL,
-  ID_NEWDATABASE_TEXTCONTROL1,
-  ID_NEWDATABASE_TEXTCONTROL2,
-  ID_NEWDATABASE_BROWSE
+  ID_NEWDATABASE_KEY_BROWSE,
+  ID_NEWDATABASE_RSA_KEY_BROWSE,
+  ID_NEWDATABASE_TEXTCONTROL_CONFIRM_PASSWORD,
+  ID_NEWDATABASE_TEXTCONTROL_KEY_FILE,
+  ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME,
+  ID_NEWDATABASE_TEXTCONTROL_RSA_KEY,
+  ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
+  ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID
 };
 // --------------------------------------------------------------
 
@@ -69,11 +74,17 @@ public: // Event handlers
   // Button event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
-  void OnBrowse(wxCommandEvent &event);
-  void OnTextControl1Enter(wxCommandEvent &event);
-  void OnTextControl2Enter(wxCommandEvent &event);
-  
+  void OnKeyFileBrowse(wxCommandEvent &event);
+  void OnRSAKeyFileBrowse(wxCommandEvent &event);
+  void OnTextControlPasswordEnter(wxCommandEvent &event);
+  void OnTextControlKeyFileEnter(wxCommandEvent &event);
+  void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
+  void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
+  void OnTextControlSCUsernameEnter(wxCommandEvent &event);
+  void OnTextControlSCCertIDEnter(wxCommandEvent &event);
+
 public: // Memeber functions
+  int CheckPassword();
   void ShowPanel();
   int TestInput();
   int IsOK() { return is_ok == 1; }
@@ -90,13 +101,40 @@ public: // Control objects
   wxStaticText *key_label;
   wxTextCtrl *key_input;
   wxButton *browse;
-
+  wxStaticBox *rsa_key_box;
+  wxStaticText *rsa_username_label;
+  wxTextCtrl *rsa_username_input;
+  wxStaticText *rsa_key_label;
+  wxTextCtrl *rsa_key_input;
+  wxButton *rsa_browse;
+  wxStaticBox *sc_box;
+  wxStaticText *sc_username_label;
+  wxTextCtrl *sc_username_input;
+  wxStaticText *sc_keyid_label;
+  wxTextCtrl *sc_keyid_input;
+  wxCheckBox *sc_use_checkbox;
+  
   wxButton *ok_btn;
   wxButton *cancel_btn;
   
 private: // Data members
   int is_ok;
 
+public:
+  int use_key;
+  int use_password;
+  int use_rsa_key;
+  int use_smartcard;
+  gxString rsa_key_username;
+  char public_key[RSA_max_keybuf_len];
+  unsigned public_key_len = 0;
+  SmartCardOB sc;
+  gxString smartcard_username;
+  int use_cert_file;
+  
+  // Use a random key if no password or symmectric are provided with RSA or smartcard
+  unsigned char random_key[128]; 
+  
 private:
   DECLARE_EVENT_TABLE()
 };

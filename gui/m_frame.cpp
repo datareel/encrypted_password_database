@@ -704,6 +704,9 @@ void MainFrame::OnNew(wxCommandEvent& event)
     grid_frame->InitGrid(); // Make a blank grid with no entries
 
     // Open the database associated with this child frame
+    int rv;
+    gxString sbuf;
+    DatabaseUserAuth db_auth;
     CryptDBDocument *prev_frame = progcfg->active_child_frame; 
     progcfg->active_child_frame = subframe;
 
@@ -726,6 +729,36 @@ void MainFrame::OnNew(wxCommandEvent& event)
       return;
     }
 
+    if(new_db_panel->use_rsa_key) {
+      db_auth.f = subframe->DBParms()->pod->OpenDataFile();
+      rv = db_auth.AddRSAKeyToStaticArea(subframe->DBParms()->crypt_key,
+					 new_db_panel->public_key, new_db_panel->public_key_len, new_db_panel->rsa_key_username);
+      if(rv != 0) {
+	sbuf << clear << "ERROR: Cannot add public RSA key " << db_auth.err.c_str();
+	ProgramError->Message(sbuf.c_str());
+	progcfg->active_child_frame = prev_frame;
+	subframe->Close();
+	::wxSetWorkingDirectory(work_dir.c_str());
+	// TODO: remove the database file and index file
+	return;
+      }
+    }
+
+    if(new_db_panel->use_smartcard) {
+      db_auth.f = subframe->DBParms()->pod->OpenDataFile();
+       rv = db_auth.AddSmartCardCertToStaticArea(&new_db_panel->sc, new_db_panel->use_cert_file,
+						 subframe->DBParms()->crypt_key, new_db_panel->smartcard_username);
+       if(rv != 0) {
+	 sbuf << clear << "ERROR: Cannot add smart card cert " << db_auth.err.c_str();
+	 ProgramError->Message(sbuf.c_str());
+	 progcfg->active_child_frame = prev_frame;
+	 subframe->Close();
+	 ::wxSetWorkingDirectory(work_dir.c_str());
+	 // TODO: remove the database file and index file
+	 return;
+       }
+    }
+    
     subframe->Show(TRUE);
   }
 

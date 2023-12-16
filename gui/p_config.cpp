@@ -155,6 +155,11 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 			 (const unsigned char)(i*16));
   }
 
+  // Smart card settings
+  SC_enginePath = SC_get_default_enginePath(); 
+  SC_modulePath = SC_get_default_modulePath();
+  SC_engine_ID = SC_get_default_engine_ID();
+  SC_cert_id = SC_get_default_cert_id();
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //

@@ -59,6 +59,27 @@ OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
   is_ok = 0;
   password_label = 0;
   password_input = 0;
+  password_box = 0;
+  key_box = 0;
+  key_label = 0;
+  key_input = 0;
+  browse = 0;
+  rsa_key_box = 0;
+  rsa_passphrase_label = 0;
+  rsa_passphrase_input = 0;
+  rsa_username_label = 0;
+  rsa_username_input = 0;
+  rsa_key_label = 0;
+  rsa_key_input = 0;
+  rsa_browse = 0;
+  sc_box = 0;
+  sc_pin_label = 0;
+  sc_username_label = 0;
+  sc_username_input = 0;
+  sc_pin_input = 0;
+  sc_keyid_label = 0;
+  sc_keyid_input = 0;
+
   use_key = 0;
   use_password = 0;
   use_rsa_key = 0;
@@ -76,6 +97,21 @@ OpenDatabasePanel::~OpenDatabasePanel()
   if(key_label) delete key_label;
   if(key_input) delete key_input;
   if(browse) delete browse;
+  if(rsa_key_box) delete rsa_key_box;
+  if(rsa_passphrase_label) delete rsa_passphrase_label;
+  if(rsa_passphrase_input) delete rsa_passphrase_input;
+  if(rsa_username_label) delete rsa_username_label;
+  if(rsa_username_input) delete rsa_username_input;
+  if(rsa_key_label) delete rsa_key_label;
+  if(rsa_key_input) delete rsa_key_input;
+  if(rsa_browse) delete rsa_browse;
+  if(sc_box) delete sc_box;
+  if(sc_pin_label) delete sc_pin_label;
+  if(sc_username_label) delete sc_username_label;
+  if(sc_username_input) delete sc_username_input;
+  if(sc_pin_input) delete sc_pin_input;
+  if(sc_keyid_label) delete sc_keyid_label;
+  if(sc_keyid_input) delete sc_keyid_input;
 }
 
 void OpenDatabasePanel::ShowPanel(gxString &fname)
@@ -87,7 +123,6 @@ void OpenDatabasePanel::ShowPanel(gxString &fname)
 
   ShowModal();
 }
-
 
 int OpenDatabasePanel::RSAOpenDatabase()
 {
@@ -114,7 +149,7 @@ int OpenDatabasePanel::RSAOpenDatabase()
   }
   
   if(rsa_username_input->GetValue().IsNull()) {
-    ProgramError->Message("You use provide a user name for the private RSA key");   
+    ProgramError->Message("You must provide a user name for the private RSA key");   
     is_ok = 0;
     return 0;
   }
@@ -167,13 +202,14 @@ int OpenDatabasePanel::TestInput()
   use_password = 0;
   use_rsa_key = 0;
   use_smartcard = 0;
+
   gxString sbuf;
   
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) {
     password_input->Clear();
     key_input->Clear();
-    ProgramError->Message("You must use a password, key, or smart card to open this database");   
+    ProgramError->Message("You must use a password, key, or smart card to open this database");
     is_ok = 0;
     return 0;
   }
