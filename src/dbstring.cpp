@@ -57,10 +57,10 @@ void DBString::Clear()
   sptr[0] = 0;
 }
 
-char *DBString::GetString() const
+char *DBString::GetString(MemoryBuffer &key, int &error_level) const
 // Returns a null terminated C string or a null pointer.
 {
-  DBStringConfig::AES_error_level = 0;
+  error_level = 0;
   
   if(sptr[0] == 0) return DBStringNULLPtr::DBStringNUllStr;
 
@@ -68,7 +68,6 @@ char *DBString::GetString() const
   // a DBString::Copy() call.
   char *dup = new char[DBStringLength];
   memmove(dup, sptr, DBStringLength);
-  
 
   int crypt_error;
   CryptoHeader eh;
@@ -81,11 +80,9 @@ char *DBString::GetString() const
   memmove(dup, (dup+sizeof(eh)), cryptLen);
   
   // Decrypt the compressed string
-  crypt_error = AES_Decrypt(dup, &cryptLen, 
-			    (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
-			    DBStringConfig::crypt_key.length());
+  crypt_error = AES_Decrypt(dup, &cryptLen, (const unsigned char*)key.m_buf(), DBStringConfig::crypt_key.length());
   if(crypt_error != AES_NO_ERROR) {
-    DBStringConfig::AES_error_level = crypt_error; 
+    error_level = crypt_error; 
     delete[] dup;
     dup = 0;
     return 0;
@@ -116,7 +113,12 @@ char *DBString::GetString() const
   return (char *)dest;
 }
 
-int DBString::SetString(const char *s, unsigned bytes)
+char *DBString::GetString() const
+{
+  return GetString(DBStringConfig::crypt_key, DBStringConfig::AES_error_level);
+}
+
+int DBString::SetString(MemoryBuffer &key, int &error_level, const char *s, unsigned bytes)
 // Set the string value for this object. This function will truncate 
 // the number of bytes requested if the number of bytes exceeds maximum
 // fixed string length. Returns true if successful or false if the 
@@ -131,7 +133,7 @@ int DBString::SetString(const char *s, unsigned bytes)
     return 0; 
   }
 
-  DBStringConfig::AES_error_level = 0;  
+  error_level = 0;  
 
   // Calculate the length of this string if no bytes size is specified
   if(bytes == 0) bytes = strlen(s);
@@ -177,12 +179,10 @@ int DBString::SetString(const char *s, unsigned bytes)
   // Encrypt the string
   unsigned cryptLen = destLen+sizeof(ch);
   int crypt_error;
-  crypt_error = AES_Encrypt((char *)dest, &cryptLen, 
-			    (const unsigned char*)DBStringConfig::crypt_key.m_buf(), 
-			    DBStringConfig::crypt_key.length(), 
-			    DBStringConfig::mode);
+  crypt_error = AES_Encrypt((char *)dest, &cryptLen,
+			    (const unsigned char*)key.m_buf(), key.length(), DBStringConfig::mode);
   if(crypt_error != AES_NO_ERROR) {
-    DBStringConfig::AES_error_level = crypt_error;
+    error_level = crypt_error;
     if(dest) delete[] dest;
     dest = 0;
     return 0;
@@ -202,6 +202,11 @@ int DBString::SetString(const char *s, unsigned bytes)
     AES_fillrand((unsigned char *)(sptr+(cryptLen+sizeof(eh))), bytes_left);
   }
   return truncate == 0;
+}
+
+int DBString::SetString(const char *s, unsigned bytes)
+{
+  return SetString(DBStringConfig::crypt_key, DBStringConfig::AES_error_level, s, bytes);
 }
 
 void DBString::Copy(const DBString &s)

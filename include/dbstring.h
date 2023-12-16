@@ -116,10 +116,8 @@ public:
 public:
   int SetString(const char *s, unsigned bytes = 0);
   char *GetString() const; 
-
-//int SetString(MemoryBuffer &key, int &error_level, const char *s, unsigned bytes = 0);
-//char *GetString(MemoryBuffer &key, int &error_level) const; 
-
+  int SetString(MemoryBuffer &key, int &error_level, const char *s, unsigned bytes = 0);
+  char *GetString(MemoryBuffer &key, int &error_level) const; 
   void Clear();
   void Copy(const DBString &s);
   unsigned length();
