@@ -487,7 +487,7 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
   ::wxYield();
 
-  FAU_t static_data_size = (FAU_t)(DB_AUTH_STATIC_AREA_SIZE *2);
+  FAU_t static_data_size = (FAU_t)(DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE);
 
   // Create or open an existing database using a single index file
   gxDatabaseError err = pod->Open(data_file.c_str(), 

@@ -1746,7 +1746,7 @@ gxDatabaseParms::gxDatabaseParms()
   pod = 0;
   admin_rights = 1;
   
-  static_area = (FAU_t)(DB_AUTH_STATIC_AREA_SIZE * 2);
+  static_area = (FAU_t)(DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE);
   num_trees = InfoHogNumTrees;
   node_order = InfoHogNodeOrder;
   data_file_extension = ".ehd";

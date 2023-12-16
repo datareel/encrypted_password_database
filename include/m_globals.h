@@ -80,9 +80,6 @@ external to the wxWindow library.
 #include "m_compress.h"
 #include "m_dbase.h"
 #include "as2print.h"
-
-const unsigned DB_AUTH_STATIC_AREA_SIZE = 65536;
-
 // --------------------------------------------------------------
 
 // --------------------------------------------------------------
@@ -94,6 +91,9 @@ const unsigned DB_AUTH_STATIC_AREA_SIZE = 65536;
 // --------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------
+const unsigned DB_CONFIG_STATIC_AREA_SIZE = 65536;
+const unsigned DB_AUTH_STATIC_AREA_SIZE = 65536;
+
 // Thread constants
 const int DISPLAY_THREAD_RETRIES = 255;
 const int LOGFILE_THREAD_RETRIES = 255;

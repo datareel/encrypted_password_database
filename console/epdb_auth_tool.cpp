@@ -69,6 +69,11 @@ int main(int argc, char **argv)
 
   fname = argv[1];
 
+  if(!futils_exists(fname.c_str()) || !futils_isfile(fname.c_str())) {
+    cout << "ERROR: Encrypted DB file " << fname << " does not exist or cannot be read";
+    return 1;
+  }
+  
   gxDatabase *f = new gxDatabase;
   if(!f) {
     cout << "ERROR: Cannot create database object" << "\n";
@@ -77,6 +82,8 @@ int main(int argc, char **argv)
 
 
   cout << "Opening database file " << fname.c_str() << "\n";
+
+
   
   err = f->Open(fname.c_str(),  gxDBASE_READWRITE);
   if(err != gxDBASE_NO_ERROR) {
@@ -86,10 +93,41 @@ int main(int argc, char **argv)
   }
 
   gxDatabaseConfig db_config;
-  FAU_t static_data_size = (FAU_t)(db_config.SizeOf() + DB_AUTH_STATIC_AREA_SIZE);  
+  DatabaseUserAuth db_auth;
 
   DatabaseStats(f);
 
+  db_auth.f = f; // Set the file pointer
+
+  cout << "Checking database file for authorized users" << "\n";
+  if(db_auth.LoadStaticDataBlocks() != 0) {
+    cout << "ERROR: " << db_auth.err.c_str() << "\n";
+  }
+
+  cout << "\n";
+  cout << "Authorized users stats" << "\n";
+  cout << "----------------------" << "\n";
+  
+  cout << "Static auth data size: " << db_auth.static_data_size << "\n";
+  cout << "Static auth bytes used: " << db_auth.static_data_bytes_used << "\n";
+  cout << "Number of static blocks: " <<  db_auth.num_static_data_blocks << "\n";
+  
+  gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
+  if(!list_ptr) {
+    cout << "INFO: No authorized RSA or smartcard users found in encrypted DB file" << "\n" << flush; ;
+  }
+  else {
+    cout << "Encrypted file username inventory " << "\n" << flush;
+    gxString access_type = "Unknown";
+    while(list_ptr) {
+      if(list_ptr->data.block_header.block_type == 1) access_type = "RSA key";
+      if(list_ptr->data.block_header.block_type == 2) access_type = "Smart Card";
+      cout << "Username: " << list_ptr->data.username.c_str() << " Access: " << access_type.c_str() << "\n" << flush;
+      list_ptr = list_ptr->next;
+    }
+  }
+
+  
   // TODO: Add inputs need to read the key or password for the DB file
   // DBStringConfig::crypt_key.Clear();
   // DBStringConfig::crypt_key.Cat(sbuf.c_str(), sbuf.length());

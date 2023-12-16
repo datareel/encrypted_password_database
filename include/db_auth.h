@@ -35,6 +35,36 @@ Encrypted database auth functions
 
 #include "m_globals.h"
 
+class DatabaseUserAuth
+{
+public:
+  DatabaseUserAuth();
+    ~DatabaseUserAuth();
+
+public:
+  int LoadStaticDataBlocks();  
+  int UpdateStaticData();
+  int WriteStaticDataArea();
+  int AddRSAKeyToStaticArea(const MemoryBuffer &secret,
+			    char public_key[], unsigned public_key_len,
+			    const gxString &rsa_key_username, char *passphrase = 0);
+  int AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
+				   const MemoryBuffer &secret, const gxString &smartcard_cert_username);
+  int DecryptWithRSAKey(char private_key[], unsigned private_key_len,
+			const gxString &rsa_key_username, char *passphrase = 0);
+  int DecryptWithSmartcard(SmartCardOB *sc, const gxString &smartcard_cert_username);
+  
+public:
+  gxList<StaticDataBlock> static_block_list;
+  int ERROR_LEVEL;
+  gxString err;
+  gxDatabase *f;
+  unsigned char *static_data;
+  unsigned static_data_size;
+  unsigned static_data_bytes_used;
+  unsigned num_static_data_blocks;
+};
+
 #endif // __DB_AUTH_HPP__
 // ----------------------------------------------------------- // 
 // ------------------------------- //

@@ -34,8 +34,9 @@ text files and format data for various print functions.
 #ifndef __GX_ASPRINT_HPP__
 #define __GX_ASPRINT_HPP__
 
-#include "m_globals.h"
 #include "gxdlcode.h"
+
+#include "m_globals.h"
 
 // Constants for print functions
 const int as2PrintCols = 80;      // Columns for portrait printouts
