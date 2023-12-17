@@ -88,80 +88,6 @@ typedef InfoHog<INFOHOG_t> INFOHOG;
 typedef InfoHogKey<INFOHOG_t> INFOHOGKEY; 
 // --------------------------------------------------------------
 
-// Database specific configuration parameters stored with every datafile
-enum gxDatabaseConfigMembers {
-  VERSION_NUMBER = 0,
-  DATABASE_NAME,
-  COLUMN_NAMES,
-  VIEW_LABELS,
-  VIEW_ROW_NUMBERS,
-  COL_SIZES,
-  PRINT_FIELD,
-  CELL_ATTRIB,
-  CELL_ALIGN,
-  CELL_BORDER,
-  CELL_COLOR,
-  CELL_FILL,
-  CELL_TEXT_COLOR,
-  CELL_TEXT_FONT,
-  CELL_TYPE,
-  CELL_PATTERN,
-  CELL_PROTECTION,
-  LABEL_ALIGN,
-  LABEL_BORDER,
-  LABEL_COLOR,
-  LABEL_FILL,
-  LABEL_TEXT_FONT,
-  LABEL_TEXT_COLOR,
-  LABEL_PATTERN,
-  LABEL_PROTECTION,
-  DISPLAY_FIELD,
-  CELL_MISC,
-  LABEL_MISC,
-  AUTO_SIZE,
-  CELL_OVERFLOW,
-  VIEW_GRID_LINES, 
-  GRID_LINE_COLOR,
-  VIEW_SKIP_LINES,
-  SKIP_LINE_COLOR,
-  GRID_BACKGROUND_COLOR,
-  GRID_TEXT_COLOR,
-  GRID_LABEL_BACKGROUND_COLOR,
-  GRID_LABEL_TEXT_COLOR,
-  HYPERLINK_COLOR,
-  GRID_LABEL_FONT,
-  GRID_LABEL_FONT_NAME,
-  GRID_TEXT_FONT,
-  GRID_TEXT_FONT_NAME,
-  HYPERLINK_FONT,
-  HYPERLINK_FONT_NAME,
-  PRINT_DOC_NAME,
-  PRINT_DOC_TIME_AND_DATE,
-  PRINT_GRID_LINES,
-  PRINT_ORIENTATION,
-  PRINT_LEFT_MARGIN_SIZE,
-  PRINT_PAPER_SIZE,
-  PRINT_PAGE_HEADER,
-  PRINT_DOC_CUSTOM_HEADER,
-  PRINT_HEADER_COLOR,
-  PRINT_HEADER_FONT,
-  PRINT_HEADER_FONT_NAME,
-  PRINT_PAGE_FOOTER,
-  PRINT_DOC_CUSTOM_FOOTER,
-  PRINT_FOOTER_COLOR,
-  PRINT_FOOTER_FONT,
-  PRINT_FOOTER_FONT_NAME,
-  PRINT_SKIP_LINES,
-  PRINT_GRID_LABELS,
-  PRINT_ROW_NUMBERS,
-  PRINT_PAGE_SCALE,
-  CELL_TEXT_FONTS,
-  CELL_TEXT_FONT_NAMES,
-  LABEL_TEXT_FONTS,
-  LABEL_TEXT_FONT_NAMES,
-  TEXT_DELIMITER
-};
-
 struct gxDatabaseConfig {
   gxDatabaseConfig() { Clear(); }
   ~gxDatabaseConfig() { }
@@ -173,7 +99,6 @@ struct gxDatabaseConfig {
   int Flush(gxDatabase *f);
   int TestStaticArea(gxDatabase *f);
   int WriteConfig(gxDatabase *f, int flushdb = 1);
-  FAU_t GetFileAddress(gxDatabase *f, gxDatabaseConfigMembers m);
   int WriteDBName(gxDatabase *f, const char *s);
   int WriteColSize(gxDatabase *f, int p, int value);
   int WriteColSize(gxDatabase *f);
@@ -251,13 +176,9 @@ struct gxDatabaseConfig {
 
   // Internal processing functions
 #ifdef __wxWINALL__
-  int get_font(gxINT32 *elements, DBString *font_name, 
-	       wxFont *font);
-  int write_font(gxDatabase *f, 
-		 gxDatabaseConfigMembers element_address,
-		 gxDatabaseConfigMembers name_address,
-		 gxINT32 *elements, DBString *font_name,
-		 wxFont *font);
+  int get_font(gxINT32 *elements, DBString *font_name, wxFont *font);
+  int write_font(gxDatabase *f, gxINT32 *elements, DBString *font_name, wxFont *font);
+  
 #endif
   int is_string(const char *s);
   int is_string(const DBString *s) { return 1; } // DBStrings are encrypted so we always return true

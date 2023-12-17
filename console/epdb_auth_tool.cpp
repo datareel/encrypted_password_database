@@ -204,11 +204,11 @@ int main(int argc, char **argv)
   rv = db_auth.AddSmartCardCertToStaticArea(&sc, use_cert_file, key, USERNAME);
   if(rv != 0) {
     cout << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
-    return 1;
+    //    return 1;
   }
   
 
-  // PrintDBConfig(db_config);
+  PrintDBConfig(db_config);
     
   return ERROR_LEVEL;
 }

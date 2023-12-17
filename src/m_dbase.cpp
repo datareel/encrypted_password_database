@@ -62,289 +62,6 @@ int gxDatabaseConfig::ReadConfig(gxDatabase *f)
   return 1;
 }
 
-FAU_t gxDatabaseConfig::GetFileAddress(gxDatabase *f, gxDatabaseConfigMembers m)
-{
-  if(!f) return -1;
-
-  FAU_t curr_address = f->FileHeaderSize(); 
-
-  if(m == VERSION_NUMBER) {
-    return curr_address;
-  }
-  if(m == DATABASE_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(database_name);
-  if(m == COLUMN_NAMES) {
-    return curr_address;
-  }
-  curr_address += sizeof(column_names);
-  if(m == VIEW_LABELS) {
-    return curr_address;
-  }
-  curr_address += sizeof(view_labels);
-  if(m == VIEW_ROW_NUMBERS) {
-    return curr_address;
-  }
-  curr_address += sizeof(view_row_numbers);
-  if(m == COL_SIZES) {
-    return curr_address;
-  }
-  curr_address += sizeof(col_sizes);
-  if(m == PRINT_FIELD) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_field);
-  if(m == CELL_ATTRIB) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_attrib);
-  if(m == CELL_ALIGN) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_align);
-  if(m == CELL_BORDER) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_border);
-  if(m == CELL_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_color);
-  if(m == CELL_FILL) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_fill);
-  if(m == CELL_TEXT_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_text_color);
-  if(m == CELL_TEXT_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_text_font);
-  if(m == CELL_TYPE) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_type);
-  if(m == CELL_PATTERN) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_pattern);
-  if(m == CELL_PROTECTION) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_protection);
-  if(m == LABEL_ALIGN) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_align);
-  if(m == LABEL_BORDER) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_border);
-  if(m == LABEL_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_color);
-  if(m == LABEL_FILL) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_fill);
-  if(m == LABEL_TEXT_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_text_font);
-  if(m == LABEL_TEXT_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_text_color);
-  if(m == LABEL_PATTERN) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_pattern);
-  if(m == LABEL_PROTECTION) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_protection);
-  if(m == DISPLAY_FIELD) {
-    return curr_address;
-  }
-  curr_address += sizeof(display_field);
-  if(m == CELL_MISC) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_misc);
-  if(m == LABEL_MISC) {
-    return curr_address;
-  }
-  curr_address += sizeof(auto_size);
-  if(m == CELL_OVERFLOW) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_overflow);
-  if(m == VIEW_GRID_LINES) {
-    return curr_address;
-  }
-  curr_address += sizeof(view_grid_lines);
-  if(m == GRID_LINE_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_line_color);
-  if(m == VIEW_SKIP_LINES) {
-    return curr_address;
-  }
-  curr_address += sizeof(view_skip_lines);
-  if(m == SKIP_LINE_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(skip_line_color);
-  if(m == GRID_BACKGROUND_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_background_color);
-  if(m == GRID_TEXT_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_text_color);
-  if(m == GRID_LABEL_BACKGROUND_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_label_background_color);
-  if(m == GRID_LABEL_TEXT_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_label_text_color);
-  if(m == HYPERLINK_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(hyperlink_color);
-  if(m == GRID_LABEL_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_label_font);
-  if(m == GRID_LABEL_FONT_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_label_font_name);
-  if(m == GRID_TEXT_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_text_font);
-  if(m == GRID_TEXT_FONT_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(grid_text_font_name);
-  if(m == HYPERLINK_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(hyperlink_font);
-  if(m == HYPERLINK_FONT_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(hyperlink_font_name);
-  if(m == PRINT_DOC_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_doc_name);
-  if(m == PRINT_DOC_TIME_AND_DATE) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_doc_time_and_date);
-  if(m == PRINT_GRID_LINES) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_grid_lines);
-  if(m == PRINT_ORIENTATION) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_orientation);
-  if(m == PRINT_LEFT_MARGIN_SIZE) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_left_margin_size);
-  if(m == PRINT_PAPER_SIZE) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_paper_size);
-  if(m == PRINT_PAGE_HEADER) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_page_header);
-  if(m == PRINT_DOC_CUSTOM_HEADER) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_doc_custom_header);
-  if(m == PRINT_HEADER_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_header_color);
-  if(m == PRINT_HEADER_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_header_font);
-  if(m == PRINT_HEADER_FONT_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_header_font_name);
-  if(m == PRINT_PAGE_FOOTER) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_page_footer);
-  if(m == PRINT_DOC_CUSTOM_FOOTER) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_doc_custom_footer);
-  if(m == PRINT_FOOTER_COLOR) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_footer_color);
-  if(m == PRINT_FOOTER_FONT) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_footer_font);
-  if(m == PRINT_FOOTER_FONT_NAME) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_footer_font_name);
-  if(m == PRINT_SKIP_LINES) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_skip_lines);
-  if(m == PRINT_GRID_LABELS) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_grid_labels);
-  if(m == PRINT_ROW_NUMBERS) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_row_numbers);
-  if(m == PRINT_PAGE_SCALE) {
-    return curr_address;
-  }
-  curr_address += sizeof(print_page_scale);
-  if(m == CELL_TEXT_FONTS) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_text_fonts);
-  if(m == CELL_TEXT_FONT_NAMES) {
-    return curr_address;
-  }
-  curr_address += sizeof(cell_text_font_names);
-  if(m == LABEL_TEXT_FONTS) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_text_fonts);
-  if(m == LABEL_TEXT_FONT_NAMES) {
-    return curr_address;
-  }
-  curr_address += sizeof(label_text_font_names);
-  if(m == TEXT_DELIMITER) {
-    return curr_address;
-  }
-  return -1;
-}
-
 long gxDatabaseConfig::Version()
 // Return the current version number
 {
@@ -555,7 +272,7 @@ void gxDatabaseConfig::Clear()
   for(i = 0; i < (unsigned)NumDataMembers; i++) label_misc[i] = (gxINT32)0;
 
   // Extended grid functions  
-  auto_size = 1;
+  auto_size = 0;
   cell_overflow = 1;
   view_grid_lines = 1; 
   grid_line_color = (gxINT32)0;
@@ -610,36 +327,25 @@ void gxDatabaseConfig::Clear()
 
 int gxDatabaseConfig::WriteTextDelimiter(gxDatabase *f, char dchar)
 {
-  FAU_t address = GetFileAddress(f, TEXT_DELIMITER);
-  if(address < (FAU_t)0) return 0;
   text_delimiter[0] = dchar;
   text_delimiter[1] = 0;
   text_delimiter[2] = 0;
   text_delimiter[3] = 0;
 
-  if(f->Write(&text_delimiter, sizeof(text_delimiter), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 #ifdef __wxWINALL__
 int gxDatabaseConfig::WriteGridLineColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, GRID_LINE_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&grid_line_color, color_buf, 4);
-  if(f->Write(&grid_line_color, sizeof(grid_line_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetGridLineColor(wxColour *color)
@@ -653,154 +359,66 @@ int gxDatabaseConfig::GetGridLineColor(wxColour *color)
 
 int gxDatabaseConfig::WriteViewLabels(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, VIEW_LABELS);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&view_labels, sizeof(view_labels), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteViewRowNumbers(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, VIEW_ROW_NUMBERS);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&view_row_numbers, sizeof(view_row_numbers), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteViewGridLines(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, VIEW_GRID_LINES);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&view_grid_lines, sizeof(view_grid_lines), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteAutoSize(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, AUTO_SIZE);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&auto_size, sizeof(auto_size), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintField(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_FIELD);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_field, sizeof(print_field), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteDisplayField(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, DISPLAY_FIELD);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&display_field, sizeof(display_field), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteCellOverflow(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, CELL_OVERFLOW);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&cell_overflow, sizeof(cell_overflow), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteViewSkipLines(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, VIEW_SKIP_LINES);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&view_skip_lines, sizeof(view_skip_lines), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
   return 1;
 }
 
 int gxDatabaseConfig::WriteSkipLineColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, SKIP_LINE_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&skip_line_color, color_buf, 4);
-  if(f->Write(&skip_line_color, sizeof(skip_line_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteGridBackgroundColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, GRID_BACKGROUND_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&grid_background_color, color_buf, 4);
-  if(f->Write(&grid_background_color, sizeof(grid_background_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetGridBackgroundColor(wxColour *color)
@@ -814,19 +432,15 @@ int gxDatabaseConfig::GetGridBackgroundColor(wxColour *color)
 
 int gxDatabaseConfig::WriteGridTextColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, GRID_TEXT_COLOR);
-  if(address < (FAU_t)0) return 0;
+  
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&grid_text_color, color_buf, 4);
-  if(f->Write(&grid_text_color, sizeof(grid_text_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetGridTextColor(wxColour *color)
@@ -859,19 +473,14 @@ int gxDatabaseConfig::GetGridLabelBackgroundColor(wxColour *color)
 
 int gxDatabaseConfig::WriteGridLabelBackgroundColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, GRID_LABEL_BACKGROUND_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&grid_label_background_color, color_buf, 4);
-  if(f->Write(&grid_label_background_color, sizeof(grid_label_background_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetGridLabelTextColor(wxColour *color)
@@ -885,19 +494,14 @@ int gxDatabaseConfig::GetGridLabelTextColor(wxColour *color)
 
 int gxDatabaseConfig::WriteGridLabelTextColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, GRID_LABEL_TEXT_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&grid_label_text_color, color_buf, 4);
-  if(f->Write(&grid_label_text_color, sizeof(grid_label_text_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetHyperlinkColor(wxColour *color)
@@ -911,19 +515,14 @@ int gxDatabaseConfig::GetHyperlinkColor(wxColour *color)
 
 int gxDatabaseConfig::WriteHyperlinkColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, HYPERLINK_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&hyperlink_color, color_buf, 4);
-  if(f->Write(&hyperlink_color, sizeof(hyperlink_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::get_font(gxINT32 *elements, DBString *font_name, 
@@ -960,15 +559,8 @@ int gxDatabaseConfig::get_font(gxINT32 *elements, DBString *font_name,
   return 1;
 }
 
-int gxDatabaseConfig::write_font(gxDatabase *f, 
-				 gxDatabaseConfigMembers element_address,
- 				 gxDatabaseConfigMembers name_address,
-				 gxINT32 *elements, DBString *font_name,
-				 wxFont *font)
+int gxDatabaseConfig::write_font(gxDatabase *f, gxINT32 *elements, DBString *font_name, wxFont *font)
 {
-  FAU_t address = GetFileAddress(f, element_address);
-  if(address < (FAU_t)0) return 0;
-
   elements[0] = 1;
   elements[1] = (int)font->GetDefaultEncoding();
   elements[2] = font->GetFamily(); 
@@ -986,23 +578,7 @@ int gxDatabaseConfig::write_font(gxDatabase *f,
     font_name->SetString(font->GetFaceName().c_str()); 
   }
 
-  // Write the font elements
-  if(f->Write(elements, (sizeof(FAU) * FontElements), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  // Write the font name if this font has a face name
-  if(elements[7] == 1) {
-    address = GetFileAddress(f, name_address);
-    if(address < (FAU_t)0) return 0;
-    if(f->Write(font_name, sizeof(DBString), address) !=
-       gxDBASE_NO_ERROR) {
-      return 0;
-    }
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetGridLabelFont(wxFont *font)
@@ -1012,8 +588,7 @@ int gxDatabaseConfig::GetGridLabelFont(wxFont *font)
 
 int gxDatabaseConfig::WriteGridLabelFont(gxDatabase *f, wxFont *font)
 {
-  return write_font(f, GRID_LABEL_FONT, GRID_LABEL_FONT_NAME,
-		    grid_label_font, &grid_label_font_name, font);
+  return write_font(f, grid_label_font, &grid_label_font_name, font);
 }
 
 int gxDatabaseConfig::GetGridTextFont(wxFont *font)
@@ -1023,8 +598,7 @@ int gxDatabaseConfig::GetGridTextFont(wxFont *font)
 
 int gxDatabaseConfig::WriteGridTextFont(gxDatabase *f, wxFont *font)
 {
-  return write_font(f, GRID_TEXT_FONT, GRID_TEXT_FONT_NAME,
-		    grid_text_font, &grid_text_font_name, font);
+  return write_font(f, grid_text_font, &grid_text_font_name, font);
 }
 
 int gxDatabaseConfig::GetHyperlinkFont(wxFont *font)
@@ -1034,208 +608,79 @@ int gxDatabaseConfig::GetHyperlinkFont(wxFont *font)
 
 int gxDatabaseConfig::WriteHyperlinkFont(gxDatabase *f, wxFont *font)
 {
-  return write_font(f, HYPERLINK_FONT, HYPERLINK_FONT_NAME,
-		    hyperlink_font, &hyperlink_font_name, font);
+  return write_font(f, hyperlink_font, &hyperlink_font_name, font);
 }
-
 #endif
 
 int gxDatabaseConfig::WritePrintGridLines(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_GRID_LINES);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_grid_lines, sizeof(print_grid_lines), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintDocName(gxDatabase *f, const char *s)
 {
-  if(!TestStaticArea(f)) return 0;
   if(!s) return 0;
-
   print_doc_name = s;
-  FAU_t address = GetFileAddress(f, PRINT_DOC_NAME);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_doc_name, sizeof(print_doc_name), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintDocCustomHeader(gxDatabase *f, const char *s)
 {
-  if(!TestStaticArea(f)) return 0;
   if(!s) return 0;
-
   print_doc_custom_header = s;
-  FAU_t address = GetFileAddress(f, PRINT_DOC_CUSTOM_HEADER);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_doc_custom_header, sizeof(print_doc_custom_header), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintDocCustomFooter(gxDatabase *f, const char *s)
 {
-  if(!TestStaticArea(f)) return 0;
   if(!s) return 0;
-
   print_doc_custom_footer = s;
-  FAU_t address = GetFileAddress(f, PRINT_DOC_CUSTOM_FOOTER);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_doc_custom_footer, sizeof(print_doc_custom_footer), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintDocTimeAndDate(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_DOC_TIME_AND_DATE);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_doc_time_and_date, sizeof(print_doc_time_and_date), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintOrientation(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_ORIENTATION);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_orientation, sizeof(print_orientation), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintLeftMarginSize(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_LEFT_MARGIN_SIZE);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_left_margin_size, sizeof(print_left_margin_size), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintPaperSize(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_PAPER_SIZE);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_paper_size, sizeof(print_paper_size), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintPageHeader(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_PAGE_HEADER);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_page_header, sizeof(print_page_header), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintPageFooter(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_PAGE_FOOTER);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_page_footer, sizeof(print_page_footer), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintGridLabels(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_GRID_LABELS);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_grid_labels, sizeof(print_grid_labels), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintRowNumbers(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_ROW_NUMBERS);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_row_numbers, sizeof(print_row_numbers), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WritePrintPageScale(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-
-  FAU_t address = GetFileAddress(f, PRINT_PAGE_SCALE);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&print_page_scale, sizeof(print_page_scale), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 #ifdef __wxWINALL__
@@ -1250,19 +695,14 @@ int gxDatabaseConfig::GetPrintHeaderColor(wxColour *color)
 
 int gxDatabaseConfig::WritePrintHeaderColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, PRINT_HEADER_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&print_header_color, color_buf, 4);
-  if(f->Write(&print_header_color, sizeof(print_header_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetPrintFooterColor(wxColour *color)
@@ -1276,19 +716,14 @@ int gxDatabaseConfig::GetPrintFooterColor(wxColour *color)
 
 int gxDatabaseConfig::WritePrintFooterColor(gxDatabase *f, wxColour *color)
 {
-  FAU_t address = GetFileAddress(f, PRINT_FOOTER_COLOR);
-  if(address < (FAU_t)0) return 0;
   unsigned char color_buf[4];
   color_buf[0] = 1;
   color_buf[1] = color->Red();
   color_buf[2] = color->Green();
   color_buf[3] = color->Blue();
   memmove(&print_footer_color, color_buf, 4);
-  if(f->Write(&print_footer_color, sizeof(print_footer_color), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::GetPrintHeaderFont(wxFont *font)
@@ -1298,8 +733,7 @@ int gxDatabaseConfig::GetPrintHeaderFont(wxFont *font)
 
 int gxDatabaseConfig::WritePrintHeaderFont(gxDatabase *f, wxFont *font)
 {
-  return write_font(f, PRINT_HEADER_FONT, PRINT_HEADER_FONT_NAME,
-		    print_header_font, &print_header_font_name, font);
+  return write_font(f, print_header_font, &print_header_font_name, font);
 
 }
 
@@ -1310,79 +744,36 @@ int gxDatabaseConfig::GetPrintFooterFont(wxFont *font)
 
 int gxDatabaseConfig::WritePrintFooterFont(gxDatabase *f, wxFont *font)
 {
-  return write_font(f, PRINT_FOOTER_FONT, PRINT_FOOTER_FONT_NAME,
-		    print_footer_font, &print_footer_font_name, font);
+  return write_font(f, print_footer_font, &print_footer_font_name, font);
 
 }
-
 #endif
 
 int gxDatabaseConfig::WriteDBName(gxDatabase *f, const char *s)
 {
-  if(!TestStaticArea(f)) return 0;
-  if(!s) return 0;
-
-  database_name = s;
-  FAU_t address = GetFileAddress(f, DATABASE_NAME);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&database_name, sizeof(database_name), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteColSize(gxDatabase *f, int p, int value)
 {
-  if(!TestStaticArea(f)) return 0;
   if(p > (NumDataMembers-1)) return 0;
   col_sizes[p] = (gxINT32)value;
-
-  FAU_t address = GetFileAddress(f, COL_SIZES);
-  if(address < (FAU_t)0) return 0;
-  FAU offset = (FAU_t)(p * sizeof(FAU));
-  address += offset;
-  if(f->Write(&col_sizes[p], sizeof(FAU), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteColSize(gxDatabase *f)
 {
-  if(!TestStaticArea(f)) return 0;
-  FAU_t address = GetFileAddress(f, COL_SIZES);
-  if(address < (FAU_t)0) return 0;
-
-  if(f->Write(&col_sizes, sizeof(col_sizes), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 int gxDatabaseConfig::WriteColName(gxDatabase *f, int p, const char *s)
 {
-  if(!TestStaticArea(f)) return 0;
   if(p > NumDataMembers-1) return 0; // Check the boundaries
   if(!s) return 0;
 
   SetColName(p, s);
 
-  FAU_t address = GetFileAddress(f, COLUMN_NAMES);
-  if(address < (FAU_t)0) return 0;
-  FAU offset = (FAU_t)(p*sizeof(DBString));
-  address += offset;
-
-  if(f->Write(&column_names[p], sizeof(DBString), address) !=
-     gxDBASE_NO_ERROR) {
-    return 0;
-  }
-
-  return 1;
+  return WriteConfig(f, 0);
 }
 
 char *gxDatabaseConfig::GetColName(int col, char *sbuf)
@@ -1479,8 +870,6 @@ int gxDatabaseConfig::Validate()
   // Validate and correct the column sizes to prevent display 
   // problems if the header is corrupt.
   for(i = 0; i < (unsigned)NumDataMembers; i++) {
-    // if(col_sizes[i] < (FAU)MinColSize) col_sizes[i] = (FAU)DefaultColSize;
-    // if(col_sizes[i] > (FAU)MaxColSize) col_sizes[i] = (FAU)DefaultColSize;
     if(col_sizes[i] < (gxINT32)MinColSize) col_sizes[i] = (gxINT32)DefaultColSize;
     if(col_sizes[i] > (gxINT32)MaxColSize) col_sizes[i] = (gxINT32)DefaultColSize;
   }
@@ -1609,8 +998,7 @@ int gxDatabaseConfig::WriteConfig(gxDatabase *f, int flushdb)
 {
   if(!TestStaticArea(f)) return 0;
   
-  if(f->Write(this, this->SizeOf(), (FAU_t)f->FileHeaderSize()) !=
-     gxDBASE_NO_ERROR) {
+  if(f->Write(this, this->SizeOf(), (FAU_t)f->FileHeaderSize()) != gxDBASE_NO_ERROR) {
     return 0;
   }
 
@@ -1621,79 +1009,7 @@ int gxDatabaseConfig::WriteConfig(gxDatabase *f, int flushdb)
 
 unsigned gxDatabaseConfig::SizeOf()
 {
-  unsigned size = 0;
-  
-  size += sizeof(version_number);
-  size += sizeof(database_name);
-  size += sizeof(column_names);
-  size += sizeof(view_labels);
-  size += sizeof(view_row_numbers);
-  size += sizeof(col_sizes);
-  size += sizeof(print_field);
-  size += sizeof(cell_attrib);
-  size += sizeof(cell_align);
-  size += sizeof(cell_border);
-  size += sizeof(cell_color);
-  size += sizeof(cell_fill);
-  size += sizeof(cell_text_color);
-  size += sizeof(cell_text_font);
-  size += sizeof(cell_type);
-  size += sizeof(cell_pattern);
-  size += sizeof(cell_protection);
-  size += sizeof(label_align);
-  size += sizeof(label_border);
-  size += sizeof(label_color);
-  size += sizeof(label_fill);
-  size += sizeof(label_text_font);
-  size += sizeof(label_text_color);
-  size += sizeof(label_pattern);
-  size += sizeof(label_protection);
-  size += sizeof(display_field);
-  size += sizeof(cell_misc);
-  size += sizeof(label_misc);
-  size += sizeof(auto_size);
-  size += sizeof(cell_overflow);
-  size += sizeof(view_grid_lines); 
-  size += sizeof(grid_line_color);
-  size += sizeof(view_skip_lines);
-  size += sizeof(skip_line_color);
-  size += sizeof(grid_background_color);
-  size += sizeof(grid_text_color);
-  size += sizeof(grid_label_background_color);
-  size += sizeof(grid_label_text_color);
-  size += sizeof(hyperlink_color);
-  size += sizeof(grid_label_font);
-  size += sizeof(grid_label_font_name);
-  size += sizeof(grid_text_font);
-  size += sizeof(grid_text_font_name);
-  size += sizeof(hyperlink_font);
-  size += sizeof(hyperlink_font_name);
-  size += sizeof(print_doc_name);
-  size += sizeof(print_doc_time_and_date);
-  size += sizeof(print_grid_lines);
-  size += sizeof(print_orientation);
-  size += sizeof(print_left_margin_size);
-  size += sizeof(print_paper_size);
-  size += sizeof(print_page_header);
-  size += sizeof(print_doc_custom_header);
-  size += sizeof(print_header_color);
-  size += sizeof(print_header_font);
-  size += sizeof(print_header_font_name);
-  size += sizeof(print_page_footer);
-  size += sizeof(print_doc_custom_footer);
-  size += sizeof(print_footer_color);
-  size += sizeof(print_footer_font);
-  size += sizeof(print_footer_font_name);
-  size += sizeof(print_skip_lines);
-  size += sizeof(print_grid_labels);
-  size += sizeof(print_row_numbers);
-  size += sizeof(print_page_scale);
-  size += sizeof(cell_text_fonts); 
-  size += sizeof(cell_text_font_names);
-  size += sizeof(label_text_fonts);
-  size += sizeof(label_text_font_names);
-  size += sizeof(text_delimiter);
-  return size;
+  return sizeof(*this);
 }
 
 gxDatabaseParms::gxDatabaseParms()

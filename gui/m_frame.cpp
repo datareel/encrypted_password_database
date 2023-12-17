@@ -1491,8 +1491,7 @@ void MainFrame::SetGridLineColor(wxCommandEvent& event)
     child_frame->GridFrame()->SetGridLineColor(&color);
 
     // Make this setting persistent by writing it to the dbconfig
-    if(!db_config->WriteGridLineColor(child_frame->DBParms()->pod->OpenDataFile(),
-					   &color)) {
+    if(!db_config->WriteGridLineColor(child_frame->DBParms()->pod->OpenDataFile(), &color)) {
       *(frame->statusWin) << "Error saving grid line color value" << "\n";
     }
     SaveCustomColors(&retData);
