@@ -119,9 +119,11 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   // Help Menu
   EVT_MENU(WXAPPFW_HELP_ABOUT, MainFrame::OnAbout)
 
-#ifdef __USE_MSW_PRINTING__
+  // User Menu 
+  EVT_MENU(WXAPPFW_USERS_ADD, MainFrame::OnAddUsers)
+  EVT_MENU(WXAPPFW_USERS_REMOVE, MainFrame::OnRemoveUsers)
+  EVT_MENU(WXAPPFW_USERS_LIST, MainFrame::OnListUsers)
 
-#endif
 END_EVENT_TABLE()
 // --------------------------------------------------------------
 
@@ -292,6 +294,11 @@ MainFrame::MainFrame(wxWindow *parent,
   wxMenu *help_menu = new wxMenu;
   help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
 
+  wxMenu *users_menu = new wxMenu;
+  users_menu->Append(WXAPPFW_USERS_ADD, "Add Users", "Add user access with public RSA key or smart card cert");
+  users_menu->Append(WXAPPFW_USERS_REMOVE, "Remove Users", "Removed user access");
+  users_menu->Append(WXAPPFW_USERS_LIST, "List Users", "Display list of users with access");
+  
   wxMenuBar *menu_bar = new wxMenuBar;
 
   menu_bar->Append(file_menu, "File");
@@ -299,8 +306,9 @@ MainFrame::MainFrame(wxWindow *parent,
   menu_bar->Append(database_menu, "Database");
   menu_bar->Append(view_menu, "View");
   menu_bar->Append(print_menu, "Print");
+  menu_bar->Append(users_menu, "Users");
   menu_bar->Append(help_menu, "Help");
-
+  
   // Associate the menu bar with the frame
   SetMenuBar(menu_bar);
 
@@ -339,6 +347,8 @@ MainFrame::MainFrame(wxWindow *parent,
   fpanel = InitFindPanel(this);
   new_db_panel = InitNewDatabasePanel(this);
 
+  add_user_panel = InitAdduserPanel(this);
+    
 #ifdef __APP_DEBUG_VERSION__
   debug_log << "InitEditTabPanel()" << "\n" << flush;
 #endif
@@ -470,6 +480,30 @@ void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
   wxMessageBox(msg.c_str(), "About Box", wxOK | wxICON_INFORMATION, this);
 }
 
+void MainFrame::OnAddUsers(wxCommandEvent& event)
+{
+  // TODO: check to see if and DBs are open
+  
+  add_user_panel->ShowPanel();
+
+  return;
+  
+  ProgramError->Message("This feature has not be fully implemented yet.");
+  return;
+}
+
+void MainFrame::OnRemoveUsers(wxCommandEvent& event)
+{
+  ProgramError->Message("This feature has not be fully implemented yet.");
+  return;
+}
+
+void MainFrame::OnListUsers(wxCommandEvent& event)
+{
+  ProgramError->Message("This feature has not be fully implemented yet.");
+  return;
+}
+
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
 void MainFrame::OnCopy(wxCommandEvent& event)
 {
@@ -493,7 +527,6 @@ void MainFrame::OnCut(wxCommandEvent& event)
 {
   ProgramError->Message("This feature has not be fully implemented yet.");
   return;
-
 }
 
 void MainFrame::OnPaste(wxCommandEvent& event)

@@ -884,7 +884,7 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "winapp.cpp"
 #include "new_panel.cpp"
 #include "open_panel.cpp"
-
+#include "add_user_panel.cpp"
 #include "m_frame.cpp"
 // --------------------------------------------------------------
 

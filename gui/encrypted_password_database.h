@@ -240,7 +240,13 @@ enum {
   WXAPPFW_APP2_HANDLER,
   WXAPPFW_APP3_HANDLER,
   WXAPPFW_APP4_HANDLER,
-  WXAPPFW_APP5_HANDLER
+  WXAPPFW_APP5_HANDLER,
+
+  // User name event hander ID
+  WXAPPFW_USERS,
+  WXAPPFW_USERS_ADD,
+  WXAPPFW_USERS_REMOVE,
+  WXAPPFW_USERS_LIST
 };
 // --------------------------------------------------------------
 
@@ -304,10 +310,11 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "st_frame.h"   // Status frame
 #include "st_panel.h"   // Status panel
 #include "winapp.h"     // wxWindows application class
-#include "new_panel.h"    // New DB panel
-#include "open_panel.h"    // Open DB panel
-#include "p_config.h"   // Program configuration data
-#include "m_frame.h"    // Main frame for this application
+#include "new_panel.h"      // New DB panel
+#include "open_panel.h"     // Open DB panel
+#include "add_user_panel.h" // Add user access panel
+#include "p_config.h"       // Program configuration data
+#include "m_frame.h"        // Main frame for this application
 
 #endif // __WX_APP_FRAMEWORK__
 // ----------------------------------------------------------- //

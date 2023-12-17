@@ -27,47 +27,44 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
 USA
 
-Application panel
+Add user panel
 */
 // ----------------------------------------------------------- // 
-#ifndef __OPEN_PANEL_HPP__
-#define __OPEN_PANEL_HPP__
+#ifndef __ADD_USER_PANEL_HPP__
+#define __ADD_USER_PANEL_HPP__
 
 #include "app_defs.h"
 
 // --------------------------------------------------------------
 // Window IDs
 // --------------------------------------------------------------
-#define OPENDATABASE_PANEL_ID 9845
+#define ADDUSER_PANEL_ID 22730
 // --------------------------------------------------------------
 
 // --------------------------------------------------------------
 // Identification for event handlers, controls, and menu commands
 // --------------------------------------------------------------
 enum { // Page setup panel IDs 
-  ID_OPENDATABASE_OK = 9846,
-  ID_OPENDATABASE_CANCEL,
-  ID_OPENDATABASE_KEY_BROWSE,
-  ID_OPENDATABASE_RSA_BROWSE,
-  ID_OPENDATABASE_TEXTCONTROL_PASSWORD,
-  ID_OPENDATABASE_TEXTCONTROL_KEY_FILE,
-  ID_OPENDATABASE_TEXTCONTROL_RSA_USERNAME,
-  ID_OPENDATABASE_TEXTCONTROL_RSA_KEY,
-  ID_OPENDATABASE_TEXTCONTROL_RSA_PASSPHRASE,
-  ID_OPENDATABASE_TEXTCONTROL_SC_USERNAME,
-  ID_OPENDATABASE_TEXTCONTROL_SC_PIN,
-  ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID
+  ID_ADDUSER_OK = 22731,
+  ID_ADDUSER_CANCEL,
+  ID_ADDUSER_SC_CERT_BROWSE,
+  ID_ADDUSER_RSA_KEY_BROWSE,
+
+  ID_ADDUSER_TEXTCONTROL_RSA_USERNAME,
+  ID_ADDUSER_TEXTCONTROL_RSA_KEY,
+  ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
+  ID_ADDUSER_TEXTCONTROL_SC_CERT
 };
 // --------------------------------------------------------------
 
-class OpenDatabasePanel : public wxDialog
+class AdduserPanel : public wxDialog
 {
 public:
-  OpenDatabasePanel(wxWindow *parent, wxWindowID id, char *title,
+  AdduserPanel(wxWindow *parent, wxWindowID id, char *title,
 		   int xpos, int ypos, int width, int height,
 		   long style = wxDEFAULT_DIALOG_STYLE,
-		    char* name = (char *)"dialogBox");
-  ~OpenDatabasePanel();
+		   char* name = (char *)"dialogBox");
+  ~AdduserPanel();
   
 public: // Event handlers
   // Frame event handlers
@@ -76,68 +73,57 @@ public: // Event handlers
   // Button event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
-  void OnKeyBrowse(wxCommandEvent &event);
-  void OnRSAKeyBrowse(wxCommandEvent &event);
-  void OnTextControlPasswordEnter(wxCommandEvent &event);
-  void OnTextControlKeyFileEnter(wxCommandEvent &event);
+  void OnCertFileBrowse(wxCommandEvent &event);
+  void OnRSAKeyFileBrowse(wxCommandEvent &event);
+  void OnTextControlSCCertFileEnter(wxCommandEvent &event);
   void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
   void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
-  void OnTextControlRSAPassPhraseEnter(wxCommandEvent &event);
   void OnTextControlSCUsernameEnter(wxCommandEvent &event);
-  void OnTextControlSCPinEnter(wxCommandEvent &event);
-  void OnTextControlSCCertIDEnter(wxCommandEvent &event);
-  
+
 public: // Memeber functions
-  void ShowPanel(gxString &fname);
+  int CheckPassword();
+  void ShowPanel();
   int TestInput();
-  int RSAOpenDatabase();
-  int SmartCardOpenDatabase();
-  int AESKeyOpenDatabase();
-  int PasswordOpenDatabase();
   int IsOK() { return is_ok == 1; }
 
 public: // Control objects
-  wxStaticText *password_label;
-  wxTextCtrl *password_input;
-  wxButton *ok_btn;
-  wxButton *cancel_btn;
-  wxStaticBox *password_box;
-  wxStaticBox *key_box;
-  wxStaticText *key_label;
-  wxTextCtrl *key_input;
-  wxButton *browse;
   wxStaticBox *rsa_key_box;
-  wxStaticText *rsa_passphrase_label;
-  wxTextCtrl *rsa_passphrase_input;
   wxStaticText *rsa_username_label;
   wxTextCtrl *rsa_username_input;
   wxStaticText *rsa_key_label;
   wxTextCtrl *rsa_key_input;
   wxButton *rsa_browse;
   wxStaticBox *sc_box;
-  wxStaticText *sc_pin_label;
   wxStaticText *sc_username_label;
   wxTextCtrl *sc_username_input;
-  wxTextCtrl *sc_pin_input;
-  wxStaticText *sc_keyid_label;
-  wxTextCtrl *sc_keyid_input;
+  wxStaticText *sc_cert_label;
+  wxTextCtrl *sc_cert_input;
+  wxButton *sc_browse;
+  
+  wxButton *ok_btn;
+  wxButton *cancel_btn;
   
 private: // Data members
   int is_ok;
-  gxString curr_fname;
-  int use_key;
-  int use_password;
+
+public:
   int use_rsa_key;
   int use_smartcard;
+  gxString rsa_key_username;
+  char public_key[RSA_max_keybuf_len];
+  unsigned public_key_len = 0;
+  SmartCardOB sc;
+  gxString smartcard_username;
+  int use_cert_file;
   
 private:
   DECLARE_EVENT_TABLE()
 };
 
 // Standalone panel initialization function
-OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent);
+AdduserPanel *InitAdduserPanel(wxWindow *parent);
 
-#endif // __OPEN_PANEL_HPP__
+#endif // __ADD_USER_PANEL_HPP__
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //

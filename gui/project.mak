@@ -64,6 +64,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)wx_incs.h \
 	    $(APP_PATH)$(PATHSEP)new_panel.h \
 	    $(APP_PATH)$(PATHSEP)open_panel.h \
+	    $(APP_PATH)$(PATHSEP)add_user_panel.h \
 	    $(APP_PATH)$(PATHSEP)a_panel.cpp \
 	    $(APP_PATH)$(PATHSEP)backup.cpp \
 	    $(APP_PATH)$(PATHSEP)compare.cpp \
@@ -99,9 +100,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)winapp.cpp \
 	    $(APP_PATH)$(PATHSEP)new_panel.cpp \
 	    $(APP_PATH)$(PATHSEP)open_panel.cpp \
-	    $(SRC_PATH)as2print.cpp $(SRC_PATH)db_auth.cpp \
-	    $(SRC_PATH)dbstring.cpp  $(SRC_PATH)m_compress.cpp \
- 	    $(SRC_PATH)m_dbase.cpp $(SRC_PATH)m_globals.cpp \
+	    $(APP_PATH)$(PATHSEP)add_user_panel.cpp
 
 # ===============================================================
 include ../../env/datareel_objs.mak

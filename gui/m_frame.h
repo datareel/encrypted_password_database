@@ -128,6 +128,11 @@ public: // Event handlers
   // Help menu functions event handlers
   void OnAbout(wxCommandEvent& event);
 
+  // User menu
+  void OnAddUsers(wxCommandEvent& event);
+  void OnRemoveUsers(wxCommandEvent& event);
+  void OnListUsers(wxCommandEvent& event);
+  
 public: // Public member functions
   CryptDBDocument *ActiveChild() { return set_active_child(); }
   int DatabaseIsOpen(gxString &dbname);
@@ -159,6 +164,8 @@ public: // Public data members
 
   OpenDatabasePanel *open_db_panel;
 
+  AdduserPanel *add_user_panel;
+  
 #ifdef __USE_MSW_PRINTING__
   MSWPagePanel *mswpage;
 #endif

@@ -30,8 +30,8 @@ USA
 Application panel
 */
 // ----------------------------------------------------------- // 
-#ifndef __X_PANEL_HPP__
-#define __X_PANEL_HPP__
+#ifndef __NEW_PANEL_HPP__
+#define __NEW_PANEL_HPP__
 
 #include "app_defs.h"
 
@@ -142,7 +142,7 @@ private:
 // Standalone panel initialization function
 NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent);
 
-#endif // __X_PANEL_HPP__
+#endif // __NEW_PANEL_HPP__
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //
