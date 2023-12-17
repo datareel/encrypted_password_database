@@ -126,22 +126,6 @@ void InitProgramConfig(int argc, char *argv[])
   debug_log << "Env setting for USERPROFILE = " << user_profile.c_str() << "\n";
 #endif
 
-  // NOTE: Only check the variables needed for this application 
-  // gxString all_users_profile;
-  // CheckEnvVar("ALLUSERSPROFILE", all_users_profile); 
-  // gxString processor_architecture;
-  // CheckEnvVar("PROCESSOR_ARCHITECTURE", processor_architecture);
-  // gxString program_files;
-  // CheckEnvVar("ProgramFiles", program_files);
-  // gxString os; // Windows_NT on XP systems
-  // CheckEnvVar("OS", os); 
-  // gxString temp;
-  // CheckEnvVar("TEMP", temp);
-  // gxString user_name;
-  // CheckEnvVar("USERNAME", user_name);
-  // gxString windir;
-  // CheckEnvVar("windir", windir);
-
   int has_app_dir = 0;
   int has_doc_dir = 0;
   gxString data_dirbuf;
@@ -323,14 +307,33 @@ void InitProgramConfig(int argc, char *argv[])
       dfile << "# " << progcfg->ProgramName.c_str() << " configuration file" << "\n";
       dfile << "#" << "\n";
       dfile << "\n";
+      dfile << "# Directory settings" << "\n";
+      dfile << "DataDirectory = " << progcfg->dataDir.c_str() << "\n";
+      dfile << "DocumentDirectory = " << progcfg->docDir.c_str() << "\n";
+      dfile << "\n";
+      dfile << "# Encryption settings" << "\n";
+      dfile << "# Mode 3 = AES 256 CBC" << "\n";
+      sbuf << clear << (int)DBStringConfig::mode;
+      dfile << "EncryptionMode = " << sbuf.c_str() << "\n";
+      dfile << "\n";
+      dfile << "# Display settings" << "\n";
+      sbuf << clear <<  progcfg->ViewToolBar;
+      dfile << "ViewToolBar = " << sbuf.c_str() << "\n";
+      dfile << "\n";
+      dfile << "# Smart card settings" << "\n";
+      dfile << "SC_enginePath = " << progcfg->SC_enginePath.c_str() << "\n";
+      dfile << "SC_modulePath = " << progcfg->SC_modulePath.c_str() << "\n";
+      dfile << "SC_engine_ID = " << progcfg->SC_engine_ID.c_str() << "\n";
+      dfile << "SC_cert_id = " << progcfg->SC_cert_id.c_str() << "\n";
+      dfile << "\n";
       dfile.df_Close();
     }
 
     // Initialize program configuration with default values.
 
-    // *********************************************************** //
+    // ****************************************************************** //
     // Add default value not set by wxappfwProgramConfig constructor here    
-    // *********************************************************** //
+    // ****************************************************************** //
 
   }
   else { 
@@ -341,7 +344,11 @@ void InitProgramConfig(int argc, char *argv[])
     docDir = CfgData->GetStrValue("DocumentDirectory");
     reToolBar = CfgData->GetStrValue("ViewToolBar");
     mode = CfgData->GetStrValue("EncryptionMode");
-
+    progcfg->SC_enginePath = CfgData->GetStrValue("SC_enginePath");
+    progcfg->SC_modulePath = CfgData->GetStrValue("SC_modulePath");
+    progcfg->SC_engine_ID = CfgData->GetStrValue("SC_engine_ID");
+    progcfg->SC_cert_id = CfgData->GetStrValue("SC_cert_id");
+    
     // Set the custom color table
     for(i = 0; i < 16; i++) {
       sbuf << clear << "custom_colors" << i << "_red";
@@ -545,11 +552,9 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
   
   if(!pod->Exists()) { // A new file was created
 
-    FAU_t start_of_static_area = pod->OpenDataFile()->StaticArea();
-
     unsigned char *static_data = new unsigned char[static_data_size];
     AES_fillrand(static_data, static_data_size);
-    err = pod->OpenDataFile()->Write(static_data, static_data_size, start_of_static_area);
+    err = pod->OpenDataFile()->Write(static_data, static_data_size, pod->OpenDataFile()->FileHeaderSize());
     if(err != gxDBASE_NO_ERROR) {
       delete pod;
       delete static_data;

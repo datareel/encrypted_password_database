@@ -70,7 +70,6 @@ gxString smartcard_cert_file;
 
 int PrintDBConfig(gxDatabaseConfig &db_config);
 
-
 int main(int argc, char **argv)
 {
   HOMEdir = getenv("HOME");

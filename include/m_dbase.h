@@ -53,7 +53,7 @@ const int DefaultNumEntries = 100;
 const int NumPanelEntries = 255;
 
 // Default grid column sizes
-const int DefaultColSize = 300;
+const int DefaultColSize = 200;
 
 // Min/Max grid column sizes
 const int MinColSize = 10;

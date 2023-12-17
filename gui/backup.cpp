@@ -45,6 +45,9 @@ void BackUp(wxWindow *parent)
 
   wxString sbuf("*");
   gxString ebuf;
+  gxString datafile, indexfile;
+  gxString datafile_ext;
+  
   sbuf += child_frame->DBParms()->data_file_extension.c_str();
   wxFileDialog dialog(parent, "Backup database to:",
 		      progcfg->docDir.c_str(), "",
@@ -53,27 +56,29 @@ void BackUp(wxWindow *parent)
 
   if(dialog.ShowModal() == wxID_OK) {
     if(wxFileExists(dialog.GetPath())) {
+      *(frame->statusWin) << "Removing existing file " << dialog.GetPath() << "\n";
       if(!wxRemoveFile(dialog.GetPath())) {
 	ProgramError->Message("Error overwriting exiting file\n");
 	return;
       }
     }
-
-#ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Opening " << dialog.GetPath() << "\n";
-#endif
   }
   else {
     *(frame->statusWin) << "Backup canceled." << "\n";
     return;
   }
 
-  gxString datafile((const char *)dialog.GetPath().c_str());
-  datafile.DeleteAfterLastIncluding(".");
-  gxString indexfile(datafile);
+  datafile = (const char *)dialog.GetPath().c_str();
+  datafile_ext = datafile.Right(4);
+  if(datafile_ext ==  child_frame->DBParms()->data_file_extension) datafile.DeleteAfterLastIncluding(".");
+  indexfile = datafile;
   datafile += child_frame->DBParms()->data_file_extension;
   indexfile += child_frame->DBParms()->index_file_extension;
-    
+
+  *(frame->statusWin) << "Backup Datafile =  " << datafile.c_str() <<  "\n";
+  *(frame->statusWin) << "Backup Indexfile = " << indexfile.c_str() << "\n";
+  
   POD newdb;
   INFOHOGKEY key, compare_key;
   FAU_t static_data_size = (FAU_t)(DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE);
@@ -91,26 +96,38 @@ void BackUp(wxWindow *parent)
     return;
   }
 
-  FAU_t start_of_static_area = newdb.OpenDataFile()->StaticArea();
-
+  // Copy the static data area to the backup copy
+  gxDatabase *src = child_frame->GetPOD()->OpenDataFile();
+  gxDatabase *dst = newdb.OpenDataFile();
   unsigned char *static_data = new unsigned char[static_data_size];
-  AES_fillrand(static_data, static_data_size);
-  err = newdb.OpenDataFile()->Write(static_data, static_data_size, start_of_static_area);
-  if(err != gxDBASE_NO_ERROR) {
+
+  err = src->Read(static_data, static_data_size, src->FileHeaderSize());
+  if(err !=  gxDBASE_NO_ERROR) {
     delete static_data;
-    ebuf << clear << "Error initializing static data area" << "\n" << gxDatabaseExceptionMessage(err);
+    ebuf << clear << "Error copying static data area from existing file" << "\n" << gxDatabaseExceptionMessage(err);
     ProgramError->Message(ebuf.c_str());
     futils_remove(datafile.c_str());
     futils_remove(indexfile.c_str());
-    EchoDBError(&newdb, frame->statusWin);
     return;
   }
+
+  err = dst->Write(static_data, static_data_size, dst->FileHeaderSize());
   delete static_data;
+  if(err !=  gxDBASE_NO_ERROR) {
+    ebuf << clear << "Error copying static data area to backup file" << "\n" << gxDatabaseExceptionMessage(err);
+    ProgramError->Message(ebuf.c_str());
+    futils_remove(datafile.c_str());
+    futils_remove(indexfile.c_str());
+    return;
+  }
   
   gxDatabaseConfig db_config;
   gxDatabaseParms *dbparms = child_frame->DBParms();
   char dest[DBStringLength];
 
+  // Load the config that was copied from the existing file
+  db_config.ReadConfig(newdb.OpenDataFile());
+  
   // Load the database name
   gxString name_buf = dbparms->db_config.database_name.c_str(dest);
   name_buf << "-Backup Copy";
@@ -225,6 +242,8 @@ void BackUp(wxWindow *parent)
   frame->spanel->WriteMessage("Backup complete");
   frame->spanel->WriteMessage("Closing event monitor...");
 
+  ProgramError->Message("Backup operation complete");
+  
 #ifndef __APP_DEBUG_VERSION__ // Debug apps will not close the status window
   frame->spanel->Close();
 #endif

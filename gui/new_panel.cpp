@@ -534,7 +534,7 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
   
   panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 755));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID, 
-					 "01", wxPoint(15, 776), wxSize(250, 25));
+					 progcfg->SC_cert_id.c_str(), wxPoint(15, 776), wxSize(250, 25));
   panel->sc_use_checkbox = new wxCheckBox(panel, -1, "Use Smart Card", wxPoint(15, 812), wxSize(250, 25));
   panel->sc_use_checkbox->SetValue(false);
   

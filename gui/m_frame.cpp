@@ -649,9 +649,6 @@ void MainFrame::OnNew(wxCommandEvent& event)
   gxString work_dir = (const char *)::wxGetCwd().c_str();
   ::wxSetWorkingDirectory(progcfg->docDir.c_str());
 
-  // NewDatabasePanel code is in the x_panel.h and x_panel.cpp modules
-  // TODO: Left off here
-  // NewDatabasePanel is not returning IsOk true
   new_db_panel->ShowPanel();
 
   if(!new_db_panel->IsOK()) {
@@ -756,6 +753,12 @@ void MainFrame::OnNew(wxCommandEvent& event)
 	 ::wxSetWorkingDirectory(work_dir.c_str());
 	 // TODO: remove the database file and index file
 	 return;
+       }
+       sbuf = new_db_panel->sc.cert_id;
+       if(progcfg->SC_cert_id != sbuf) { // Update the global SC cert ID
+	 progcfg->SC_cert_id = new_db_panel->sc.cert_id;
+	 gxConfig CfgData(progcfg->cfgFile.c_str());
+	 CfgData.ChangeConfigValue("SC_cert_id", (const char *)new_db_panel->sc.cert_id);
        }
     }
     

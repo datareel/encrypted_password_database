@@ -173,7 +173,7 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
-  
+
   rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
   if(rv != 0) {
     ProgramError->Message(db_auth.err.c_str());   
@@ -182,6 +182,13 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   }
   
   f.Close();
+
+  sbuf = sc.cert_id;
+  if(progcfg->SC_cert_id != sbuf) { // Update the global SC cert ID
+    progcfg->SC_cert_id = sc.cert_id;
+    gxConfig CfgData(progcfg->cfgFile.c_str());
+    CfgData.ChangeConfigValue("SC_cert_id", (const char *)sc.cert_id);
+  }
   
   progcfg->global_dbparms.crypt_key = DBStringConfig::crypt_key;
   is_ok = 1;
@@ -593,7 +600,7 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
 				       wxTE_PROCESS_ENTER|wxTE_PASSWORD);
   panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 707));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID, 
-					"01", wxPoint(15, 728), wxSize(250, 25)),
+					 progcfg->SC_cert_id.c_str(), wxPoint(15, 728), wxSize(250, 25)),
   
   panel->ok_btn = new wxButton(panel, ID_OPENDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),
