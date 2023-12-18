@@ -898,8 +898,8 @@ void MSWPagePanel::Init()
 				       wxPoint(17, 25));
   
   orientation_choice = new wxChoice(panel1, -1,
-				    wxPoint(75, 23), 
-				    wxSize(95, 25),
+				    wxPoint(95, 23), 
+				    wxSize(110, 30),
 				    2, OrChoiceStrings);
   orientation_choice->SetSelection(mswpORIENTATION);
   
@@ -909,8 +909,8 @@ void MSWPagePanel::Init()
 				 wxSize(70, 15));
   
   paper_choice = new wxChoice(panel1, -1,
-			      wxPoint(75, 82), 
-			      wxSize(95, 25),
+			      wxPoint(95, 82), 
+			      wxSize(110, 30),
 			      5, PaperChoiceStrings);
   paper_choice->SetSelection(mswpPAPERCODE);
   
@@ -933,25 +933,25 @@ void MSWPagePanel::Init()
 
   grid_lines_ckbox = new wxCheckBox(panel2, -1,
 				    "Print grid lines",
-				    wxPoint(17, 55), 
+				    wxPoint(17, 105), 
 				    wxSize(250, 25));
   grid_labels_ckbox = new wxCheckBox(panel2, -1,
 				     "Print grid labels",
-				     wxPoint(17, 80), 
+				     wxPoint(17, 140), 
 				     wxSize(250, 25));
   row_numbers_ckbox = new wxCheckBox(panel2, -1,
 				     "Print row numbers",
-				     wxPoint(17, 105), 
+				     wxPoint(17, 175), 
 				     wxSize(250, 25));
 
   doc_name_label = new wxStaticText(panel2, -1,
-				    "Document name",
-				    wxPoint(17, 200),
-				    wxSize(87, 15));
+				    "Document Name",
+				    wxPoint(17, 219),
+				    wxSize(120, 15));
   
   doc_name_input = new wxTextCtrl(panel2, -1,
 				  "",
-				  wxPoint(107, 196),
+				  wxPoint(135, 216),
 				  wxSize(200, 25));
 
   notebook->AddPage(panel2, "Document Settings");

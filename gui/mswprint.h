@@ -62,7 +62,7 @@ const int mswpLINES_PER_PAGE = 39;    // Default lines per page
 const int mswpFONT_SIZE = 9;          // Default font size
 const int mswpLEFT_MARGIN = 10;       // Default for .5" left margin
 const int mswpRIGHT_MARGIN = 10;      // Default for .5" right margin
-const int mswpORIENTATION = 1;        // Default to portrait
+const int mswpORIENTATION = 1;        // Default to Landscape (0 = portrait) 
 const int mswpFONTCODE = 0;           // Default font code: 0 = wxSWISS
 const int mswpPAPERCODE = 0;          // Default paper code: 0 = wxPAPER_LETTER
 const int mswpTOP_MARGIN = 20;        // 1" top margin with space for page header

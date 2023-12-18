@@ -340,27 +340,50 @@ void InitProgramConfig(int argc, char *argv[])
     // *********************************************************** //
     // Add all startup config file entries here
     // *********************************************************** //
-    dataDir = CfgData->GetStrValue("DataDirectory");
-    docDir = CfgData->GetStrValue("DocumentDirectory");
-    reToolBar = CfgData->GetStrValue("ViewToolBar");
-    mode = CfgData->GetStrValue("EncryptionMode");
-    progcfg->SC_enginePath = CfgData->GetStrValue("SC_enginePath");
-    progcfg->SC_modulePath = CfgData->GetStrValue("SC_modulePath");
-    progcfg->SC_engine_ID = CfgData->GetStrValue("SC_engine_ID");
-    progcfg->SC_cert_id = CfgData->GetStrValue("SC_cert_id");
+    char *s1 = CfgData->GetStrValue("DataDirectory");
+    if(s1) dataDir = s1; 
+
+    char *s2 = CfgData->GetStrValue("DocumentDirectory");
+    if(s2) docDir = s2; 
+
+    char *s3 = CfgData->GetStrValue("ViewToolBar");
+    if(s3) reToolBar = s3; 
+
+    char *s4 = CfgData->GetStrValue("EncryptionMode"); 
+    if(s4) mode = s4; 
+
+    char *s5 = CfgData->GetStrValue("SC_enginePath");
+    if(s5) progcfg->SC_enginePath = s5;
+
+    char *s6 = CfgData->GetStrValue("SC_modulePath");
+    if(s6) progcfg->SC_modulePath = s6;
+
+    char *s7 = CfgData->GetStrValue("SC_engine_ID");
+    if(s7) progcfg->SC_engine_ID = s7; 
+
+    char *s8 = CfgData->GetStrValue("SC_cert_id");
+    if(s8) progcfg->SC_cert_id = s8;
     
     // Set the custom color table
     for(i = 0; i < 16; i++) {
       sbuf << clear << "custom_colors" << i << "_red";
+      char *s_test1 = CfgData->GetStrValue(sbuf.c_str());
       custom_color_red = CfgData->GetIntValue(sbuf.c_str());
+
       sbuf << clear << "custom_colors" << i << "_green";
+      char *s_test2 = CfgData->GetStrValue(sbuf.c_str());
       custom_color_green = CfgData->GetIntValue(sbuf.c_str());
+
       sbuf << clear << "custom_colors" << i << "_blue";
+      char *s_test3 = CfgData->GetStrValue(sbuf.c_str());
       custom_color_blue = CfgData->GetIntValue(sbuf.c_str());
-      progcfg->custom_colors[i].Set((const unsigned char)custom_color_red,
-				    (const unsigned char)custom_color_green,
-				    (const unsigned char)custom_color_blue);
-    }
+
+      if(s_test1 && s_test2 && s_test3) {
+	progcfg->custom_colors[i].Set((const unsigned char)custom_color_red,
+				      (const unsigned char)custom_color_green,
+				      (const unsigned char)custom_color_blue);
+      }
+    }  
   }
 
   // Test and initialize all the configuration parameters

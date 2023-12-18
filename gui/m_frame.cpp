@@ -1339,7 +1339,7 @@ void MainFrame::MSWPrint()
 
   mswPrintout printout_init;
   if(!printout_init.InitPrintout()) {
-    wxMessageBox("There was a initializing the printer.\nPerhaps your current \
+    wxMessageBox("There was an error initializing the printer.\nPerhaps your current \
 printer is not set correctly?", "Initializing Printer", wxOK);
     return;
   }
@@ -1403,7 +1403,7 @@ void MainFrame::MSWPrintPreview()
 
   mswPrintout printout_init;
   if(!printout_init.InitPrintPreview()) {
-    wxMessageBox("There was a initializing the printer.\nPerhaps your current \
+    wxMessageBox("There was an error initializing the printer.\nPerhaps your current \
 printer is not set correctly?", "Initializing Printer", wxOK);
     return;
   }

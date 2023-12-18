@@ -102,23 +102,14 @@ void FindPanel::ShowPanel()
   }
 
   search_choicebox = new wxChoice(this, ID_FIND_CHOICEBOX1,
-				  wxPoint(17, 84), 
-				  wxSize(105, 25),
+				  wxPoint(17, 110), 
+				  wxSize(200, 30),
 				  NumDataMembers, 
 				  (const wxString *)search_choices);
   search_choicebox->SetSelection(0);
 
 
   ShowModal();
-
-  // TODO/NOTE: Must implement in all wxWin 2.6.X code
-  // 02/07/2010: Not working on Linux version, so convert to ShowModal() call
-  // 02/07/2010: Need to retest in Windows version
-  // if wxCHECK_VERSION(2, 6, 0)
-  // ShowModal();
-  // #else
-  // Show(TRUE);
-  // #endif
 }
 
 void FindPanel::StartSearch()
@@ -201,11 +192,11 @@ void FindPanel::StartSearch()
 
 FindPanel *InitFindPanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=330; int height=220;
+  int xpos=50; int ypos=50; int width=330; int height=300;
   FindPanel *panel = new FindPanel(parent, FIND_PANEL_ID,
 				   (char *)"Find Database Object",
 				   xpos, ypos, width, height,
-		  wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
+				   wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
 				   (char *)"Find Database Object");
 
   if(!panel) return 0;
@@ -231,22 +222,21 @@ FindPanel *InitFindPanel(wxWindow *parent)
   
   panel->search_choice_lable = new wxStaticText(panel, ID_FIND_STATICTEXT2,
 						"Search Criteria",
-						wxPoint(17, 63)); 
-  
+						wxPoint(17, 83)); 
+
   panel->search_choicebox = new wxChoice(panel, ID_FIND_CHOICEBOX1,
-					 wxPoint(17, 84), 
-					 wxSize(150, 95),
+					 wxPoint(17, 110), 
+					 wxSize(200, 30),
 					 NumDataMembers, 
 					 (const wxString *)search_choices);
   panel->search_choicebox->SetSelection(0);
 
-
   panel->search_btn = new wxButton(panel, ID_FIND_SEARCH, "Search",
-				   wxPoint(17, 123),
+				   wxPoint(17, 200),
 				   wxSize(60, 25));
 
   panel->close_btn = new wxButton(panel, ID_FIND_CLOSE, "Close",
-				  wxPoint(81, 123),
+				  wxPoint(81, 200),
 				  wxSize(60, 25));
 
   panel->Show(FALSE);

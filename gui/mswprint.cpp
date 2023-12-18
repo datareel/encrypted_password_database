@@ -954,7 +954,7 @@ int mswPrintout::InitPrintout()
     if (dc) delete dc;
     return 0;
   }
-
+    
   int logPPIScreenX = 0;
   int logPPIScreenY = 0;
   int logPPIPrinterX = 0;
@@ -970,16 +970,17 @@ int mswPrintout::InitPrintout()
 #else
   logPPIScreenX = 100;
   logPPIScreenY = 100;
-  // TODO: Fix below
-  //  logPPIPrinterX = wxPostScriptDC::GetResolution();
-  //  logPPIPrinterY = wxPostScriptDC::GetResolution();
+  wxSize ppi_size = dc->GetPPI();
+  // x = width, y = height 
+  logPPIPrinterX = ppi_size.GetWidth();
+  logPPIPrinterY = ppi_size.GetHeight();
 #endif
   
   if((logPPIPrinterX == 0) || (logPPIPrinterY == 0)) {
     delete dc;
     return 0;
   }
-
+  
   SetPPIScreen(logPPIScreenX, logPPIScreenY);
   SetPPIPrinter(logPPIPrinterX, logPPIPrinterY);
 
@@ -1100,9 +1101,10 @@ int mswPrintout::InitPrintPreview()
 #else
   logPPIScreenX = 100;
   logPPIScreenY = 100;
-  // TODO: Fix below
-  //  logPPIPrinterX = wxPostScriptDC::GetResolution();
-  // logPPIPrinterY = wxPostScriptDC::GetResolution();
+  wxSize ppi_size = dc->GetPPI();
+  // x = width, y = height 
+  logPPIPrinterX = ppi_size.GetWidth();
+  logPPIPrinterY = ppi_size.GetHeight();
 #endif
   
   if((logPPIPrinterX == 0) || (logPPIPrinterY == 0)) {
