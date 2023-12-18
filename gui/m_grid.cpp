@@ -134,6 +134,9 @@ void CryptDBGrid::MakeGridColLabels()
   for(i = 0; i < NumDataMembers; i++) {
     char *p = dbparms.db_config.GetColName(i, dest);
     m_grid->SetLabelValue(wxHORIZONTAL, p, i);
+#ifdef __APP_DEBUG_VERSION__
+    *(frame->statusWin) << "Col name = " << p << "\n";
+#endif
   }
 
   // Set the cell widths

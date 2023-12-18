@@ -57,7 +57,9 @@ void ExportToASCII(wxWindow *parent)
   char dest[DBStringLength];  
   DBString *dbstring;
   gxString dbuf;
-  const char dchar = child_frame->DBParms()->db_config.GetTextDelimiter();
+  const char dchar = ',';
+  gxString dchar_str;
+  dchar_str << clear << dchar;
   const char filter = '\t';  // Filter out tabs
   const char *Fill = " "; // Fill character string
   unsigned i;
@@ -68,8 +70,7 @@ void ExportToASCII(wxWindow *parent)
   int curr_count = 0;  
 
   *(frame->statusWin) << "\n";
-  *(frame->statusWin) << "Exporting database to ASCII file \
-delimited by tabs..." << "\n";
+  *(frame->statusWin) << "Exporting database to CSV file..." << "\n";
 
   frame->SetStatusText("Building the export list...");
   
@@ -84,7 +85,7 @@ delimited by tabs..." << "\n";
 
   wxFileDialog dialog(parent, "Export to file:",
 		      progcfg->docDir.c_str(), "",
-		      "*.txt",
+		      "*.csv",
 		      wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
 
   if(dialog.ShowModal() == wxID_OK) {
@@ -146,6 +147,8 @@ delimited by tabs..." << "\n";
     dbstring = (DBString *)infohog.GetMember(0);
     INFOHOG_t ob(dbstring->c_str(dest));
     dbuf << clear << ob.c_str(dest);
+    if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+
     ASPrint(dbuf.c_str(), filter, stream, dbuf.length());
     stream << dchar;
 
@@ -157,6 +160,7 @@ delimited by tabs..." << "\n";
 	if(!dbstring->is_null()) {
 	  ob = dbstring->c_str(dest);
 	  dbuf << clear << ob.c_str(dest);
+	  if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
 	  ASPrint(dbuf.c_str(), filter, stream, dbuf.length());
 	}
 	else {

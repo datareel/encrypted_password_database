@@ -40,14 +40,14 @@ void CreateTextTemplate(wxWindow *parent)
     return;
   }
 
-  const char dchar = '\t';   // Text delimiter
+  const char dchar = ',';
 
   *(frame->statusWin) << "\n";
-  *(frame->statusWin) << "Creating template file delimited by tabs..." << "\n";
+  *(frame->statusWin) << "Creating template CSV file..." << "\n";
 
   wxFileDialog dialog(parent, "Template file to create:",
 		      progcfg->docDir.c_str(), "",
-		      "*.txt",
+		      "*.csv",
 		      wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
 
   if(dialog.ShowModal() == wxID_OK) {
@@ -82,9 +82,8 @@ void CreateTextTemplate(wxWindow *parent)
   char dest[DBStringLength];
   for(int i = 0; i < NumDataMembers; i++) {
     gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);
-    ASPrint(label.c_str(),
-	    stream, label.length());
-    stream << dchar;
+    ASPrint(label.c_str(), stream, label.length());
+    if(i <  (NumDataMembers-1)) stream << dchar;
   }
   stream << as2LineFeed;
   

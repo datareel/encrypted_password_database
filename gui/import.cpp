@@ -35,7 +35,7 @@ Database import functions
 int has_grid_labels(const char *line, CryptDBDocument *child_frame) 
 {
   char dest[DBStringLength]; 
-  const char dchar = child_frame->DBParms()->db_config.GetTextDelimiter();
+  const char dchar = ',';
   int num;
   char words[MAXWORDS][MAXWORDLENGTH];
   int has_label = 0;
@@ -61,7 +61,7 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
   const int MaxLine = 1024;
   char LineBuffer[MaxLine];
   wxString sbuf;
-  const char dchar = child_frame->DBParms()->db_config.GetTextDelimiter();
+  const char dchar = ',';
   int num;
 
   while(!stream.df_EOF()) { // Read in file line by line
@@ -103,11 +103,13 @@ void ImportFromASCII(wxWindow *parent)
 
   char dest[DBStringLength];  
   DBString *dbstring;
-  int i, num;
+  gxString *csv_array = 0;
+  int i;
+  unsigned num;
   const int MaxLine = 1024;
   char LineBuffer[MaxLine];
   wxString sbuf;
-  const char dchar = child_frame->DBParms()->db_config.GetTextDelimiter();
+  const char dchar = ',';
   int linecount = 0;
   int imports = 0;
   int updates = 0;
@@ -134,12 +136,11 @@ void ImportFromASCII(wxWindow *parent)
   };
   
   *(frame->statusWin) << "\n";
-  *(frame->statusWin) << "Importing database from ASCII file \
-delimited by tabs..." << "\n";
+  *(frame->statusWin) << "Importing database from CSV file..." << "\n";
 
   wxFileDialog dialog(parent, "Import from file:",
 		      progcfg->docDir.c_str(), "",
-		      "*.txt",
+		      "*.csv",
 		      wxFD_OPEN);
   
   if(dialog.ShowModal() != wxID_OK) {
@@ -184,6 +185,7 @@ Exiting the import operation");
   frame->spanel->WriteMessage(gbuf.c_str());
 
   child_frame->GetGrid()->BeginBatch();
+  csv_array = 0;
   while(!stream.df_EOF()) { // Read in file line by line
     if(count >= display_count) {
       if(imports > 0) {
@@ -231,29 +233,31 @@ Exiting the import operation");
 
     // Trim all leading and trailing spaces
     sbuf.Trim(); sbuf.Trim(FALSE);
+
+    if(csv_array != 0) { // Free memory with every line read
+      delete[] csv_array;
+      csv_array = 0;
+    }
     
     // Parse the text line
     if(sbuf != "") {
 
       // Ensure that the template does not get added
       if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
-
-      char words[MAXWORDS][MAXWORDLENGTH];
-      if(parse((const char *)sbuf.c_str(), words, &num, dchar) == 1) {
+      
+      csv_array = ParseCVSLine(sbuf, num);
+      if(num != NumDataMembers) {
 	*(frame->statusWin) << "Parse error!" << "\n";
 	*(frame->statusWin) << "Import operation canceled." << "\n";
 	break;
       }
 
-      if(num == 0) continue; 
-
-      if(*words[0] != 0) {
-
+      if(!csv_array[0].is_null()) {
 	// Import or update each object
     	INFOHOG infohog(child_frame->GetPOD());
 	INFOHOG infohog_a(child_frame->GetPOD());
 
-	sbuf = words[0];
+	sbuf = csv_array[0].c_str();
 	// Trim all leading and trailing spaces
 	sbuf.Trim(); sbuf.Trim(FALSE);	 
 
@@ -263,7 +267,7 @@ Exiting the import operation");
 	// Set the other data members
 	if(num > NumDataMembers) num = NumDataMembers;
 	for(i = 1; i < num; i ++) {
-	  if(*words[i] != 0) ob = words[i];
+	  if(!csv_array[i].is_null()) ob = csv_array[i].c_str();
 	  infohog.SetMember(&ob, sizeof(ob), i);
 	}
 
@@ -294,8 +298,7 @@ Exiting the import operation");
 	    dbstring = (DBString *)infohog.GetMember(0);
 	    ob = dbstring->c_str(dest);
 	    sbuf = ob.c_str(dest);
-	    sbuf += " entry already exists.\n \
-Select your choice and click on OK";
+	    sbuf += " entry already exists.\nSelect your choice and click on OK";
 	    ch = wxGetSingleChoiceIndex(sbuf, "Importing Objects",
 					CHArray, ch_array, parent);
 	  }
@@ -374,6 +377,11 @@ Select your choice and click on OK";
 	}
       }
     }
+  }
+
+  if(csv_array != 0) { 
+    delete[] csv_array;
+    csv_array = 0;
   }
 
   // Set the progress meter

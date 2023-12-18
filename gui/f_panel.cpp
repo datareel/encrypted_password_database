@@ -201,7 +201,7 @@ void FindPanel::StartSearch()
 
 FindPanel *InitFindPanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=330; int height=190;
+  int xpos=50; int ypos=50; int width=330; int height=220;
   FindPanel *panel = new FindPanel(parent, FIND_PANEL_ID,
 				   (char *)"Find Database Object",
 				   xpos, ypos, width, height,
@@ -235,7 +235,7 @@ FindPanel *InitFindPanel(wxWindow *parent)
   
   panel->search_choicebox = new wxChoice(panel, ID_FIND_CHOICEBOX1,
 					 wxPoint(17, 84), 
-					 wxSize(110, 75),
+					 wxSize(150, 95),
 					 NumDataMembers, 
 					 (const wxString *)search_choices);
   panel->search_choicebox->SetSelection(0);

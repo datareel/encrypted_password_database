@@ -151,12 +151,12 @@ MainFrame::MainFrame(wxWindow *parent,
   file_menu->Append(WXAPPFW_FILE_OPEN, "Open Database",
 		   "Open an existing database");
   file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_FILE_IMPORT, "Import Database",
-		   "Import a text file into this database");
-  file_menu->Append(WXAPPFW_FILE_EXPORT, "Export Database",
-		   "Export this database to a text file");
-  file_menu->Append(WXAPPFW_FILE_TEMPLATE, "Create DB Text Template",
-		   "Create an import/export database text template");
+  file_menu->Append(WXAPPFW_FILE_IMPORT, "Import CSV File",
+		   "Import a CSV file into this database");
+  file_menu->Append(WXAPPFW_FILE_EXPORT, "Export To CSV File",
+		   "Export this database to a CSV file");
+  file_menu->Append(WXAPPFW_FILE_TEMPLATE, "Create CSV Template",
+		   "Create an import/export CSV template");
   file_menu->AppendSeparator();
   file_menu->Append(WXAPPFW_FILE_BACKUP, "Backup Database",
 		   "Create a backup copy of this database");
@@ -839,7 +839,8 @@ void MainFrame::OnNew(wxCommandEvent& event)
   }
 
   if(new_db_panel->IsOK()) {
-
+    DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
+    
     gxString dbname = (const char *)new_db_panel->name_input->GetValue().c_str();
     
     gxString data_file = dbname;
@@ -887,8 +888,6 @@ void MainFrame::OnNew(wxCommandEvent& event)
     progcfg->active_child_frame = subframe;
 
     subframe->DBParms()->crypt_key = progcfg->global_dbparms.crypt_key;
-    DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
-
     subframe->DBParms()->pod = OpenDatabase(subframe, dbname, 
 					    subframe->DBParms()->pod,
 					    subframe->DBParms()->db_config,

@@ -319,7 +319,7 @@ void gxDatabaseConfig::Clear()
     for(j = 0; j < (unsigned)FontElements; j++) label_text_fonts[i][j] = 0;
   }
 
-  text_delimiter[0] = '\t';
+  text_delimiter[0] = ',';
   text_delimiter[1] = 0;
   text_delimiter[2] = 0;
   text_delimiter[3] = 0;
@@ -1072,6 +1072,121 @@ gxDatabaseParms::gxDatabaseParms()
   index_file = "EncryptedPasswordDatabase";
   index_file += index_file_extension;
   database_revision = 'E'; // Database revision letter
+}
+
+// Utility functions
+gxString *ParseCVSLine(const gxString &input_str, unsigned &num_arr, int trim_spaces, int trim_quotes)
+// Function used to read comma seperated values from data file where double quotes are used to escape values with commas
+{
+  gxString *output_arr = 0;
+  int skip = 0;
+  gxString value;
+  unsigned i;
+  
+  // We have no delimiter
+  if(input_str.Find(",") == -1) {
+    output_arr = new gxString[1];
+    num_arr = 1;
+    output_arr[0] = input_str;
+    return output_arr;
+  }
+
+  // Find the number of "," delimiters
+  skip = 0;
+  num_arr = 0;
+  for(i = 0; i < input_str.length(); i++) {
+    if(skip == 1) {
+      if(i < input_str.length()) {
+	if(input_str[i+1] == '"') {
+	  skip = 0;
+	  num_arr++;
+	}
+      }
+    }
+    
+    if((input_str[i] == ',') && (skip == 0))  {
+      if(i < input_str.length()) {
+	if(input_str[i+1] == '"') {
+	  skip = 1;
+	}
+      }
+      if(skip == 0) {
+	num_arr++;
+      }
+    }
+  }
+  // Account for the last value
+  num_arr++;
+  
+  // Collect all the comma delimited strings
+  output_arr = new gxString[num_arr];
+  skip = 0;
+  unsigned pos = 0;
+  for(i = 0; i < input_str.length(); i++) {
+    
+    if(skip == 1) {
+      if(i < input_str.length()) {
+	if(input_str[i+1] == '\"') {
+	  skip = 0;
+	  pos++;
+	}
+      }
+    }
+ 
+    value << input_str[i];
+    if((input_str[i] == ',') && (skip == 0))  {
+      if(i < input_str.length()) {
+	if(input_str[i+1] == '\"') {
+	  value.TrimTrailing(',');
+	  if(trim_spaces) {
+	    value.TrimLeadingSpaces();
+	    value.TrimTrailingSpaces();
+	  }
+	  if(trim_quotes) {
+	    value.TrimLeading('\'');
+	    value.TrimTrailing('\'');
+	    value.TrimLeading('\"');
+	    value.TrimTrailing('\"');
+	  }
+	  output_arr[pos] = value;
+	  value.Clear();
+	  skip = 1;
+	}
+      }
+      if(skip == 0) {
+	value.TrimTrailing(',');
+	if(trim_spaces) {
+	  value.TrimLeadingSpaces();
+	  value.TrimTrailingSpaces();
+	}
+	if(trim_quotes) {
+	  value.TrimLeading('\'');
+	  value.TrimTrailing('\'');
+	  value.TrimLeading('\"');
+	  value.TrimTrailing('\"');
+	}
+	output_arr[pos] = value;
+	value.Clear();
+	pos++;
+      }
+    }
+  }
+
+  // Account for the last delimiter value
+  value.TrimTrailing(',');
+  if(trim_spaces) {
+    value.TrimLeadingSpaces();
+    value.TrimTrailingSpaces();
+  }
+  if(trim_quotes) {
+    value.TrimLeading('\'');
+    value.TrimTrailing('\'');
+    value.TrimLeading('\"');
+    value.TrimTrailing('\"');
+  }
+  output_arr[pos] = value;
+
+  return output_arr;
 }
 // ----------------------------------------------------------- //
 // ------------------------------- //

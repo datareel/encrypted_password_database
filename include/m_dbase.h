@@ -318,6 +318,11 @@ extern gxList<FAU> db_search_dllist; // Doubly linked list
 extern gxList<FAU> *dllist;          // Doubly linked list pointer
 extern gxListNode<FAU> *dllistptr;   // Doubly linked list node pointer
 
+// Utility functions
+// Function used to read comma seperated values from data file where double quotes are used to escape values with commas
+gxString *ParseCVSLine(const gxString &input_str, unsigned &num_arr, int trim_spaces = 1, int trim_quotes = 1);
+
+
 #endif // __M_DATABASE_HPP__
 // ----------------------------------------------------------- //
 // ------------------------------- //
