@@ -126,6 +126,7 @@ public: // Event handlers
 #endif
 
   // Help menu functions event handlers
+  void OnOpenOnlineHelp(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
 
   // User menu

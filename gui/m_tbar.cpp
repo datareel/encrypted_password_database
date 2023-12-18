@@ -100,7 +100,7 @@ void MainFrame::RecreateToolbar()
 		   toolBarBitmaps[5], "Print current database");
 
   toolBar->AddSeparator();
-  toolBar->AddTool(WXAPPFW_HELP_ABOUT, "Help", 
+  toolBar->AddTool(WXAPPFW_HELP_ONLINE, "Help", 
 		   toolBarBitmaps[6], "Help");
   
   // After adding the buttons to the toolbar, must call Realize() to reflect

@@ -96,10 +96,7 @@ struct wxappfwProgramConfig {
   gxString release_date;
   gxString default_url;
   gxString support_email;
-
-#ifdef __BETA_VERSION__
-  gxString BetaVersionString;
-#endif
+  gxString online_help_page;
 
   // Database config
   gxDatabaseParms global_dbparms;

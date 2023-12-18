@@ -124,6 +124,8 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   EVT_MENU(WXAPPFW_USERS_REMOVE, MainFrame::OnRemoveUsers)
   EVT_MENU(WXAPPFW_USERS_LIST, MainFrame::OnListUsers)
 
+  EVT_MENU(WXAPPFW_HELP_ONLINE, MainFrame::OnOpenOnlineHelp)
+
 END_EVENT_TABLE()
 // --------------------------------------------------------------
 
@@ -292,6 +294,7 @@ MainFrame::MainFrame(wxWindow *parent,
 #endif
 
   wxMenu *help_menu = new wxMenu;
+  help_menu->Append(WXAPPFW_HELP_ONLINE, "Online Help Doc");
   help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
 
   wxMenu *users_menu = new wxMenu;
@@ -447,6 +450,11 @@ void MainFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 {
   // TRUE is to force the frame to close
   Close(TRUE);
+}
+
+void MainFrame::OnOpenOnlineHelp(wxCommandEvent& WXUNUSED(event))
+{
+  StartDocument(progcfg->online_help_page, progcfg->web_browser);
 }
 
 void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))

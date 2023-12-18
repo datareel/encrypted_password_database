@@ -326,6 +326,12 @@ void InitProgramConfig(int argc, char *argv[])
       dfile << "SC_engine_ID = " << progcfg->SC_engine_ID.c_str() << "\n";
       dfile << "SC_cert_id = " << progcfg->SC_cert_id.c_str() << "\n";
       dfile << "\n";
+      dfile << "# Default applications" << "\n";
+      dfile << "web_browser = " << progcfg->default_web_browser.c_str() << "\n";
+      dfile << "mail_client = " << progcfg->default_mail_client.c_str() << "\n";
+      dfile << "help_launch = " << progcfg->default_help_launch.c_str() << "\n";
+      dfile << "file_manager = " << progcfg->default_file_manager.c_str() << "\n";
+      dfile << "\n";
       dfile.df_Close();
     }
 
@@ -363,6 +369,18 @@ void InitProgramConfig(int argc, char *argv[])
 
     char *s8 = CfgData->GetStrValue("SC_cert_id");
     if(s8) progcfg->SC_cert_id = s8;
+
+    char *s9 = CfgData->GetStrValue("web_browser");
+    if(s9) progcfg->web_browser = s9;
+
+    char *s10 =  CfgData->GetStrValue("mail_client");
+    if(s10) progcfg->mail_client = s10;
+
+    char *s11 = CfgData->GetStrValue("help_launch");
+    if(s11) progcfg->help_launch = s11;
+
+    char *s12 = CfgData->GetStrValue("file_manager");
+    if(s12) progcfg->file_manager = s12;
     
     // Set the custom color table
     for(i = 0; i < 16; i++) {

@@ -134,7 +134,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   release_date = "12/12/2023";
   default_url = "https://datareel.com";
   support_email = "datareel@datareel.com";
-
+  online_help_page = "https://datareel.com/encrypted_password_database/help";
   suppress_exit_thread_warning = 0;
   verbose_debugging = 0;
   document_name = "Encrypted Password Database";
