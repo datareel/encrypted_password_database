@@ -152,6 +152,76 @@ void AdduserPanel::OnTextControlSCCertFileEnter(wxCommandEvent &event)
 
 int AdduserPanel::TestInput()
 {
+  use_rsa_key = 0;
+  use_smartcard = 0;
+
+  gxString sbuf;
+  int rv;
+
+  if(rsa_key_input->GetValue().IsNull() && sc_cert_input->GetValue().IsNull()) {
+    ProgramError->Message("You must enter an RSA public key file or smart card cert file");
+    is_ok = 0;
+    return 0;
+  }
+
+  if(!rsa_key_input->GetValue().IsNull()) {
+    use_rsa_key = 1;
+    
+    if(!futils_exists(rsa_key_input->GetValue().c_str()) || !futils_isfile(rsa_key_input->GetValue().c_str())) {
+      ProgramError->Message("The public RSA key file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+    
+    rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), public_key, sizeof(public_key), &public_key_len);
+    if(rv != RSA_NO_ERROR) {
+      sbuf << clear << "Error reading public key file " << RSA_err_string(rv);
+      ProgramError->Message(sbuf.c_str());
+      is_ok = 0;
+      return 0;
+    }
+    
+    if(rsa_username_input->GetValue().IsNull()) {
+      ProgramError->Message("You must provide a user name for the public RSA key");   
+      is_ok = 0;
+      return 0;
+    }
+    
+    rsa_key_username = (const char *)rsa_username_input->GetValue();
+  }
+
+  if(!sc_cert_input->GetValue().IsNull()) {
+    use_smartcard = 1;
+
+    if(!futils_exists(sc_cert_input->GetValue().c_str()) || !futils_isfile(sc_cert_input->GetValue().c_str())) {
+      ProgramError->Message("The smart card cert file file does not exist or cannot be read");   
+      is_ok = 0;
+      return 0;
+    }
+
+    if(SC_read_cert_file(&sc, sc_cert_input->GetValue().c_str()) != 0) {
+      sbuf << clear << sc.err_string;
+      ProgramError->Message(sbuf.c_str());
+      is_ok = 0;
+      return 0;
+    }
+    
+    if(sc_username_input->GetValue().IsNull()) {
+      ProgramError->Message("You must provide a user name for the smart card");   
+      is_ok = 0;
+      return 0;
+    }
+
+    smartcard_username = (const char *)sc_username_input->GetValue();
+    use_cert_file = 1;
+  }
+
+  rsa_key_input->Clear();
+  rsa_username_input->Clear();
+  sc_username_input->Clear();
+  sc_cert_input->Clear();
+
+  is_ok = 1;
   return 1;
 }
 

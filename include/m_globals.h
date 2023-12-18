@@ -93,6 +93,7 @@ external to the wxWindow library.
 // --------------------------------------------------------------
 const unsigned DB_CONFIG_STATIC_AREA_SIZE = 65536;
 const unsigned DB_AUTH_STATIC_AREA_SIZE = 65536;
+const unsigned NUM_DB_AUTH_TYPES = 2; // RSA or Smart card
 
 // Thread constants
 const int DISPLAY_THREAD_RETRIES = 255;

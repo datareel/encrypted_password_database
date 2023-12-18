@@ -482,25 +482,171 @@ void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 
 void MainFrame::OnAddUsers(wxCommandEvent& event)
 {
-  // TODO: check to see if and DBs are open
+  gxString sbuf;
+  DatabaseUserAuth db_auth;
+  int rv;
   
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
+
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
   add_user_panel->ShowPanel();
 
-  return;
+  if(add_user_panel->IsOK()) {
+    if(add_user_panel->use_rsa_key) {
+      db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+      rv = db_auth.AddRSAKeyToStaticArea(child_frame->DBParms()->crypt_key,
+					 add_user_panel->public_key, add_user_panel->public_key_len, add_user_panel->rsa_key_username);
+      if(rv != 0) {
+	sbuf << clear << "ERROR: Cannot add public RSA key " << db_auth.err.c_str();
+	ProgramError->Message(sbuf.c_str());
+	return;
+      }
+
+      sbuf << clear << "Added RSA key access for user " << add_user_panel->rsa_key_username;
+      ProgramError->Message(sbuf.c_str());
+    }
+
+    if(add_user_panel->use_smartcard) {
+      db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+       rv = db_auth.AddSmartCardCertToStaticArea(&add_user_panel->sc, add_user_panel->use_cert_file,
+						 child_frame->DBParms()->crypt_key, add_user_panel->smartcard_username);
+       if(rv != 0) {
+	 sbuf << clear << "ERROR: Cannot add smart card cert " << db_auth.err.c_str();
+	 ProgramError->Message(sbuf.c_str());
+	 return;
+       }
+       sbuf << clear << "Added smart card access for user " << add_user_panel->rsa_key_username;
+      ProgramError->Message(sbuf.c_str());
+    }
+  }
   
-  ProgramError->Message("This feature has not be fully implemented yet.");
   return;
 }
 
 void MainFrame::OnRemoveUsers(wxCommandEvent& event)
 {
-  ProgramError->Message("This feature has not be fully implemented yet.");
+  gxString sbuf;
+  DatabaseUserAuth db_auth;
+  int rv;
+  unsigned i;
+  
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
+
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
+  db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+
+  frame->SetStatusText("Checking database file for authorized users...");
+  if(db_auth.LoadStaticDataBlocks() != 0) {
+    sbuf << clear << db_auth.err.c_str();
+    ProgramError->Message(sbuf.c_str());
+    return;
+  }
+
+  gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
+  if(!list_ptr) {
+    ProgramError->Message("No authorized RSA or smartcard users found in encrypted DB file");
+    return;
+  }
+
+  wxTextEntryDialog dialog(this, "Enter the username to remove", "Remove database access for user", "", wxOK | wxCANCEL);
+  if(dialog.ShowModal() == wxID_OK) {
+
+    if(dialog.GetValue().IsNull()) {
+      ProgramError->Message("You must enter a username");
+      return;
+    }
+    sbuf = (const char *)dialog.GetValue();
+    for(i = 0; i < NUM_DB_AUTH_TYPES; i++) { // Check for all user auth types
+      list_ptr = db_auth.static_block_list.GetHead();
+      while(list_ptr) {
+	if(list_ptr->data.username == sbuf) break;
+	list_ptr = list_ptr->next;
+      }
+      db_auth.static_block_list.Remove(list_ptr);
+    }
+    db_auth.UpdateStaticData();
+    if(db_auth.WriteStaticDataArea() != 0) {
+      sbuf << clear << "ERROR: User " << (const char *)dialog.GetValue() << " was not removed" << "\n" << db_auth.err;
+      ProgramError->Message(sbuf.c_str());
+    }
+    else {
+      sbuf << clear << "Access for User " << (const char *)dialog.GetValue() << " was removed";
+      ProgramError->Message(sbuf.c_str());
+    }
+  }
+  else {
+    sbuf << clear << "User " << (const char *)dialog.GetValue() << " was not removed";
+    ProgramError->Message(sbuf.c_str());
+  }
+  
   return;
 }
 
 void MainFrame::OnListUsers(wxCommandEvent& event)
 {
-  ProgramError->Message("This feature has not be fully implemented yet.");
+  gxString sbuf;
+  DatabaseUserAuth db_auth;
+  int rv;
+  
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
+
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
+  sframe->status_win->Clear();
+  sframe->Show(TRUE); // Show the status window
+  
+
+  db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+
+  *(frame->statusWin) << "Checking database file for authorized users" << "\n";
+  if(db_auth.LoadStaticDataBlocks() != 0) {
+    *(frame->statusWin) << "ERROR: " << db_auth.err.c_str() << "\n";
+    return;
+  }
+
+  *(frame->statusWin) << "\n";
+  *(frame->statusWin) << "Authorized users stats" << "\n";
+  *(frame->statusWin) << "----------------------" << "\n";
+  
+  sbuf << clear << db_auth.static_data_size;
+  *(frame->statusWin) << "Static auth data size: " << sbuf.c_str() << "\n";
+  sbuf << clear <<  db_auth.static_data_bytes_used;
+  *(frame->statusWin) << "Static auth bytes used: " << sbuf.c_str() << "\n";
+  sbuf << clear << db_auth.num_static_data_blocks;
+  *(frame->statusWin) << "Number of static blocks: " << sbuf.c_str() << "\n";
+
+  gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
+  if(!list_ptr) {
+    *(frame->statusWin) << "\n";
+    *(frame->statusWin) << "INFO: No authorized RSA or smartcard users found in encrypted DB file" << "\n";
+  }
+  else {
+    *(frame->statusWin) << "\n";
+    *(frame->statusWin) << "Authorized users list" << "\n";
+    *(frame->statusWin) << "---------------------" << "\n";
+    gxString access_type = "Unknown";
+    while(list_ptr) {
+      if(list_ptr->data.block_header.block_type == 1) access_type = "RSA key";
+      if(list_ptr->data.block_header.block_type == 2) access_type = "Smart Card";
+      *(frame->statusWin) << "Username: " << list_ptr->data.username.c_str() << " Access: " << access_type.c_str() << "\n";
+      list_ptr = list_ptr->next;
+    }
+  }
+  
   return;
 }
 

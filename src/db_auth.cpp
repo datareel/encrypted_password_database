@@ -152,9 +152,10 @@ int DatabaseUserAuth::UpdateStaticData()
   MemoryBuffer mbuf;
   StaticDataBlockHdr static_data_block_header;
   
-  if(!ptr) return 1;
-
   AES_fillrand(static_data, static_data_size);
+
+  // If the list is empty we will be clearing the the static auth area
+  if(!ptr) return 0;
   
   offset = 0;
   while(ptr) {
