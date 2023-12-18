@@ -120,7 +120,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   help_launch = default_help_launch;
   file_manager = default_file_manager;
 
-  envSetting = "EPASSDB";
+  envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
   VersionString = "2023.107";
 #ifdef __APP_DEBUG_VERSION__
