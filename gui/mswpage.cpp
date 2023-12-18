@@ -440,7 +440,7 @@ void MSWPagePanel::ShowPanel()
 					 sbuf.c_str(),
 					 wxPoint(start_x, start_y), 
 					 wxSize(label_width, label_height));
-          change_labels++;
+      change_labels++;
     }
     start_y += y_offset_checkbox;
   }

@@ -1451,6 +1451,12 @@ void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& event)
 void MainFrame::OnMSWPrintSetup(wxCommandEvent& event)
 {
   CryptDBDocument *child_frame = ActiveChild();
+
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
   MSWPrintingParameters *print_config = &child_frame->print_config;
 
   // Set the printer paper size and orientation
