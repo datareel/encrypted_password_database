@@ -246,11 +246,6 @@ Exiting the import operation");
       if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
       
       csv_array = ParseCVSLine(sbuf, num);
-      if(num != NumDataMembers) {
-	*(frame->statusWin) << "Parse error!" << "\n";
-	*(frame->statusWin) << "Import operation canceled." << "\n";
-	break;
-      }
 
       if(!csv_array[0].is_null()) {
 	// Import or update each object
@@ -267,8 +262,10 @@ Exiting the import operation");
 	// Set the other data members
 	if(num > NumDataMembers) num = NumDataMembers;
 	for(i = 1; i < num; i ++) {
-	  if(!csv_array[i].is_null()) ob = csv_array[i].c_str();
-	  infohog.SetMember(&ob, sizeof(ob), i);
+	  if(!csv_array[i].is_null()) {
+	    ob = csv_array[i].c_str();
+	    infohog.SetMember(&ob, sizeof(ob), i);
+	  }
 	}
 
 	infohog_a.SetMember(infohog.GetMember(0), 

@@ -3,7 +3,7 @@
 echo "Installing E-Password DB for Linux"
 
 if [ ! -d ${HOME}/.encrypted_password_database ]; then
-    mkdir -pv ${HOME}/.encrypted_password_database/{bin,certs,data,docs,keys,logs}
+    mkdir -pv ${HOME}/.encrypted_password_database/{bin,backups,certs,data,docs,keys,logs}
     chmod -R 700  ${HOME}/.encrypted_password_database
 fi
 
