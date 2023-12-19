@@ -196,6 +196,21 @@ void BackUp(wxWindow *parent)
       }
     }
     while(btx->FindNext(key, compare_key, 0)) {
+
+      // Clear the info hog objects before each read and write operation
+      MemoryBuffer *ih_memebers_ob = 0;
+      unsigned num_members_ob, count_ob;
+      ih_memebers_ob = infohog.GetMemberArray();
+      num_members_ob = infohog.GetNumMembers();
+      for(count_ob = 0; count_ob < num_members_ob; count_ob ++) {
+	ih_memebers_ob[count_ob].Clear();
+      }
+      ih_memebers_ob = infohog_new.GetMemberArray();
+      num_members_ob = infohog_new.GetNumMembers();
+      for(count_ob = 0; count_ob < num_members_ob; count_ob ++) {
+	ih_memebers_ob[count_ob].Clear();
+      }
+
       if(!infohog.ReadObject(key.ObjectID())) {
       	ProgramError->Message("Error reading database object\n");
 	EchoDBError(child_frame->GetPOD(), frame->statusWin);

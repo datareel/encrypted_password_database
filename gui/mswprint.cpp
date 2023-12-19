@@ -329,7 +329,7 @@ void mswPrintout::GetPageInfo(int *minPage, int *maxPage, int *selPageFrom,
   int lines = num_lines;
 
   for(;;) {
-    if(lines <= print_config->lines_per_page) break;
+    if(lines < print_config->lines_per_page) break;
     lines = lines - print_config->lines_per_page;
     last_page++; // Increment the page count
   }
