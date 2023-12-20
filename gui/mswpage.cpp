@@ -69,7 +69,7 @@ MSWPagePanel::MSWPagePanel(wxWindow *parent, wxWindowID id, char *title,
   start_x = 17;
   start_y = 28;
   y_offset_checkbox = 25;
-  label_height = 15;
+  label_height = 25;
   label_width = -1;
 
   change_labels = 0;
@@ -895,22 +895,22 @@ void MSWPagePanel::Init()
   
   orientation_label = new wxStaticText(panel1, -1,
 				       "Orientation",
-				       wxPoint(17, 25));
-  
+				       wxPoint(17, 25),
+				       wxSize(95, 65));
   orientation_choice = new wxChoice(panel1, -1,
-				    wxPoint(95, 23), 
-				    wxSize(110, 30),
+				    wxPoint(135, 23), 
+				    wxSize(135, 35),
 				    2, OrChoiceStrings);
   orientation_choice->SetSelection(mswpORIENTATION);
   
   paper_label = new wxStaticText(panel1, -1,
 				 "Paper Size",
-				 wxPoint(17, 85),
-				 wxSize(70, 15));
+				 wxPoint(17, 95),
+				 wxSize(95, 65));
   
   paper_choice = new wxChoice(panel1, -1,
-			      wxPoint(95, 82), 
-			      wxSize(110, 30),
+			      wxPoint(135, 87), 
+			      wxSize(135, 35),
 			      5, PaperChoiceStrings);
   paper_choice->SetSelection(mswpPAPERCODE);
   
@@ -946,12 +946,12 @@ void MSWPagePanel::Init()
 
   doc_name_label = new wxStaticText(panel2, -1,
 				    "Document Name",
-				    wxPoint(17, 219),
-				    wxSize(120, 15));
+				    wxPoint(17, 225),
+				    wxSize(150, 25));
   
   doc_name_input = new wxTextCtrl(panel2, -1,
 				  "",
-				  wxPoint(135, 216),
+				  wxPoint(165, 224),
 				  wxSize(200, 25));
 
   notebook->AddPage(panel2, "Document Settings");
@@ -969,21 +969,21 @@ void MSWPagePanel::Init()
 
   header_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_FONT, "Header Font",
 				 wxPoint(17, 80),
-				 wxSize(85, 25)); 
+				 wxSize(115, 25)); 
 				 
   header_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_COLOR, "Header Color",
-				 wxPoint(125, 80),
-				 wxSize(85, 25)); 
+				 wxPoint(155, 80),
+				 wxSize(125, 25)); 
 
   header_name_label = new wxStaticText(panel3, -1,
 				    "Custom Header",
 				    wxPoint(17, 120),
-				    wxSize(87, 15));
+				    wxSize(135, 25));
   
   header_name_input = new wxTextCtrl(panel3, -1,
 				  "",
-				  wxPoint(107, 116),
-				  wxSize(300, 25));
+				  wxPoint(162, 120),
+				  wxSize(250, 25));
 
   print_footer_ckbox = new wxCheckBox(panel3, -1,
 				      "Print page numbers",
@@ -991,21 +991,21 @@ void MSWPagePanel::Init()
 
   footer_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_FONT, "Footer Font",
 				 wxPoint(17, 185),
-				 wxSize(85, 25)); 
+				 wxSize(115, 25)); 
 				 
   footer_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_COLOR, "Footer Color",
-				 wxPoint(125, 185),
-				 wxSize(85, 25)); 
+				 wxPoint(155, 185),
+				 wxSize(125, 25)); 
 
   footer_name_label = new wxStaticText(panel3, -1,
 				    "Custom Footer",
 				    wxPoint(17, 225),
-				    wxSize(87, 15));
+				    wxSize(135, 25));
   
   footer_name_input = new wxTextCtrl(panel3, -1,
 				  "",
-				  wxPoint(107, 221),
-				  wxSize(300, 25));
+				  wxPoint(162, 224),
+				  wxSize(250, 25));
 
   notebook->AddPage(panel3, "Page headers");
 
