@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -317,11 +317,6 @@ struct gxDatabaseParms
 extern gxList<FAU> db_search_dllist; // Doubly linked list
 extern gxList<FAU> *dllist;          // Doubly linked list pointer
 extern gxListNode<FAU> *dllistptr;   // Doubly linked list node pointer
-
-// Utility functions
-// Function used to read comma seperated values from data file where double quotes are used to escape values with commas
-gxString *ParseCVSLine(const gxString &input_str, unsigned &num_arr, int trim_spaces = 1, int trim_quotes = 1);
-
 
 #endif // __M_DATABASE_HPP__
 // ----------------------------------------------------------- //

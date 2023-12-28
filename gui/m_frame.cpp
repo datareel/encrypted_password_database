@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -61,6 +61,7 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   EVT_MENU(WXAPPFW_EDIT_COPY, MainFrame::OnCopy)
   EVT_MENU(WXAPPFW_EDIT_CUT, MainFrame::OnCut)
   EVT_MENU(WXAPPFW_EDIT_PASTE, MainFrame::OnPaste)
+  EVT_MENU(WXAPPFW_CLEAR_CLIPBOARD, MainFrame::OnClearClipboard)
 #endif
   EVT_MENU(WXAPPFW_EDIT_PREFERENCES, MainFrame::OnPreferences)
 
@@ -180,12 +181,15 @@ MainFrame::MainFrame(wxWindow *parent,
   // Edit menu
   wxMenu *edit_menu = new wxMenu("", wxMENU_TEAROFF);
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
-  edit_menu->Append(WXAPPFW_EDIT_COPY, "Copy Cell", 
+  edit_menu->Append(WXAPPFW_EDIT_COPY, "Copy Cell\tCtrl-C", 
 		    "Copy cell to clipboard");
-  edit_menu->Append(WXAPPFW_EDIT_CUT, "Cut Cell", 
+  edit_menu->Append(WXAPPFW_EDIT_CUT, "Cut Cell\tCtrl-X", 
 		    "Cut cell and copy to clipboard");
-  edit_menu->Append(WXAPPFW_EDIT_PASTE, "Paste Cell", 
+  edit_menu->Append(WXAPPFW_EDIT_PASTE, "Paste Cell\tCtrl-V", 
 		    "Paste cell from clipboard");
+  edit_menu->AppendSeparator();
+  edit_menu->Append(WXAPPFW_CLEAR_CLIPBOARD, "Clear Clipboard\tCtrl-Z", 
+		    "Clear all text from the clipboard");
   edit_menu->AppendSeparator();
 #endif
   edit_menu->Append(WXAPPFW_EDIT_PREFERENCES, "Preferences",
@@ -659,43 +663,245 @@ void MainFrame::OnListUsers(wxCommandEvent& event)
 }
 
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
+void MainFrame::OnClearClipboard(wxCommandEvent& event)
+{
+  if(!wxTheClipboard->Open()) {
+    ProgramError->Message("Failed to open clipboard\n");
+    return;
+  }
+  wxString clipData = "";
+  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)))  {
+    ProgramError->Message("Failed to clear clipboard\n");
+    wxTheClipboard->Close();
+    return;
+  }
+
+  if(!wxTheClipboard->Flush()) {
+    ProgramError->Message("Failed to flush clipboard\n");
+    wxTheClipboard->Close();
+    return;
+  }
+
+  wxTheClipboard->Close();
+}
+
 void MainFrame::OnCopy(wxCommandEvent& event)
 {
-  ProgramError->Message("This feature has not be fully implemented yet.");
-  return;
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
 
-  // NOTE: Example code to read some text
-  // wxClipboard cb;
-  // wxClipboard *wxTheClipboard = &cb;
-  // if(wxTheClipboard->Open()) {
-  //  if(wxTheClipboard->IsSupported( wxDF_TEXT )) {
-  //    wxTextDataObject data;
-  //    wxTheClipboard->GetData( data );
-  //    wxMessageBox( data.GetText() );
-  //  }  
-  //  wxTheClipboard->Close();
-  // }
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
+  if(!wxTheClipboard->Open()) {
+    ProgramError->Message("Failed to open clipboard\n");
+    return;
+  }
+
+  child_frame->GridFrame()->UpdateGridPosition();
+  
+  wxString clipData = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
+								     child_frame->GridFrame()->dbparms.current_col);
+  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)) ) {
+    ProgramError->Message("Failed to put text on clipboard\n");
+    wxTheClipboard->Close();
+    return;
+  }
+
+  wxTheClipboard->Close();
 }
 
 void MainFrame::OnCut(wxCommandEvent& event)
 {
-  ProgramError->Message("This feature has not be fully implemented yet.");
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
+
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
+  /* TODO: Fix the mutli select dectection
+  wxArrayInt r_sels = child_frame->GridFrame()->m_grid->GetSelectedRows();
+  wxArrayInt c_sels = child_frame->GridFrame()->m_grid->GetSelectedCols();
+  if(r_sels.size() > 1) {
+    ProgramError->Message("Cut cell can only cut a single cell\n");
+    return;
+  }
+  if(c_sels.size() > 1) {
+    ProgramError->Message("Cut cell can only cut a single cell\n");
+    return;
+  }
+  */
+  
+  gxString ebuf;
+  INFOHOG infohog(child_frame->GetPOD());
+
+  child_frame->GridFrame()->UpdateGridPosition();
+  
+  if(child_frame->GridFrame()->dbparms.current_col == 0) {
+    ProgramError->Message("The key memeber cannot be blank\n");
+    return;
+  }
+  
+  if(!wxTheClipboard->Open()) {
+    ProgramError->Message("Failed to open clipboard\n");
+    return;
+  }
+
+  wxString clipData = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
+								     child_frame->GridFrame()->dbparms.current_col);
+  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)) ) {
+    ProgramError->Message("Failed to put text on clipboard\n");
+    wxTheClipboard->Close();
+    return;
+  }
+
+  wxTheClipboard->Close();
+
+  INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
+  infohog.SetMember(&key, sizeof(key), 0);
+  if(!infohog.FindObject()) {
+    ebuf << clear << "Could not find item: " 
+	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
+	 << " in the database";
+    ProgramError->Message(ebuf.c_str());
+    return;
+  }
+  
+  if(!infohog.ReadObject()) {
+    ebuf << clear << "Error reading item: " 
+	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
+	 << " in the database";
+    ProgramError->Message(ebuf.c_str());
+    return;
+  }
+  
+  wxString blank_text = "";
+  child_frame->GridFrame()->m_grid->SetCellValue(child_frame->GridFrame()->dbparms.current_row,
+						 child_frame->GridFrame()->dbparms.current_col,
+						 blank_text);
+
+  INFOHOG_t memeber_update(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
+									  child_frame->GridFrame()->dbparms.current_col));
+  infohog.ChangeMember(&memeber_update, sizeof(memeber_update), child_frame->GridFrame()->dbparms.current_col), 0;
+  
+  child_frame->GetPOD()->Flush(); 
   return;
 }
 
 void MainFrame::OnPaste(wxCommandEvent& event)
 {
-  ProgramError->Message("This feature has not be fully implemented yet.");
-  return;
+  gxString ebuf;
+  
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
 
-  // NOTE: Example code to write some text to the clipboard
-  //if (wxTheClipboard->Open())
-  // {
-  // This data objects are held by the clipboard, 
-  // so do not delete them in the app.
-  //  wxTheClipboard->SetData( new wxTextDataObject("Some text") );
-  //  wxTheClipboard->Close();
-  // }
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+
+  /* TODO: Fix the mutli select dectection
+  wxArrayInt r_sels = child_frame->GridFrame()->m_grid->GetSelectedRows();
+  wxArrayInt c_sels = child_frame->GridFrame()->m_grid->GetSelectedCols();
+  if(r_sels.size() > 1) {
+    ProgramError->Message("Paste cell can only paste a single cell\n");
+    return;
+  }
+  if(c_sels.size() > 1) {
+    ProgramError->Message("Paste cell can only paste a single cell\n");
+    return;
+  }
+  */
+  
+  if(!wxTheClipboard->Open()) {
+    ProgramError->Message("Failed to open clipboard\n");
+    return;
+  }
+
+  child_frame->GridFrame()->UpdateGridPosition();
+
+  INFOHOG infohog(child_frame->GetPOD());
+  
+  if(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0) == "") {
+    wxTextDataObject new_data;
+    wxTheClipboard->GetData(new_data);
+    
+    child_frame->GridFrame()->m_grid->SetCellValue(child_frame->GridFrame()->dbparms.current_row,
+						   child_frame->GridFrame()->dbparms.current_col,
+						   new_data.GetText());
+    INFOHOG_t new_key(new_data.GetText());
+    infohog.SetMember(&new_key, sizeof(new_key), 0);
+    int exists = infohog.FindObject();
+    if(exists) {
+      ProgramError->Message("Item: ", new_data.GetText().c_str(), 
+			    "\nalready exists in the database");
+      wxTheClipboard->Close();
+      return;
+    }
+    if(!infohog.WriteObject()) {
+      ProgramError->Message("Could not add object to the database\n");
+      wxTheClipboard->Close();
+      return;
+    }
+    else {
+      child_frame->GetPOD()->Flush(); // Flush the POD database following each insert
+      statusWin->WriteText("Added entry ");
+      statusWin->WriteText(new_data.GetText().c_str());
+      statusWin->WriteText(" to the database\n");
+    }
+    wxTheClipboard->Close();
+    return;
+  }
+  
+  wxString sbuf;
+  INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
+  infohog.SetMember(&key, sizeof(key), 0);
+  if(!infohog.FindObject()) {
+    ebuf << clear << "Could not find item: " 
+	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
+	 << " in the database";
+    ProgramError->Message(ebuf.c_str());
+    return;
+  }
+  
+  if(!infohog.ReadObject()) {
+    ebuf << clear << "Error reading item: " 
+	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
+	 << " in the database";
+    ProgramError->Message(ebuf.c_str());
+    return;
+  }
+
+  wxTextDataObject data;
+  wxTheClipboard->GetData(data);
+  
+  child_frame->GridFrame()->m_grid->SetCellValue(child_frame->GridFrame()->dbparms.current_row,
+						 child_frame->GridFrame()->dbparms.current_col,
+						 data.GetText());
+
+  if(child_frame->GridFrame()->dbparms.current_col == 0) {
+    INFOHOG_t key_update(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
+    
+    if(!infohog.ChangeKeyMember(key_update, 1)) {
+      ebuf << clear << "Error changing key member to : " 
+	   << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0);
+      ProgramError->Message(ebuf.c_str());
+    }
+  }
+  else {
+    INFOHOG_t memeber_update(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
+									    child_frame->GridFrame()->dbparms.current_col));
+    infohog.ChangeMember(&memeber_update, sizeof(memeber_update), child_frame->GridFrame()->dbparms.current_col), 0;
+  }
+  
+  wxTheClipboard->Close();
+  child_frame->GetPOD()->Flush(); 
+  
+  return;
 }
 #endif // __USE_CLIPBOARD_FUNCTIONS__
 

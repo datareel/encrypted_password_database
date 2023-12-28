@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -50,8 +50,13 @@ Global macro definitions overrides for the given project.
 #endif
 
 // Disable clipboard options
-#ifdef __USE_CLIPBOARD_FUNCTIONS__
-#undef __USE_CLIPBOARD_FUNCTIONS__
+// #ifdef __USE_CLIPBOARD_FUNCTIONS__
+// #undef __USE_CLIPBOARD_FUNCTIONS__
+// #endif
+
+// Enable clipboard options
+#ifndef __USE_CLIPBOARD_FUNCTIONS__
+#define __USE_CLIPBOARD_FUNCTIONS__
 #endif
 
 // Disable MSW Style help

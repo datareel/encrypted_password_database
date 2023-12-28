@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -244,8 +244,9 @@ Exiting the import operation");
 
       // Ensure that the template does not get added
       if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
-      
-      csv_array = ParseCVSLine(sbuf, num);
+
+      gxString gxbuf = sbuf;
+      csv_array = ParseCVSLine(gxbuf, num);
 
       if(!csv_array[0].is_null()) {
 	// Import or update each object

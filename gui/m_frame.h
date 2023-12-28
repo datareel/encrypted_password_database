@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -65,6 +65,7 @@ public: // Event handlers
   void OnCopy(wxCommandEvent& event);
   void OnCut(wxCommandEvent& event);
   void OnPaste(wxCommandEvent& event);
+  void OnClearClipboard(wxCommandEvent& event);
 #endif
   void OnPreferences(wxCommandEvent& event);
 

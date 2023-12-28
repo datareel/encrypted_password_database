@@ -7,7 +7,7 @@
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
 // Date Last Modified: 12/10/2023
-// Copyright (c) 1999-2023 DataReel Software Development
+// Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -246,7 +246,10 @@ enum {
   WXAPPFW_USERS,
   WXAPPFW_USERS_ADD,
   WXAPPFW_USERS_REMOVE,
-  WXAPPFW_USERS_LIST
+  WXAPPFW_USERS_LIST,
+
+  // Extra features
+  WXAPPFW_CLEAR_CLIPBOARD
 };
 // --------------------------------------------------------------
 
