@@ -40,6 +40,11 @@ Encrypted password database command line functions
 #include "memblock.h"
 #include "gxlist.h"
 
+// Database functions
+POD *OpenEPDB(gxString &fname, int &admin_rights, gxString &err_string);
+POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, int &admin_rights, gxString &err_string);
+int BuildVirtualEPDB(POD *pod);
+int CSVExportEPDB(POD *pod);
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gxString &err_string);

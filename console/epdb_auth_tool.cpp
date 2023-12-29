@@ -64,7 +64,6 @@ gxString password;
 gxString key_file;
 gxString public_rsa_key_file;
 int add_rsa_key = 0;
-gxString smardcard_cert_file;
 char public_key[RSA_max_keybuf_len];
 int use_private_rsa_key = 0;
 gxString private_rsa_key_file;
@@ -82,19 +81,17 @@ int add_smart_card = 0;
 int use_smartcard_cert_file = 0;
 gxString smartcard_cert_file;
 SmartCardOB sc;
-gxString smartcard_cert_username;
-int use_cert_file = 0;
+gxString smartcard_username;
 int use_smartcard = 0;
 gxString input_arg_key_file;
 int use_password = 0;
 int use_key_file = 0;
-unsigned char rsa_ciphertext[8192];
-unsigned rsa_ciphertext_len;
 MemoryBuffer aes_file_decrypt_secret;
 int list_users = 0;
 int db_stats = 0;
 int display_db_config = 0;
 gxString add_username;
+int db_list = 0;
 
 // Functions
 void DisplayVersion();
@@ -190,9 +187,9 @@ int main(int argc, char **argv)
     }
   }
   else if(use_smartcard) {
-    if(smartcard_cert_username.is_null()) {
-      smartcard_cert_username = USERNAME;
-      if(smartcard_cert_username.is_null()) {
+    if(smartcard_username.is_null()) {
+      smartcard_username = USERNAME;
+      if(smartcard_username.is_null()) {
 	cerr << "ERROR: --smartcard-cert requires --smartcard-username" << "\n" << flush;
 	return ExitProgram(1);
       }
@@ -318,7 +315,7 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
-      if(db_auth.DecryptWithSmartcard(&sc, smartcard_cert_username) != 0) {
+      if(db_auth.DecryptWithSmartcard(&sc, smartcard_username) != 0) {
 	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
 	ERROR_LEVEL++;
 	f->Close();
@@ -394,7 +391,22 @@ int main(int argc, char **argv)
       f->Close();
       delete f;
     }
-            
+
+    if(db_list) {
+      num_operations++;
+      int admin_rights;
+      POD *pod = OpenEPDB(fname, admin_rights, err_string);
+      if(!pod) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      if(!CSVExportEPDB(pod)) {
+	cout << "No objects exported from the encrypted database" << "\n" << flush;
+      }
+    }
+    
     if(num_operations == 0) {
       cerr << "INFO: File " << ptr->data.c_str() << " opened, no operations performed" << "\n" << flush;
     }
@@ -410,7 +422,6 @@ int ExitProgram(int rv, char *exit_message)
   aes_file_decrypt_secret.Clear(1);
   key.Clear(1);
   password.Clear(1);
-  memset(rsa_ciphertext, 0, sizeof(rsa_ciphertext));
   memset(public_key, 0, sizeof(public_key));
   memset(private_key, 0, sizeof(private_key));
   rsa_key_passphrase.Clear(1);
@@ -481,16 +492,18 @@ void HelpMessage()
   cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
   cout << "\n" << flush;
-  cout << "DB stat functions:\n" << flush;
-  cout << "          --db-config (Display database config and exit)" << "\n" << flush;
-  cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
-  cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
-  cout << "\n" << flush;
   cout << "DB add user functions:\n" << flush;
   cout << "          --add-rsa-key (Add access to database for another users public RSA key)" << "\n" << flush;
   cout << "          --add-smartcard-cert (Add access to database for another users smart card)" << "\n" << flush;
   cout << "          --add-username (Username being added for public RSA key file or exported smart card cert file)" << "\n" << flush;
-  
+  cout << "\n" << flush;
+  cout << "DB no-auth stat functions:\n" << flush;
+  cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
+  cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB authenticated functions:\n" << flush;
+  cout << "          --db-config (Display database config and exit)" << "\n" << flush;
+  cout << "          --db-list (List database in CSV format to stdout)" << "\n" << flush;
   cout << "\n" << flush; // End of list
 }
 
@@ -557,6 +570,11 @@ int ProcessDashDashArg(gxString &arg)
 
   if(arg == "db-config" ) {
     display_db_config = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "db-list" ) {
+    db_list = 1;
     has_valid_args = 1;
   }
 
@@ -635,7 +653,7 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: --smartcard-username missing name: --smartcard-username=$(whoami)" << "\n" << flush;
       return 0;
     }
-    smartcard_cert_username = equal_arg;
+    smartcard_username = equal_arg;
     has_valid_args = 1;
   }
 

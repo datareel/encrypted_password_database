@@ -427,6 +427,167 @@ int ListUsers(const char *fname)
   return 0;
 }
 
+int BuildVirtualEPDB(POD *pod)
+{
+  if(!dllist || !pod) return 0;
+
+  INFOHOGKEY key, compare_key;
+  gxBtree *btx = pod->Index();
+  dllist->ClearList();
+
+  btx->TestTree();
+
+  int num_entries = 0;
+  FAU object_id;
+  if(btx->FindFirst(key, 0)) {
+    object_id = key.ObjectID();
+    dllist->Add(object_id);
+    num_entries++;
+  }
+  while(btx->FindNext(key, compare_key, 0)) {
+    object_id = key.ObjectID();
+    dllist->Add(object_id);
+    num_entries++;
+  }
+
+  cerr << "Number of rows = " << num_entries << "\n";
+  
+  return num_entries;
+}
+
+int CSVExportEPDB(POD *pod)
+{
+  if(!dllist || !pod) return 0;
+
+  if(!BuildVirtualEPDB(pod)) return 0;
+  
+  char dest[DBStringLength];
+  DBString *dbstring;
+  gxString dbuf;
+  const char dchar = ',';
+  gxString dchar_str;
+  dchar_str << clear << dchar;
+  const char *Fill = " "; // Fill character string
+  unsigned i;
+  int num_entries = 0;
+  int exports = 0;
+  
+  dllistptr = dllist->GetHead();
+  while(dllistptr) {
+    INFOHOG infohog(pod);
+    infohog.ReadObject(dllistptr->data);
+    dbstring = (DBString *)infohog.GetMember(0);
+    INFOHOG_t ob(dbstring->c_str(dest));
+    dbuf << clear << ob.c_str(dest);
+    if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+    cout << dbuf.c_str();
+    cout << dchar;
+    // Write the remaining members account for null members
+    for(i = 1; i < (unsigned)NumDataMembers; i ++) {
+      if(infohog.GetMemberLen(i) == sizeof(INFOHOG_t)) {
+        dbstring = (DBString *)infohog.GetMember(i);
+        if(!dbstring->is_null()) {
+          ob = dbstring->c_str(dest);
+          dbuf << clear << ob.c_str(dest);
+          if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+          cout << dbuf.c_str();
+        }
+        else {
+          cout << Fill;
+        }
+      }
+      else {
+        cout << Fill;
+      }
+      // Reached the last member so do not print the delimiter
+      if(i == (NumDataMembers - 1)) break;
+      cout << dchar;
+    }
+    exports++;
+    dllistptr = dllistptr->next;
+  }
+
+  return exports;
+}
+
+POD *OpenEPDB(gxString &fname, int &admin_rights, gxString &err_string)
+{
+  gxString data_ext = ".ehd";
+  gxString index_ext = ".ehx";
+  char database_revision = 'E'; // Database revision letter
+  return OpenEPDB(fname, data_ext, index_ext, database_revision, admin_rights, err_string);
+}
+
+POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, int &admin_rights, gxString &err_string)
+{
+  err_string.Clear();
+  gxString database_file = fname;
+  gxString index_file = fname;
+  gxString sbuf;
+  admin_rights = 1;
+  
+  database_file.DeleteAfterLastIncluding(".");
+  database_file += data_ext;
+  index_file.DeleteAfterLastIncluding(".");
+  index_file += index_ext;
+
+  if(!futils_exists(database_file.c_str()) || !futils_isfile(database_file.c_str())) {
+    err_string << clear << "Database file " << database_file.c_str() << " does not exist or cannot be read";
+    return 0;
+  }
+  if(!futils_exists(index_file.c_str()) || !futils_isfile(index_file.c_str())) {
+    err_string << clear << "Index file " << index_file.c_str() << " does not exist or cannot be read";
+    return 0;
+  }
+  
+  POD *pod = new POD;
+  if(!pod) {
+    err_string << clear << "Could not create new POD object";
+    return 0;
+  }
+
+  InfoHogKey<DBString> key_type;
+  FAU_t static_data_size = (FAU_t)(DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE);
+
+  // Open existing database using a single index file
+  gxDatabaseError err = pod->Open(database_file.c_str(), 
+				  index_file.c_str(), key_type,
+				  InfoHogNodeOrder, gxDBASE_READWRITE, 
+				  InfoHogUseIndexFile, 
+				  static_data_size,
+				  InfoHogNumTrees,
+				  database_revision,
+				  database_revision);
+  if(err != gxDBASE_NO_ERROR) {
+    // Try to open the database with read-only access
+    err = pod->Open(database_file.c_str(), index_file.c_str(), key_type,
+		    InfoHogNodeOrder, gxDBASE_READONLY,
+		    InfoHogUseIndexFile, 
+		    static_data_size,
+		    InfoHogNumTrees,
+		    database_revision,
+		    database_revision);
+
+    if(err == gxDBASE_NO_ERROR) {
+      admin_rights = 0;
+    }
+  }
+  if(err != gxDBASE_NO_ERROR) {
+    delete pod;
+    err_string << clear << gxDatabaseExceptionMessage(err);
+    return 0;
+  }
+
+  // Rebuild the index file is neccessary
+  if(pod->RebuildIndex()) {
+    delete pod;
+    err_string << clear << "Index file need to be rebuilt " << index_file.c_str();
+    return 0;
+  }
+  
+  return pod;
+}
+
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string)
 {
   err_string.Clear();
