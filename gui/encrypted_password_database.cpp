@@ -861,7 +861,7 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 	}
       }
     }
-    else { // Search for all matche
+    else { // Search for all matches
 #ifdef __wxWINALL__
       *(frame->statusWin) << "Searching for all strings..." << "\n";
 #endif

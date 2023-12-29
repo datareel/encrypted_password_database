@@ -453,18 +453,23 @@ int BuildVirtualEPDB(POD *pod)
   return num_entries;
 }
 
-int CSVExportEPDB(POD *pod)
+int ExportEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with)
+{
+  if(!pod) return 0;
+  if(!BuildVirtualEPDB(pod)) return 0;
+  return ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with);
+}
+
+int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with)
 {
   if(!dllist || !pod) return 0;
-
-  if(!BuildVirtualEPDB(pod)) return 0;
   
   char dest[DBStringLength];
   DBString *dbstring;
   gxString dbuf;
-  const char dchar = ',';
-  gxString dchar_str;
-  dchar_str << clear << dchar;
+  if(delimiter == 0) delimiter = '\t';
+  gxString delimiter_str;
+  delimiter_str << clear << delimiter;
   const char *Fill = " "; // Fill character string
   unsigned i;
   int num_entries = 0;
@@ -477,10 +482,12 @@ int CSVExportEPDB(POD *pod)
     dbstring = (DBString *)infohog.GetMember(0);
     INFOHOG_t ob(dbstring->c_str(dest));
     dbuf << clear << ob.c_str(dest);
-    if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+    if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
     dbuf.FilterChar('\n');
+    if(filter_char != 0) dbuf.FilterChar(filter_char);
+    if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
     cout << dbuf.c_str();
-    cout << dchar;
+    cout << delimiter;
     // Write the remaining members account for null members
     for(i = 1; i < (unsigned)NumDataMembers; i ++) {
       if(infohog.GetMemberLen(i) == sizeof(INFOHOG_t)) {
@@ -488,8 +495,10 @@ int CSVExportEPDB(POD *pod)
         if(!dbstring->is_null()) {
           ob = dbstring->c_str(dest);
           dbuf << clear << ob.c_str(dest);
-          if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+          if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
 	  dbuf.FilterChar('\n');
+	  if(filter_char != 0) dbuf.FilterChar(filter_char);
+	  if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
           cout << dbuf.c_str();
         }
         else {
@@ -501,7 +510,7 @@ int CSVExportEPDB(POD *pod)
       }
       // Reached the last member so do not print the delimiter
       if(i == (NumDataMembers - 1)) break;
-      cout << dchar;
+      cout << delimiter;
     }
     cout << "\n" << flush;
     exports++;
@@ -648,6 +657,97 @@ int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gx
   }
 
   return 0;
+}
+
+unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all)
+{
+  INFOHOGKEY key, compare_key;
+  unsigned objects_found = 0;
+  dllist->ClearList();
+  
+  // Walk through the tree starting at the first key
+  if(btx->FindFirst(key)) {
+    INFOHOG infohog(pod);
+    if(!infohog.ReadObject(key.ObjectID())) {
+      return objects_found;
+    }
+
+    KeySearchEPDB(key, item, pod, ob, objects_found, find_all);
+    
+    while(btx->FindNext(key, compare_key)) {
+      INFOHOG infohog(pod);
+      if(!infohog.ReadObject(key.ObjectID())) {
+	return objects_found;
+      }
+      KeySearchEPDB(key, item, pod, ob, objects_found, find_all);
+    }
+  }
+  return objects_found;
+}
+
+void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod,
+		   INFOHOG_t &ob, unsigned &objects_found, int find_all)
+{
+  int offset;
+  INFOHOG_t buf;
+  FAU object_id;
+  objects_found = 0;
+  
+  char dest1[DBStringLength];  
+  char dest2[DBStringLength];  
+  if(item == 0) {
+    if(find_all == 0) { // Search for single match
+      if(key.ObjectName() == ob) { 
+	object_id = key.ObjectID();
+	dllist->Add(object_id);
+	objects_found++;
+      }
+    }
+    else { // Search for all matches
+      buf = key.ObjectName();
+      char *s1 = buf.c_str(dest1);
+      char *s2 = ob.c_str(dest2);
+      offset = IFindMatch(s1, s2, 0);
+      if(offset != -1) {
+	object_id = key.ObjectID();
+	dllist->Add(object_id);
+	objects_found++;
+      }
+    }
+  }
+  else {
+    INFOHOG infohog(pod);
+    infohog.ReadObject((FAU_t)key.ObjectID());
+
+    if(find_all == 0) { // Search for single match
+      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
+	buf = *((INFOHOG_t *)infohog.GetMember(item));
+	gxString sbuf1 = buf.c_str(dest1);
+	gxString sbuf2 = ob.c_str(dest2);
+	if(sbuf1 == sbuf2) { 
+	  object_id = key.ObjectID();
+	  dllist->Add(object_id);
+	  objects_found++;
+	}
+      }
+    }
+    else { // Search for all matches
+      if(infohog.GetMemberLen(item) == sizeof(INFOHOG_t)) {
+	buf = *((INFOHOG_t *)infohog.GetMember(item));
+	char *s1 = buf.c_str(dest1);
+	char *s2 = ob.c_str(dest2);
+	offset = IFindMatch(s1, s2, 0);
+	if(offset != -1) {
+	  object_id = key.ObjectID();
+	  dllist->Add(object_id);
+	  objects_found++;
+	}
+      }
+      else {
+	objects_found = 0;
+      }
+    }
+  }
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //

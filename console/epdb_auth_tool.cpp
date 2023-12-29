@@ -92,6 +92,13 @@ int db_stats = 0;
 int display_db_config = 0;
 gxString add_username;
 int db_list = 0;
+char delimiter = '\t';
+char filter_char = 0;
+char replace_char = 0;
+char replace_char_with = 0;
+int db_find_key = 0;
+int db_find_all = 0;
+gxString db_find_key_name;
 
 // Functions
 void DisplayVersion();
@@ -102,6 +109,7 @@ int DEBUG_m(char *message, int level = 1, int rv = 0);
 int ExitProgram(int rv = 0, char *exit_message = 0);
 int check_if_file_exists(gxString &fname);
 int check_if_file_exists(char *fname);
+void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char);
 
 int main(int argc, char **argv)
 {
@@ -146,8 +154,16 @@ int main(int argc, char **argv)
   }
 
   if(num_files == 0) {
-    cerr << "Encountered fatal error" << "\n";
-    cerr << "No file name specified with command line args" << "\n";
+    cerr << "ERROR: No file name specified with command line args" << "\n";
+    return ExitProgram(1);
+  }
+
+  if(replace_char != 0 && replace_char_with == 0) {
+    cerr << "ERROR: The --replace-char arg requires --replace-char-with" << "\n";
+    return ExitProgram(1);
+  }
+  if(replace_char == 0 && replace_char_with != 0) {
+    cerr << "ERROR: The --replace-char-with arg requires --replace-char" << "\n";
     return ExitProgram(1);
   }
   
@@ -405,9 +421,30 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      if(!CSVExportEPDB(pod)) {
+      if(!ExportEPDB(pod, delimiter, filter_char, replace_char, replace_char_with)) {
 	cout << "No objects exported from the encrypted database" << "\n" << flush;
+	ERROR_LEVEL++;
       }
+      delete pod;
+    }
+
+    if(db_find_key) {
+      num_operations++;
+      int admin_rights;
+      POD *pod = OpenEPDB(fname, admin_rights, err_string);
+      if(!pod) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      INFOHOG_t key(db_find_key_name.c_str());
+      SearchEPDB(pod->Index(), 0, pod, key, db_find_all);
+      if(!ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with)) {
+	cout << "No objects found matching " << db_find_key_name.c_str() << " key name" << "\n" << flush;
+	ERROR_LEVEL++;
+      }
+      delete pod;
     }
     
     if(num_operations == 0) {
@@ -480,7 +517,7 @@ void HelpMessage()
   cout << "          --version (Display program version number)" << "\n" << flush;
   cout << "          --help (Display this help message and exit." << "\n" << flush;
   cout << "\n" << flush;
-  cout << "DB authenitcation methods:\n" << flush;
+  cout << "DB authentication methods:\n" << flush;
   cout << "          --key=aes_key (Use a key file for symmetric file decryption)" << "\n" << flush;
   cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
   cout << "          --rsa-key (Use a private RSA key file for decryption)" << "\n" << flush;
@@ -490,7 +527,7 @@ void HelpMessage()
   cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
   cout << "          --smartcard-username=name (Username assigned to the smart card cert, defaults to current user)" << "\n" << flush;
   cout << "\n" << flush;
-  cout << "Smartcard settings:\n" << flush;
+  cout << "Smart card settings:\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
   cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
@@ -506,7 +543,13 @@ void HelpMessage()
   cout << "\n" << flush;
   cout << "DB authenticated functions:\n" << flush;
   cout << "          --db-config (Display database config and exit)" << "\n" << flush;
-  cout << "          --db-list (List database in CSV format to stdout)" << "\n" << flush;
+  cout << "          --db-list (List database stdout, defaults to tab delimited output)" << "\n" << flush;
+  cout << "          --db-find-key=name (Search the database for a key name and list output to stdout)" << "\n" << flush;
+  cout << "          --db-find-all-key=name (Search for all matching key names and list output to stdout)" << "\n" << flush;
+  cout << "          --delimiter=\",\" (Set the list delimiter to comma or other value)" << "\n" << flush;
+  cout << "          --filter-char (Set a character to filter from list output)" << "\n" << flush;
+  cout << "          --replace-char (Set a character to replace in list output)" << "\n" << flush;
+  cout << "          --replace-char-with (Set the replacement character to replace in list output)" << "\n" << flush;
   cout << "\n" << flush; // End of list
 }
 
@@ -578,6 +621,67 @@ int ProcessDashDashArg(gxString &arg)
 
   if(arg == "db-list" ) {
     db_list = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "delimiter" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --delimiter requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    delimiter = equal_arg[0];
+    set_delimiter_arg(equal_arg, delimiter);
+    has_valid_args = 1;
+  }
+
+  if(arg == "filter-char" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --filter-char requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    filter_char = equal_arg[0];
+    set_delimiter_arg(equal_arg, filter_char);
+    has_valid_args = 1;
+  }
+
+  if(arg == "replace-char" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --replace-char requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    replace_char = equal_arg[0];
+    set_delimiter_arg(equal_arg, replace_char);
+    has_valid_args = 1;
+  }
+  
+  if(arg == "replace-char-with" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --replace-char-with requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    replace_char_with = equal_arg[0];
+    set_delimiter_arg(equal_arg, replace_char_with);
+    has_valid_args = 1;
+  }
+  
+  if(arg == "db-find-key" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --db-find-key requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    db_find_key = 1;
+    db_find_key_name = equal_arg;
+    has_valid_args = 1;
+  }
+
+  if(arg == "db-find-all-key" ) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --db-find-all-key requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    db_find_key = 1;
+    db_find_all = 1;
+    db_find_key_name = equal_arg;
     has_valid_args = 1;
   }
 
@@ -832,6 +936,14 @@ int check_if_file_exists(gxString &fname)
   }
 
   return 1;
+}
+
+void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char)
+{
+  if(equal_arg == "\\t") delimiter_char = '\t';
+  if(equal_arg == "tab") delimiter_char = '\t';
+  if(equal_arg == "comma") delimiter_char = ',';
+  if(equal_arg == "pipe") delimiter_char = '|';
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //
