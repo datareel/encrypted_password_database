@@ -162,6 +162,7 @@ int main(int argc, char **argv)
     if(clientcfg->verbose_mode) cerr << "Using key file for decryption" << "\n" << flush;
     aes_file_decrypt_secret.Clear(1);
     aes_file_decrypt_secret = key;
+    DBStringConfig::crypt_key = aes_file_decrypt_secret;
   }
   else if(use_private_rsa_key) {
     if(rsa_key_username.is_null()) {
@@ -243,6 +244,7 @@ int main(int argc, char **argv)
     }
     aes_file_decrypt_secret.Clear(1);
     aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
+    DBStringConfig::crypt_key = aes_file_decrypt_secret;
   }
   else if(list_users || db_stats) {
     DEBUG_m("No auth operation");
@@ -259,6 +261,7 @@ int main(int argc, char **argv)
     cout << "\n" << flush;
     aes_file_decrypt_secret.Clear(1);
     aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
+    DBStringConfig::crypt_key = aes_file_decrypt_secret;
   }
 
   while(ptr) {

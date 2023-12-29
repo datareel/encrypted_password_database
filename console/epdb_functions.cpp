@@ -450,8 +450,6 @@ int BuildVirtualEPDB(POD *pod)
     num_entries++;
   }
 
-  cerr << "Number of rows = " << num_entries << "\n";
-  
   return num_entries;
 }
 
@@ -480,6 +478,7 @@ int CSVExportEPDB(POD *pod)
     INFOHOG_t ob(dbstring->c_str(dest));
     dbuf << clear << ob.c_str(dest);
     if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+    dbuf.FilterChar('\n');
     cout << dbuf.c_str();
     cout << dchar;
     // Write the remaining members account for null members
@@ -490,6 +489,7 @@ int CSVExportEPDB(POD *pod)
           ob = dbstring->c_str(dest);
           dbuf << clear << ob.c_str(dest);
           if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
+	  dbuf.FilterChar('\n');
           cout << dbuf.c_str();
         }
         else {
@@ -503,6 +503,7 @@ int CSVExportEPDB(POD *pod)
       if(i == (NumDataMembers - 1)) break;
       cout << dchar;
     }
+    cout << "\n" << flush;
     exports++;
     dllistptr = dllistptr->next;
   }
