@@ -4,6 +4,7 @@
 # Additional library components
 SRC_PATH = ..$(PATHSEP)..$(PATHSEP)src$(PATHSEP)
 INCLUDE_PATH = ..$(PATHSEP)..$(PATHSEP)include$(PATHSEP)
+APP_PATH = ..$(PATHSEP)
 
 # Build dependency rules
 # ===============================================================
@@ -34,10 +35,15 @@ M_GLOBALS_DEP = $(INCLUDE_PATH)as2print.h $(INCLUDE_PATH)db_auth.h \
 	    $(INCLUDE_PATH)dbstring.h  $(INCLUDE_PATH)m_compress.h \
  	    $(INCLUDE_PATH)m_dbase.h $(INCLUDE_PATH)m_globals.h
 
+EPDB_FUNCTIONS_DEP = $(INCLUDE_PATH)as2print.h $(INCLUDE_PATH)db_auth.h \
+	    $(INCLUDE_PATH)dbstring.h  $(INCLUDE_PATH)m_compress.h \
+ 	    $(INCLUDE_PATH)m_dbase.h $(INCLUDE_PATH)m_globals.h \
+	    $(APP_PATH)epdb_functions.h
+
 PROJECT_DEP = $(INCLUDE_PATH)as2print.h $(INCLUDE_PATH)db_auth.h \
 	    $(INCLUDE_PATH)dbstring.h  $(INCLUDE_PATH)m_compress.h \
- 	    $(INCLUDE_PATH)m_dbase.h $(INCLUDE_PATH)m_globals.h
-
+ 	    $(INCLUDE_PATH)m_dbase.h $(INCLUDE_PATH)m_globals.h \
+	    $(APP_PATH)epdb_functions.h
 
 # ===============================================================
 include ../../env/datareel_objs.mak
@@ -61,10 +67,13 @@ m_dbase$(OBJ_EXT):	$(SRC_PATH)m_dbase.cpp $(M_DBASE_DEP)
 m_globals$(OBJ_EXT):	$(SRC_PATH)m_globals.cpp $(M_GLOBALS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(SRC_PATH)m_globals.cpp
 
+epdb_functions$(OBJ_EXT):	$(APP_PATH)epdb_functions.cpp $(EPDB_FUNCTIONS_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)epdb_functions.cpp
+
 $(PROJECT)$(OBJ_EXT):	../$(PROJECT).cpp $(PROJECT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) ../$(PROJECT).cpp
 
 OBJECTS = $(PROJECT)$(OBJ_EXT) as2print$(OBJ_EXT) db_auth$(OBJ_EXT) \
-	dbstring$(OBJ_EXT) m_compress$(OBJ_EXT) m_dbase$(OBJ_EXT) \
-	m_globals$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
+	dbstring$(OBJ_EXT) m_compress$(OBJ_EXT) m_dbase$(OBJ_EXT) epdb_functions$(OBJ_EXT) \
+	m_globals$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS) $(FCRYPT_OBJECTS)
 # ===============================================================

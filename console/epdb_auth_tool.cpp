@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/10/2023
+// Date Last Modified: 12/27/2023
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -39,24 +39,38 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include <iostream.h>
 #endif // __USE_ANSI_CPP__
 
-#include "db_auth.h"
+#include "epdb_functions.h"
+#include "c_thread.h"
 
 #ifdef __MSVC_DEBUG__
 #include "leaktest.h"
 #endif
 
-#include "gxdbase.h"
-#include "gxdstats.h"
-#include "memblock.h"
-#include "gxlist.h"
-
+// Global vars
+gxString program_name = "Encrypted Password Database Auth Tool";
+gxString version_str = "2023.107";
+gxString copyright = "Copyright (c) Datareel Open Source";
+gxString copyright_dates = "2003-2023";
+gxString produced_by = "Datareel Open Source";
+gxString default_url = "https://datareel.com";
+gxString release_date = "12/28/2023";
+gxString debug_message;
+int debug_mode = 0;
+int debug_level = 1;
+int verbose_mode = 0;
+gxList<gxString> file_list;
 MemoryBuffer key;
 gxString password;
 gxString key_file;
 gxString rsa_public_key_file;
 gxString smardcard_cert_file;
 char public_key[RSA_max_keybuf_len];
+int use_private_rsa_key = 0;
+gxString private_rsa_key_file;
+gxString rsa_key_username;
 unsigned public_key_len = 0;
+char private_key[RSA_max_keybuf_len];
+unsigned private_key_len = 0;
 gxString rsa_key_passphrase;
 int has_passphrase = 0;
 int ERROR_LEVEL = 0;
@@ -66,83 +80,213 @@ gxString USERNAME;
 SmartCardOB sc;
 gxString smartcard_cert_username;
 int use_cert_file = 0;
+int use_smartcard_cert = 0;
+gxString input_arg_key_file;
 gxString smartcard_cert_file;
+int use_password = 0;
+int use_key_file = 0;
+unsigned char rsa_ciphertext[8192];
+unsigned rsa_ciphertext_len;
+MemoryBuffer aes_file_decrypt_secret;
+int list_users = 0;
+int db_stats = 0;
+int display_db_config = 0;
 
-int PrintDBConfig(gxDatabaseConfig &db_config);
+// Functions
+void DisplayVersion();
+void HelpMessage();
+int ProcessDashDashArg(gxString &arg);
+int ProcessArgs(char *arg);
+int DEBUG_m(char *message, int level = 1, int rv = 0);
+int ExitProgram(int rv = 0, char *exit_message = 0);
 
 int main(int argc, char **argv)
 {
   HOMEdir = getenv("HOME");
-  USERNAME = getenv("USERNAME");
+  USERNAME = getenv("USER");
   
   executable_name = argv[0];
 
   if(argc < 2) {
-    cout << "ERROR: You must supply a file name" << "\n";
-    return 1;
+    cerr << "ERROR: You must supply an encrypted password database file name" << "\n" << flush;
+    HelpMessage();
+    return ExitProgram(1);
   }
 
+  int narg;
+  char *arg = argv[narg = 1];
+  gxString fn;
+  int num_files = 0;
+
+  if(argc >= 2) {
+    while (narg < argc) {
+      if (arg[0] != '\0') {
+	if (arg[0] == '-') { // Look for command line arguments
+	  if(!ProcessArgs(arg)) return ExitProgram(1); // Exit if argument is not valid
+	}
+	else { 
+	  fn = arg;
+	  if(futils_isdirectory(fn.c_str())) {
+	    cerr << "Encountered fatal error processing file names" << "\n";
+	    cerr << fn.c_str() << "is a directory name" << "\n";
+	    return ExitProgram(1);
+	  }
+	  else {
+	    num_files++;
+	    file_list.Add(fn);
+	  }
+	}
+	arg = argv[++narg];
+      }
+    }
+  }
+
+  if(num_files == 0) {
+    cerr << "Encountered fatal error" << "\n";
+    cerr << "No file name specified with command line args" << "\n";
+    return ExitProgram(1);
+  }
+  
   gxString sbuf;
   gxString fname;
   gxDatabaseError err;
   int rv;
-  
-  fname = argv[1];
 
-  if(!futils_exists(fname.c_str()) || !futils_isfile(fname.c_str())) {
-    cout << "ERROR: Encrypted DB file " << fname << " does not exist or cannot be read";
-    return 1;
+  gxListNode<gxString> *ptr = file_list.GetHead();
+
+  ERROR_LEVEL = 0;
+
+  if(use_key_file) {
+    if(clientcfg->verbose_mode) cerr << "Using key file for decryption" << "\n" << flush;
+    aes_file_decrypt_secret.Clear(1);
+    aes_file_decrypt_secret = key;
   }
-  
-  gxDatabase *f = new gxDatabase;
-  if(!f) {
-    cout << "ERROR: Cannot create database object" << "\n";
-    return 1;
-  }
-
-  cout << "Opening database file " << fname.c_str() << "\n";
-  err = f->Open(fname.c_str(),  gxDBASE_READWRITE);
-  if(err != gxDBASE_NO_ERROR) {
-    cout << "ERROR: " << gxDatabaseExceptionMessage(err) << "\n";
-    delete f;
-    return 1;
-  }
-
-  gxDatabaseConfig db_config;
-  DatabaseUserAuth db_auth;
-
-  DatabaseStats(f);
-
-  db_auth.f = f; // Set the file pointer
-
-  cout << "Checking database file for authorized users" << "\n";
-  if(db_auth.LoadStaticDataBlocks() != 0) {
-    cout << "ERROR: " << db_auth.err.c_str() << "\n";
-  }
-
-  cout << "\n";
-  cout << "Authorized users stats" << "\n";
-  cout << "----------------------" << "\n";
-  
-  cout << "Static auth data size: " << db_auth.static_data_size << "\n";
-  cout << "Static auth bytes used: " << db_auth.static_data_bytes_used << "\n";
-  cout << "Number of static blocks: " <<  db_auth.num_static_data_blocks << "\n";
-  
-  gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
-  if(!list_ptr) {
-    cout << "INFO: No authorized RSA or smartcard users found in encrypted DB file" << "\n" << flush; ;
-  }
-  else {
-    cout << "Encrypted file username inventory " << "\n" << flush;
-    gxString access_type = "Unknown";
-    while(list_ptr) {
-      if(list_ptr->data.block_header.block_type == 1) access_type = "RSA key";
-      if(list_ptr->data.block_header.block_type == 2) access_type = "Smart Card";
-      cout << "Username: " << list_ptr->data.username.c_str() << " Access: " << access_type.c_str() << "\n" << flush;
-      list_ptr = list_ptr->next;
+  else if(use_private_rsa_key) {
+    if(rsa_key_username.is_null()) {
+      cerr << "ERROR: --rsa-key requires --rsa-key-username" << "\n" << flush;
+      return ExitProgram(1);
+    }
+    if(clientcfg->verbose_mode) cerr << "Using private RSA key file for decryption" << "\n" << flush;
+    if(has_passphrase && rsa_key_passphrase.is_null()) {
+      cout << "RSA key passphrase: " << flush;
+      if(!consoleGetString(rsa_key_passphrase, 1)) {
+	rsa_key_passphrase.Clear(1);
+	cout << "\n" << flush;
+	cerr << "Invalid entry!" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      cout << "\n" << flush;
     }
   }
+  else if(use_smartcard_cert) {
+    if(smartcard_cert_username.is_null()) {
+      cerr << "ERROR: --smartcard-cert requires --smartcard-username" << "\n" << flush;
+      return ExitProgram(1);
+    }
+    if(clientcfg->verbose_mode) cerr << "Using smart card cert for decryption" << "\n" << flush;
 
+    if(clientcfg->verbose_mode) {
+      cerr << "Smart card engine ID = " << sc.engine_ID << "\n" << flush;
+      cerr << "Smart card engine path = " << sc.enginePath << "\n" << flush;
+      cerr << "Smart card module path = " << sc.modulePath << "\n" << flush;
+      cerr << "Smart card cert ID = " << sc.cert_id << "\n"  << flush;
+    }
+
+    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+      cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
+      return ExitProgram(1);
+    }
+    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
+      cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
+      return ExitProgram(1);
+    }
+
+    if(debug_mode) sc.verbose_mode = 1;
+    gxString pin_buf;
+    if(sc.pin[0] == 0) {
+      cout << "Smart card PIN: " << flush;
+      if(!consoleGetString(pin_buf, 1)) {
+	pin_buf.Clear(1);
+	cout << "\n" << flush;
+	cerr << "Invalid entry!" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      sc.SetPin(pin_buf.c_str());
+      pin_buf.Clear(1);
+      cout << "\n" << flush;
+    }
+  }
+  else if(use_password) {
+    if(password.is_null()) {
+      cout << "Password: " << flush;
+      if(!consoleGetString(password, 1)) {
+	cout << "\n" << flush;
+	password.Clear(1);
+	cerr << "Invalid entry!" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      cout << "\n" << flush;
+    }
+    aes_file_decrypt_secret.Clear(1);
+    aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
+  }
+  else if(list_users || db_stats) {
+    DEBUG_m("No auth operation");
+  }
+  else {
+    if(clientcfg->verbose_mode) cout << "No decryption method specifed, defaulting to password" << "\n" << flush;
+    cout << "Password: " << flush;
+    if(!consoleGetString(password, 1)) {
+      cout << "\n" << flush;
+      password.Clear(1);
+      cerr << "Invalid entry!" << "\n" << flush;
+      return ExitProgram(1);
+    }
+    cout << "\n" << flush;
+    aes_file_decrypt_secret.Clear(1);
+    aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
+  }
+
+  while(ptr) {
+    fname = ptr->data;
+    fname.ReplaceString("${HOME}", HOMEdir.c_str());
+    sbuf << clear <<  HOMEdir << "/";
+    fname.ReplaceString("~/", sbuf.c_str());
+    
+    if(list_users) {
+      DEBUG_m("No auth list users operation");
+      if(ListUsers(fname.c_str()) != 0) ERROR_LEVEL++;
+    }
+    if(db_stats) {
+      DEBUG_m("No auth display DB stats operation");
+      if(PrintDBStats(fname.c_str()) != 0) ERROR_LEVEL++;
+    }
+    if(list_users || db_stats) { // complete all non-auth ops first and exit program 
+      ptr = ptr->next;
+      continue; 
+    }
+
+    if(use_private_rsa_key) {
+
+    }
+    if(use_smartcard_cert) {
+
+    }
+    
+    if(display_db_config) {
+      if(PrintDBConfig(fname.c_str(), aes_file_decrypt_secret) != 0) ERROR_LEVEL++;
+      ptr = ptr->next;
+      continue; // Display the db config for all files and exit program 
+    }
+
+        
+    ptr = ptr->next;
+  }
+
+  return ExitProgram(ERROR_LEVEL);
+  
+  
+  /*
   key_file = "${HOME}/.encrypted_password_database/keys/master.key";
   key_file.ReplaceString("${HOME}", HOMEdir.c_str());
   if(!futils_exists(key_file.c_str()) || !futils_isfile(key_file.c_str())) {
@@ -167,7 +311,6 @@ int main(int argc, char **argv)
     std::cerr << "ERROR: " << RSA_err_string(rv) << "\n" << std::flush;
     return 1;
   }
-
 
   smartcard_cert_file = "${HOME}/.encrypted_password_database/certs/smartcard_cert.pem";
   smartcard_cert_file.ReplaceString("${HOME}", HOMEdir.c_str());
@@ -210,301 +353,329 @@ int main(int argc, char **argv)
   PrintDBConfig(db_config);
     
   return ERROR_LEVEL;
+  */
 }
 
-int PrintDBConfig(gxDatabaseConfig &db_config)
+int ExitProgram(int rv, char *exit_message)
 {
-  cout << "Printing database configurtaion" << "\n";
-  cout << "-------------------------------" << "\n";
+  // Clear and destory all global buffers
+  aes_file_decrypt_secret.Clear(1);
+  key.Clear(1);
+  password.Clear(1);
+  memset(rsa_ciphertext, 0, sizeof(rsa_ciphertext));
+  memset(public_key, 0, sizeof(public_key));
+  memset(private_key, 0, sizeof(private_key));
+  rsa_key_passphrase.Clear(1);
+
+  if(!debug_message.is_null()) DEBUG_m(debug_message.c_str(), debug_level);
+
+  if(debug_mode) {
+    cerr << "Smart card: " << sc.err_string << "\n" << flush;
+    char err[1024];
+    memset(err, 0, sizeof(err));
+    ERR_load_crypto_strings();
+    ERR_error_string(ERR_get_error(), err);
+    cerr << "Openssl " << err << "\n" << flush;
+  }
+
+  if(!exit_message) {
+    cerr << exit_message << "\n" << flush;
+  }
+  return rv;
+}
+
+void DisplayVersion()
+{
+  cout << "\n" << flush;
+  cout << program_name.c_str() 
+       << " version " << version_str.c_str();
+  cout << "\n" << flush;
+  cout << copyright.c_str() << " " 
+       << copyright_dates.c_str() << "\n" << flush;
+  cout << "Produced by: " << produced_by.c_str() << "\n" << flush;
+  cout << default_url.c_str() << "\n" << flush;
+  cout << "Release date: " << release_date.c_str() << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "Encryption engine: Openssl" << "\n" << flush;
+  cout << "Version string: " << OPENSSL_VERSION_TEXT << "\n" << flush;
+  cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "Smart card enabled for " << SC_get_default_engine_ID() << "\n" << flush;
+}
+
+void HelpMessage() 
+{
+  DisplayVersion();
+  cout << "\n" << flush;
+  cout << "Usage: " << executable_name.c_str() << " [switches] " << "database_filename" << "\n" << flush;
+  cout << "Switches: -?  Display this help message and exit." << "\n" << flush;
+  cout << "          -d  Enable debugging output" << "\n" << flush;
+  cout << "          -h  Display this help message and exit." << "\n" << flush;
+  cout << "          -v  Enable verbose messages to the console" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "          --debug (Turn on debugging and set optional level)" << "\n" << flush;
+  cout << "          --db-config (Display database config and exit)" << "\n" << flush;
+  cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
+  cout << "          --help (Display this help message and exit." << "\n" << flush;
+  cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
+  cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
+  cout << "          --rsa-key (Use a private RSA key for decryption)" << "\n" << flush;
+  cout << "          --rsa-key input args can be a private key file name or a pipe" << "\n" << flush;
+  cout << "          --rsa-key-passphrase (Passphrase for private RSA key)" << "\n" << flush;
+  cout << "          --rsa-key-username=name (Username that owns the private RSA key)" << "\n" << flush;
+  cout << "          --verbose (Turn on verbose output)" << "\n" << flush;
+  cout << "          --version (Display program version number)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "          --smartcard-cert (Use a smart card for decryption)" << "\n" << flush;
+  cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
+  cout << "          --smartcard-username=name (Username assigned to the smart card cert)" << "\n" << flush;
+  cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
+  cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
+  cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
+  cout << "\n" << flush; // End of list
+}
+
+int ProcessDashDashArg(gxString &arg)
+{
+  gxString sbuf, equal_arg, ebuf;
+  int has_valid_args = 0;
+  int rv = 0;
   
-  char *s = db_config.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    cout << "ERROR: Error decrypting database name " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
-    return 1;
+  if(arg.Find("=") != -1) {
+    // Look for equal arguments
+    // --log-file="/var/log/my_service.log"
+    equal_arg = arg;
+    equal_arg.DeleteBeforeIncluding("=");
+    arg.DeleteAfterIncluding("=");
+    equal_arg.TrimLeading(' '); equal_arg.TrimTrailing(' ');
+    equal_arg.TrimLeading('\"'); equal_arg.TrimTrailing('\"');
+    equal_arg.TrimLeading('\''); equal_arg.TrimTrailing('\'');
   }
-  if(!s) {
-    cout << "ERROR: Database name is a null value" << "\n";
-    return 1;
+
+  arg.ToLower();
+
+  // Process all -- arguments here
+  if(arg == "help") {
+    HelpMessage();
+    return 0; // Signal program to exit
+  }
+  if(arg == "?") {
+    HelpMessage();
+    return 0; // Signal program to exit
+  }
+  if((arg == "version") || (arg == "ver")) {
+    DisplayVersion();
+    return 0; // Signal program to exit
   }
 
-  unsigned i = 0;
-  unsigned j = 0;
-  
-  cout << "version_number: " << db_config.version_number << "\n";
-  cout << "database_name: " << s << "\n";
-
-  cout << "column_names:";
-  for(i = 0; i <  NumDataMembers; i++) {
-    s = db_config.column_names[i].GetString();
-    if(s) cout << " " << s;
-  }
-  cout << "\n";
-  
-  cout << "view_labels: " << db_config.view_labels << "\n";
-  cout << "view_row_numbers: " << db_config.view_row_numbers << "\n";
-
-  cout << "col_sizes: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.col_sizes[i];
-  }
-  cout << "\n";
-
-  cout << "print_field: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.print_field[i];
-  }
-  cout << "\n";
-
-  cout << "cell_attrib: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_attrib[i];
-  }
-  cout << "\n";
-
-  cout << "cell_align: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_align[i];
-  }
-  cout << "\n";
-
-  cout << "cell_border: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_border[i];
-  }
-  cout << "\n";
-
-  cout << "cell_color: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_color[i];
-  }
-  cout << "\n";
-
-  cout << "cell_fill: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_fill[i];
-  }
-  cout << "\n";
-
-  cout << "cell_text_color: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_text_color[i];
-  }
-  cout << "\n";
-
-  cout << "cell_text_font: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_text_font[i];
-  }
-  cout << "\n";
-
-  cout << "cell_type: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_type[i];
-  }
-  cout << "\n";
-
-  cout << "cell_pattern: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_pattern[i];
-  }
-  cout << "\n";
-
-  cout << "cell_protection: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_protection[i];
-  }
-  cout << "\n";
-
-  cout << "label_align: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_align[i];
-  }
-  cout << "\n";
-
-  cout << "label_border: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_border[i];
-  }
-  cout << "\n";
-
-  cout << "label_color: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_color[i];
-  }
-  cout << "\n";
-
-  cout << "label_fill: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_fill[i];
-  }
-  cout << "\n";
-
-  cout << "label_text_font: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_text_font[i];
-  }
-  cout << "\n";
-
-  cout << "label_text_color: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_text_color[i];
-  }
-  cout << "\n";
-
-  cout << "label_pattern: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_pattern[i];
-  }
-  cout << "\n";
-
-  cout << "label_protection: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_protection[i];
-  }
-  cout << "\n";
-
-  cout << "display_field: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.display_field[i];
-  }
-  cout << "\n";
-
-  cout << "cell_misc: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.cell_misc[i];
-  }
-  cout << "\n";
-
-  cout << "label_misc: ";
-  for(i = 0; i <  NumDataMembers; i++) {
-    cout << " " <<  db_config.label_misc[i];
-  }
-  cout << "\n";
-
-  cout << "auto_size: " << db_config.auto_size << "\n";
-  cout << "cell_overflow: " << db_config.cell_overflow << "\n";
-  cout << "view_grid_lines: " << db_config.view_grid_lines << "\n";
-  cout << "grid_line_color: " << db_config.grid_line_color << "\n";
-  cout << "view_skip_lines: " << db_config.view_skip_lines << "\n";
-  cout << "skip_line_color: " << db_config.skip_line_color << "\n";
-  cout << "grid_background_color: " << db_config.grid_background_color << "\n";
-  cout << "grid_text_color: " << db_config.grid_text_color << "\n";
-  cout << "grid_label_background_color: " << db_config.grid_label_background_color << "\n";
-  cout << "grid_label_text_color: " << db_config.grid_label_text_color << "\n";
-  cout << "hyperlink_color: " << db_config.hyperlink_color << "\n";
-
-  cout << "grid_label_font: ";
-  for(i = 0; i <  FontElements; i++) {
-    cout << " " <<  db_config.grid_label_font[i];
-  }
-  cout << "\n";
-
-  s = db_config.grid_label_font_name.GetString();
-  if(s) cout << "grid_label_font_name: " << s << "\n";
-  
-  cout << "grid_text_font: ";
-  for(i = 0; i <  FontElements; i++) {
-    cout << " " <<  db_config.grid_text_font[i];
-  }
-  cout << "\n";
-
-  s = db_config.grid_text_font_name.GetString();
-  if(s) cout << "grid_text_font_name: " << s << "\n";
-  
-  cout << "hyperlink_font: ";
-  for(i = 0; i <  FontElements; i++) {
-    cout << " " <<  db_config.hyperlink_font[i];
-  }
-  cout << "\n";
-
-  s = db_config.hyperlink_font_name.GetString();
-  if(s) cout << "hyperlink_font_name: " << s << "\n";
-  
-  s = db_config.print_doc_name.GetString();
-  if(s) cout << "print_doc_name: " << s << "\n";
-  
-  cout << "print_doc_time_and_date: " << db_config.print_doc_time_and_date << "\n";
-  cout << "print_grid_lines: " << db_config.print_grid_lines << "\n";
-  cout << "print_orientation: " << db_config.print_orientation << "\n";
-  cout << "print_left_margin_size: " << db_config.print_left_margin_size << "\n";
-  cout << "print_paper_size: " << db_config.print_paper_size << "\n";
-  cout << "print_page_header: " << db_config.print_page_header << "\n";
-
-  s = db_config.print_doc_custom_header.GetString();
-  if(s) cout << "print_doc_custom_header: " << s << "\n";
-  
-  cout << "print_header_color: " << db_config.print_header_color << "\n";
-
-  cout << "print_header_font: ";
-  for(i = 0; i <  FontElements; i++) {
-    cout << " " <<  db_config.print_header_font[i];
-  }
-  cout << "\n";
-
-  s = db_config.print_header_font_name.GetString();
-  if(s) cout << "print_header_font_name: " << s << "\n";
-  
-  cout << "print_page_footer: " << db_config.print_page_footer << "\n";
-
-  s = db_config.print_doc_custom_footer.GetString();
-  if(s) cout << "print_doc_custom_footer: " << s << "\n";
-  
-  cout << "print_footer_color: " << db_config.print_footer_color << "\n";
-
-  cout << "print_footer_font: ";
-  for(i = 0; i <  FontElements; i++) {
-    cout << " " <<  db_config.print_footer_font[i];
-  }
-  cout << "\n";
-
-  s = db_config.print_footer_font_name.GetString();
-  if(s) cout << "print_footer_font_name: " << s << "\n";
-  
-  cout << "print_skip_lines: " << db_config.print_skip_lines << "\n";
-  cout << "print_grid_labels: " << db_config.print_grid_labels << "\n";
-  cout << "print_row_numbers: " << db_config.print_row_numbers << "\n";
-  cout << "print_page_scale: " << db_config.print_page_scale << "\n";
-
-  cout << "cell_text_fonts:";
-  for(i = 0; i < (unsigned)NumDataMembers; i++) {
-    for(j = 0; j < (unsigned)FontElements; j++) cout << " " << db_config.cell_text_fonts[i][j];
-  }
-  cout << "\n";
-
-  cout << "cell_text_font_names:";
-  for(i = 0; i <  NumDataMembers; i++) {
-    s = db_config.cell_text_font_names[1].GetString();
-    if(s) cout << " " << s;
-  }
-  cout << "\n";
-
-  cout << "label_text_fonts:";
-  for(i = 0; i < (unsigned)NumDataMembers; i++) {
-    for(j = 0; j < (unsigned)FontElements; j++) cout << " " << db_config.label_text_fonts[i][j];
-  }
-  cout << "\n";
-
-  cout << "label_text_font_names:";
-  for(i = 0; i <  NumDataMembers; i++) {
-    s = db_config.label_text_font_names[i].GetString();
-    if(s) cout << " " << s;
-  }
-  cout << "\n";
-
-  if(db_config.text_delimiter[0] != 0) {
-    if(db_config.text_delimiter[0] == '\t') {
-      cout << "text_delimiter 1: tab" << "\n";
+  if(arg == "debug") {
+    if(!equal_arg.is_null()) {
+      if(equal_arg.Atoi() <= 0) {
+	cerr << "ERROR: Invalid value passed to --debug" << "\n" << flush;
+	return 0;
+      }
+      debug_level = equal_arg.Atoi();
+      verbose_mode = 1;
+      debug_mode= 1;
     }
-    else {
-      cout << "text_delimiter 1: " << db_config.text_delimiter[0] << "\n";
-    }
+    has_valid_args = 1;
   }
-  if(db_config.text_delimiter[1] != 0) cout << "text_delimiter 2: " << db_config.text_delimiter[1] << "\n";
-  if(db_config.text_delimiter[2] != 0) cout << "text_delimiter 3: " << db_config.text_delimiter[2] << "\n";
-  if(db_config.text_delimiter[3] != 0) cout << "text_delimiter 4: " << db_config.text_delimiter[3] << "\n";
-  cout << "\n";
 
-  return 0;
+  if(arg == "verbose") {
+    verbose_mode = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "list-users" ) {
+    list_users = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "db-stats" ) {
+    db_stats = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "db-config" ) {
+    display_db_config = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "rsa-key-passphrase") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --rsa-key-passphrase requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    rsa_key_passphrase = equal_arg;
+    has_valid_args = 1;
+  }
+
+  if(arg == "password") {
+    if(!equal_arg.is_null()) {
+      password = equal_arg;
+    }
+    use_password  = 1;
+    has_valid_args = 1;
+  }
+  
+  if(arg == "key") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --key requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    input_arg_key_file = equal_arg;
+    if(!futils_exists(input_arg_key_file.c_str())|| !futils_isfile(input_arg_key_file.c_str())) {
+      cerr << "ERROR: Key file " << input_arg_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    DEBUG_m("Reading symmetric key file");
+    if(read_key_file(input_arg_key_file.c_str(), key, ebuf) != 0) {
+      cerr << "ERROR: " << ebuf.c_str() << "\n" << flush;
+      return 0;
+    }
+    use_key_file  = 1;
+    has_valid_args = 1;
+  }
+  
+  if(arg == "rsa-key") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --rsa-key missing filename: --rsa-key=/$HOME/keys/rsa_key.pem" << "\n" << flush;
+      return 0;
+    }
+    private_rsa_key_file = equal_arg;
+    if(!futils_exists(private_rsa_key_file.c_str()) || !futils_isfile(private_rsa_key_file.c_str())) {
+      cerr << "ERROR: Private RSA key file " << private_rsa_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    DEBUG_m("Reading RSA key file");
+    rv = RSA_read_key_file(private_rsa_key_file.c_str(), private_key, sizeof(private_key), &private_key_len, &has_passphrase);
+    if(rv != RSA_NO_ERROR) {
+      cerr << "ERROR: " << RSA_err_string(rv) << "\n" << flush;
+      return 0;
+    }
+    use_private_rsa_key = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "rsa-key-username") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --rsa-key-username missing name: --rsa-key-username=$(whoami)" << "\n" << flush;
+      return 0;
+    }
+    rsa_key_username = equal_arg;
+    has_valid_args = 1;
+  }
+
+  if(arg == "smartcard-cert") {
+    use_smartcard_cert = 1;
+    has_valid_args = 1;
+  }
+  
+  if(arg == "smartcard-username") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --smartcard-username missing name: --smartcard-username=$(whoami)" << "\n" << flush;
+      return 0;
+    }
+    smartcard_cert_username = equal_arg;
+    has_valid_args = 1;
+  }
+
+  if(arg == "smartcard-cert-id") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --smartcard-cert-id missing ID: --smartcard-cert-id=01" << "\n" << flush;
+      return 0;
+    }
+    sc.SetCertID(equal_arg.c_str());
+    has_valid_args = 1;
+  }
+
+  if(arg == "smartcard-engine") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --smartcard-engine missing path: --smartcard-engine=" <<  SC_get_default_enginePath() << "\n" << flush;
+      return 0;
+    }
+    sc.SetEnginePath(equal_arg.c_str());
+    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+      cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    has_valid_args = 1;
+  }
+
+  if(arg == "smartcard-provider") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --smartcard-provider missing path: --smartcard-provider=" <<  SC_get_default_modulePath() << "\n" << flush;
+      return 0;
+    }
+    sc.SetModulePath(equal_arg.c_str());
+    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
+      cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    has_valid_args = 1;
+  }
+
+  if(arg == "smartcard-pin") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --smartcard-pin missing pin number: --smartcard-pin=12345" << "\n" << flush;
+      return 0;
+    }
+    sc.SetPin(equal_arg.c_str());
+    has_valid_args = 1;
+  }
+  
+  if(!has_valid_args) {
+    cerr << "Unknown or invalid --" << arg.c_str() << "\n" << flush;
+    cerr << "Exiting..." << "\n" << flush;
+  }
+
+  arg.Clear();
+  return has_valid_args;
+}
+
+int ProcessArgs(char *arg)
+{
+  gxString sbuf;
+  gxString ebuf;
+  
+  switch(arg[1]) {
+    case 'v':
+      verbose_mode = 1;
+      break;
+
+    case 'd':
+      verbose_mode = 1;
+      debug_mode = 1;
+      break;
+
+    case 'h': case 'H': case '?':
+      HelpMessage();
+      return 0;
+
+    case '-':
+      sbuf = arg+2; 
+      // Add all -- prepend filters here
+      sbuf.TrimLeading('-');
+      if(!ProcessDashDashArg(sbuf)) return 0;
+      break;
+
+    default:
+      cerr << "ERROR: Unknown switch " << arg << "\n" << flush;
+      cerr << "Exiting..." << "\n" << flush;
+      return 0;
+  }
+  arg[0] = '\0';
+
+  return 1; // All command line arguments were valid
+}
+
+int DEBUG_m(char *message, int level, int rv)
+{
+  if(debug_mode && debug_level >= level) {
+    if(message) cerr << "DEBUG" << debug_level << ": " << message << "\n" << flush; 
+    if(!debug_message.is_null()) cerr << debug_message << "\n" << flush;
+  }
+  return rv; 
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //
