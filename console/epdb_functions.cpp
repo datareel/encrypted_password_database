@@ -348,6 +348,7 @@ int PrintDBStats(const char *fname)
   cout << "Displaying database stats for " << fname << "\n" << flush;
   DatabaseStats(f);
 
+  f->Close();
   delete f;
   return 0;
 }
@@ -364,13 +365,16 @@ int PrintDBConfig(const char *fname, MemoryBuffer &key)
   gxDatabaseConfig db_config;
   if(UnlockEPDB(f, key, db_config, err_string) != 0) {
     cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
+    f->Close();
     delete f;
     return 1;
   }
 
   PrintDBConfig(db_config);
-  
+
+  f->Close();
   delete f;
+  
   return 0;
 }
 
@@ -389,6 +393,7 @@ int ListUsers(const char *fname)
   cout << "Checking database file for authorized users" << "\n" << flush;
   if(db_auth.LoadStaticDataBlocks() != 0) {
     cerr << "ERROR: " << db_auth.err.c_str() << "\n" << flush;
+    f->Close();
     delete f;
     return 1;
   }
@@ -417,6 +422,7 @@ int ListUsers(const char *fname)
   }
   cout << "\n" << flush;
 
+  f->Close();
   delete f;
   return 0;
 }

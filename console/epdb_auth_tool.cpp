@@ -62,7 +62,8 @@ gxList<gxString> file_list;
 MemoryBuffer key;
 gxString password;
 gxString key_file;
-gxString rsa_public_key_file;
+gxString public_rsa_key_file;
+int add_rsa_key = 0;
 gxString smardcard_cert_file;
 char public_key[RSA_max_keybuf_len];
 int use_private_rsa_key = 0;
@@ -77,12 +78,14 @@ int ERROR_LEVEL = 0;
 gxString executable_name;
 gxString HOMEdir;
 gxString USERNAME;
+int add_smart_card = 0;
+int use_smartcard_cert_file = 0;
+gxString smartcard_cert_file;
 SmartCardOB sc;
 gxString smartcard_cert_username;
 int use_cert_file = 0;
-int use_smartcard_cert = 0;
+int use_smartcard = 0;
 gxString input_arg_key_file;
-gxString smartcard_cert_file;
 int use_password = 0;
 int use_key_file = 0;
 unsigned char rsa_ciphertext[8192];
@@ -91,6 +94,7 @@ MemoryBuffer aes_file_decrypt_secret;
 int list_users = 0;
 int db_stats = 0;
 int display_db_config = 0;
+gxString add_username;
 
 // Functions
 void DisplayVersion();
@@ -99,6 +103,8 @@ int ProcessDashDashArg(gxString &arg);
 int ProcessArgs(char *arg);
 int DEBUG_m(char *message, int level = 1, int rv = 0);
 int ExitProgram(int rv = 0, char *exit_message = 0);
+int check_if_file_exists(gxString &fname);
+int check_if_file_exists(char *fname);
 
 int main(int argc, char **argv)
 {
@@ -117,7 +123,8 @@ int main(int argc, char **argv)
   char *arg = argv[narg = 1];
   gxString fn;
   int num_files = 0;
-
+  int num_operations = 0;
+  
   if(argc >= 2) {
     while (narg < argc) {
       if (arg[0] != '\0') {
@@ -148,10 +155,8 @@ int main(int argc, char **argv)
   }
   
   gxString sbuf;
+  gxString err_string;
   gxString fname;
-  gxDatabaseError err;
-  int rv;
-
   gxListNode<gxString> *ptr = file_list.GetHead();
 
   ERROR_LEVEL = 0;
@@ -163,8 +168,14 @@ int main(int argc, char **argv)
   }
   else if(use_private_rsa_key) {
     if(rsa_key_username.is_null()) {
-      cerr << "ERROR: --rsa-key requires --rsa-key-username" << "\n" << flush;
-      return ExitProgram(1);
+      rsa_key_username = USERNAME;
+      if(rsa_key_username.is_null()) {
+	cerr << "ERROR: --rsa-key requires --rsa-key-username" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      else {
+	cerr << "INFO: No --rsa-key-username was supplied, using " << USERNAME.c_str() << "\n" << flush;
+      }
     }
     if(clientcfg->verbose_mode) cerr << "Using private RSA key file for decryption" << "\n" << flush;
     if(has_passphrase && rsa_key_passphrase.is_null()) {
@@ -178,10 +189,16 @@ int main(int argc, char **argv)
       cout << "\n" << flush;
     }
   }
-  else if(use_smartcard_cert) {
+  else if(use_smartcard) {
     if(smartcard_cert_username.is_null()) {
-      cerr << "ERROR: --smartcard-cert requires --smartcard-username" << "\n" << flush;
-      return ExitProgram(1);
+      smartcard_cert_username = USERNAME;
+      if(smartcard_cert_username.is_null()) {
+	cerr << "ERROR: --smartcard-cert requires --smartcard-username" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      else {
+	cerr << "INFO: No --smartcard-username was supplied, using " << USERNAME.c_str() << "\n" << flush;
+      }
     }
     if(clientcfg->verbose_mode) cerr << "Using smart card cert for decryption" << "\n" << flush;
 
@@ -192,11 +209,11 @@ int main(int argc, char **argv)
       cerr << "Smart card cert ID = " << sc.cert_id << "\n"  << flush;
     }
 
-    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+    if(!check_if_file_exists(sc.enginePath)) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return ExitProgram(1);
     }
-    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
+    if(!futils_exists(sc.modulePath)) {
       cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
       return ExitProgram(1);
     }
@@ -249,10 +266,11 @@ int main(int argc, char **argv)
 
   while(ptr) {
     fname = ptr->data;
-    fname.ReplaceString("${HOME}", HOMEdir.c_str());
-    sbuf << clear <<  HOMEdir << "/";
-    fname.ReplaceString("~/", sbuf.c_str());
-    
+    if(!check_if_file_exists(fname)) {
+      ptr = ptr->next;
+      continue; 
+    }
+
     if(list_users) {
       DEBUG_m("No auth list users operation");
       if(ListUsers(fname.c_str()) != 0) ERROR_LEVEL++;
@@ -267,10 +285,50 @@ int main(int argc, char **argv)
     }
 
     if(use_private_rsa_key) {
-
+      DatabaseUserAuth db_auth;
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      if(!f) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      db_auth.f = f;
+      char *passphrase = 0;
+      if(!rsa_key_passphrase.is_null()) passphrase = (char *)rsa_key_passphrase.GetSPtr();
+      if(db_auth.DecryptWithRSAKey(private_key, private_key_len, rsa_key_username, passphrase) != 0) {
+	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
+	ERROR_LEVEL++;
+	f->Close();
+	delete f;
+	ptr = ptr->next;
+	continue; 
+      }
+      aes_file_decrypt_secret = DBStringConfig::crypt_key;
+      f->Close();
+      delete f;
     }
-    if(use_smartcard_cert) {
-
+    if(use_smartcard) {
+      DatabaseUserAuth db_auth;
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      if(!f) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      db_auth.f = f;
+      if(db_auth.DecryptWithSmartcard(&sc, smartcard_cert_username) != 0) {
+	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
+	ERROR_LEVEL++;
+	f->Close();
+	delete f;
+	ptr = ptr->next;
+	continue; 
+      }
+      aes_file_decrypt_secret = DBStringConfig::crypt_key;
+      f->Close();
+      delete f;
     }
     
     if(display_db_config) {
@@ -279,81 +337,71 @@ int main(int argc, char **argv)
       continue; // Display the db config for all files and exit program 
     }
 
-        
+    if(add_rsa_key) {
+      num_operations++;
+      if(add_username.is_null()) {
+	cerr << "ERROR: --add-rsa-key requires --add-username" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      cerr << "Adding RSA key for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
+      DatabaseUserAuth db_auth;
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      if(!f) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      db_auth.f = f;
+      if(db_auth.AddRSAKeyToStaticArea(aes_file_decrypt_secret, public_key, public_key_len, add_username) != 0) {
+	cerr << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n" << flush;
+	ERROR_LEVEL++;
+	f->Close();
+	delete f;
+	ptr = ptr->next;
+	continue; 
+      }
+      cerr << "Public RSA key for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
+      f->Close();
+      delete f;
+    }
+    if(add_smart_card) {
+      num_operations++;
+      if(add_username.is_null()) {
+	cerr << "ERROR: --add-smartcard-cert requires --add-username" << "\n" << flush;
+	return ExitProgram(1);
+      }
+      cerr << "Adding smartcard cert for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
+      DatabaseUserAuth db_auth;
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      if(!f) {
+	cerr << "ERROR: " << err_string.c_str() << "\n";
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      db_auth.f = f;
+      
+      if(db_auth.AddSmartCardCertToStaticArea(&sc, use_smartcard_cert_file, aes_file_decrypt_secret, add_username) != 0){
+	cerr << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
+	ERROR_LEVEL++;
+	f->Close();
+	delete f;
+	ptr = ptr->next;
+	continue; 
+      }
+      cerr << "Smart card cert for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
+      f->Close();
+      delete f;
+    }
+            
+    if(num_operations == 0) {
+      cerr << "INFO: File " << ptr->data.c_str() << " opened, no operations performed" << "\n" << flush;
+    }
     ptr = ptr->next;
   }
 
   return ExitProgram(ERROR_LEVEL);
-  
-  
-  /*
-  key_file = "${HOME}/.encrypted_password_database/keys/master.key";
-  key_file.ReplaceString("${HOME}", HOMEdir.c_str());
-  if(!futils_exists(key_file.c_str()) || !futils_isfile(key_file.c_str())) {
-    cout << "ERROR: Key file " << key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
-    return 1;
-  }
-  cout << "Reading symmetric key file" << "\n";
-  if(read_key_file(key_file.c_str(), key, sbuf) != 0) {
-    cout << "ERROR: " << sbuf.c_str() << "\n" << flush;
-    return 1;
-  }
-
-  rsa_public_key_file = "${HOME}/.encrypted_password_database/keys/public.pem";
-  rsa_public_key_file.ReplaceString("${HOME}", HOMEdir.c_str());
-  
-  if(!futils_exists(rsa_public_key_file.c_str()) || !futils_isfile(rsa_public_key_file.c_str())) {
-    cout << "ERROR: Public RSA key file " << rsa_public_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
-    return 1;
-  }
-  rv = RSA_read_key_file(rsa_public_key_file.c_str(), public_key, sizeof(public_key), &public_key_len, &has_passphrase);
-  if(rv != RSA_NO_ERROR) {
-    std::cerr << "ERROR: " << RSA_err_string(rv) << "\n" << std::flush;
-    return 1;
-  }
-
-  smartcard_cert_file = "${HOME}/.encrypted_password_database/certs/smartcard_cert.pem";
-  smartcard_cert_file.ReplaceString("${HOME}", HOMEdir.c_str());
-  if(!futils_exists(smartcard_cert_file.c_str()) || !futils_isfile(smartcard_cert_file.c_str())) {
-    cerr << "ERROR: Smart card cert file " << smartcard_cert_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
-    return 1;
-  }
-  if(SC_read_cert_file(&sc, smartcard_cert_file.c_str()) != 0) {
-    cerr << "ERROR: " << sc.err_string << "\n" << flush;
-    return 1;
-  }
-
-  
-  DBStringConfig::crypt_key = key;
-  db_config.ReadConfig(f);
-  char *s = db_config.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    cout << "ERROR: Error decrypting database hash " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
-    return 1;
-  }
-  if(!s) {
-    cout << "ERROR: Database hash is a null value" << "\n";
-    return 1;
-  }
-
-  rv = db_auth.AddRSAKeyToStaticArea(key, public_key, public_key_len, USERNAME);
-  if(rv != 0) {
-    cout << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n";
-    //  return 1;
-  }
-
-  use_cert_file = 1;
-  rv = db_auth.AddSmartCardCertToStaticArea(&sc, use_cert_file, key, USERNAME);
-  if(rv != 0) {
-    cout << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
-    //    return 1;
-  }
-  
-
-  PrintDBConfig(db_config);
-    
-  return ERROR_LEVEL;
-  */
 }
 
 int ExitProgram(int rv, char *exit_message)
@@ -407,31 +455,42 @@ void HelpMessage()
 {
   DisplayVersion();
   cout << "\n" << flush;
-  cout << "Usage: " << executable_name.c_str() << " [switches] " << "database_filename" << "\n" << flush;
+  cout << "Usage: " << executable_name.c_str() << " [switches] " << "dbfile.ehd" << "\n" << flush;
   cout << "Switches: -?  Display this help message and exit." << "\n" << flush;
   cout << "          -d  Enable debugging output" << "\n" << flush;
   cout << "          -h  Display this help message and exit." << "\n" << flush;
   cout << "          -v  Enable verbose messages to the console" << "\n" << flush;
   cout << "\n" << flush;
   cout << "          --debug (Turn on debugging and set optional level)" << "\n" << flush;
-  cout << "          --db-config (Display database config and exit)" << "\n" << flush;
-  cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
-  cout << "          --help (Display this help message and exit." << "\n" << flush;
-  cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
-  cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
-  cout << "          --rsa-key (Use a private RSA key for decryption)" << "\n" << flush;
-  cout << "          --rsa-key input args can be a private key file name or a pipe" << "\n" << flush;
-  cout << "          --rsa-key-passphrase (Passphrase for private RSA key)" << "\n" << flush;
-  cout << "          --rsa-key-username=name (Username that owns the private RSA key)" << "\n" << flush;
   cout << "          --verbose (Turn on verbose output)" << "\n" << flush;
   cout << "          --version (Display program version number)" << "\n" << flush;
+  cout << "          --help (Display this help message and exit." << "\n" << flush;
   cout << "\n" << flush;
-  cout << "          --smartcard-cert (Use a smart card for decryption)" << "\n" << flush;
+  cout << "DB authenitcation methods:\n" << flush;
+  cout << "          --key=aes_key (Use a key file for symmetric file decryption)" << "\n" << flush;
+  cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
+  cout << "          --rsa-key (Use a private RSA key file for decryption)" << "\n" << flush;
+  cout << "          --rsa-key-passphrase (Passphrase for private RSA key)" << "\n" << flush;
+  cout << "          --rsa-key-username=name (Username that owns the private RSA key, defaults to current user)" << "\n" << flush;
+  cout << "          --smartcard (Use a smart card for decryption)" << "\n" << flush;
   cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
-  cout << "          --smartcard-username=name (Username assigned to the smart card cert)" << "\n" << flush;
+  cout << "          --smartcard-username=name (Username assigned to the smart card cert, defaults to current user)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "Smartcard settings:\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
   cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB stat functions:\n" << flush;
+  cout << "          --db-config (Display database config and exit)" << "\n" << flush;
+  cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
+  cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB add user functions:\n" << flush;
+  cout << "          --add-rsa-key (Add access to database for another users public RSA key)" << "\n" << flush;
+  cout << "          --add-smartcard-cert (Add access to database for another users smart card)" << "\n" << flush;
+  cout << "          --add-username (Username being added for public RSA key file or exported smart card cert file)" << "\n" << flush;
+  
   cout << "\n" << flush; // End of list
 }
 
@@ -524,7 +583,7 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     input_arg_key_file = equal_arg;
-    if(!futils_exists(input_arg_key_file.c_str())|| !futils_isfile(input_arg_key_file.c_str())) {
+    if(!check_if_file_exists(input_arg_key_file.c_str())) {
       cerr << "ERROR: Key file " << input_arg_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -543,7 +602,7 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     private_rsa_key_file = equal_arg;
-    if(!futils_exists(private_rsa_key_file.c_str()) || !futils_isfile(private_rsa_key_file.c_str())) {
+    if(!check_if_file_exists(private_rsa_key_file.c_str())) {
       cerr << "ERROR: Private RSA key file " << private_rsa_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -566,8 +625,8 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
-  if(arg == "smartcard-cert") {
-    use_smartcard_cert = 1;
+  if(arg == "smartcard") {
+    use_smartcard = 1;
     has_valid_args = 1;
   }
   
@@ -595,7 +654,7 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     sc.SetEnginePath(equal_arg.c_str());
-    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+    if(!check_if_file_exists(sc.enginePath)) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -608,7 +667,7 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     sc.SetModulePath(equal_arg.c_str());
-    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
+    if(!check_if_file_exists(sc.modulePath)) {
       cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -621,6 +680,55 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     sc.SetPin(equal_arg.c_str());
+    has_valid_args = 1;
+  }
+
+  if(arg == "add-rsa-key") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --add-rsa-key missing filename: --add-rsa-key=/$HOME/keys/rsa_pubkey.pem" << "\n" << flush;
+      return 0;
+    }
+    public_rsa_key_file = equal_arg;
+    
+    DEBUG_m("Reading public RSA key file");
+    if(!check_if_file_exists(public_rsa_key_file.c_str())) {
+      cerr << "ERROR: Public RSA key file " << public_rsa_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    rv = RSA_read_key_file(public_rsa_key_file.c_str(), public_key, sizeof(public_key), &public_key_len, &has_passphrase);
+    if(rv != RSA_NO_ERROR) {
+      std::cerr << "ERROR: " << RSA_err_string(rv) << "\n" << std::flush;
+      return 0;
+    }
+    add_rsa_key = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "add-username") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --add-username missing name: --add-username=$(whoami)" << "\n" << flush;
+      return 0;
+    }
+    add_username = equal_arg;
+    has_valid_args = 1;
+  }
+
+  if(arg == "add-smartcard-cert") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --add-smartcard-cert missing filename: --add-smartcard-cert=${HOME}/certs/certfile.pem" << "\n" << flush;
+      return 0;
+    }
+    add_smart_card = 1;
+    use_smartcard_cert_file = 1;
+    smartcard_cert_file = equal_arg;
+    if(!check_if_file_exists(smartcard_cert_file.c_str())) {
+      cerr << "ERROR: Smart card cert file " << smartcard_cert_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    if(SC_read_cert_file(&sc, smartcard_cert_file.c_str()) != 0) {
+      cerr << "ERROR: " << sc.err_string << "\n" << flush;
+      return 0;
+    }
     has_valid_args = 1;
   }
   
@@ -676,6 +784,33 @@ int DEBUG_m(char *message, int level, int rv)
     if(!debug_message.is_null()) cerr << debug_message << "\n" << flush;
   }
   return rv; 
+}
+
+int check_if_file_exists(char *fname)
+{
+  if(!futils_exists(fname) || !futils_isfile(fname)) {
+    cerr << "ERROR: File " << fname << " does not exist or cannot be read" <<  "\n" << flush;
+    return 0;
+  }
+
+  return 1;
+}
+
+int check_if_file_exists(gxString &fname)
+{
+  HOMEdir = getenv("HOME");
+  gxString sbuf;
+
+  fname.ReplaceString("${HOME}", HOMEdir.c_str());
+  sbuf << clear <<  HOMEdir << "/";
+  fname.ReplaceString("~/", sbuf.c_str());
+
+  if(!futils_exists(fname.c_str()) || !futils_isfile(fname.c_str())) {
+    cerr << "ERROR: File " << fname.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+    return 0;
+  }
+
+  return 1;
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //
