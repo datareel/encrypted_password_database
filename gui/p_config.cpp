@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/29/2023
+// Date Last Modified: 12/30/2023
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -122,7 +122,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 
   envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
-  VersionString = "2023.108";
+  VersionString = "2023.109";
 #ifdef __APP_DEBUG_VERSION__
   ProgramName << " Encrypted Password Database Debug Version";
 #endif
@@ -131,7 +131,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   produced_by = "Datareel Open Source";
   copyright = "Copyright (c) Datareel Open Source"; 
   copyright_dates = "2001-2024";
-  release_date = "12/29/2023";
+  release_date = "12/30/2023";
   default_url = "https://datareel.com";
   support_email = "datareel@datareel.com";
   online_help_page = "https://datareel.com/encrypted_password_database/help";
