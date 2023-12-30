@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/27/2023
+// Date Last Modified: 12/29/2023
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -427,27 +427,62 @@ int ListUsers(const char *fname)
   return 0;
 }
 
+void StoreObjectAddress(BtreeNode *n)
+// Prints a single B-tree node.
+{
+  INFOHOGKEY key;
+  BtreeKeyCount_t i = (BtreeKeyCount_t)0;
+  while (i < n->key_count) {
+    n->LoadKey(key, (BtreeKeyLocation_t)i);
+    FAU object_id = key.ObjectID();
+    dllist->Add(object_id);
+    i++;
+  }
+}
+
+void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
+// Recursive function used to walk through the B-tree node by node.
+{
+  BtreeKeyCount_t i;
+
+  // Ensure that the in memory buffers and the file data
+  // stay in sync during multiple file access.
+  if(tree) {
+    tree->TestTree();
+  }
+  else {
+    return;
+  }
+
+  BtreeNode n(tree->KeySize(), tree->NodeOrder());
+  
+  if(t != (FAU_t)0) {
+    tree->ReadNode(n, t);
+    n.node_address = t;
+    (*Visit)(&n); // Process the node data
+    BtreeKeyCount_t nc = n.key_count;
+    FAU_t p;
+
+    for(i = (BtreeKeyCount_t)-1; i < nc; i++) {
+      p = n.GetBranch(i);
+      gxBtreeWalk(p, Visit, tree);  
+    }
+  }
+}
+
 int BuildVirtualEPDB(POD *pod)
 {
   if(!dllist || !pod) return 0;
 
-  INFOHOGKEY key, compare_key;
+  int num_entries = 0;
   gxBtree *btx = pod->Index();
   dllist->ClearList();
+  gxBtreeWalk(btx->Root(), StoreObjectAddress, btx);
 
-  btx->TestTree();
-
-  int num_entries = 0;
-  FAU object_id;
-  if(btx->FindFirst(key, 0)) {
-    object_id = key.ObjectID();
-    dllist->Add(object_id);
+  dllistptr = dllist->GetHead();
+  while(dllistptr) {
     num_entries++;
-  }
-  while(btx->FindNext(key, compare_key, 0)) {
-    object_id = key.ObjectID();
-    dllist->Add(object_id);
-    num_entries++;
+    dllistptr = dllistptr->next;
   }
 
   return num_entries;
@@ -472,7 +507,6 @@ int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char repla
   delimiter_str << clear << delimiter;
   const char *Fill = " "; // Fill character string
   unsigned i;
-  int num_entries = 0;
   int exports = 0;
   
   dllistptr = dllist->GetHead();
@@ -661,26 +695,33 @@ int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gx
 
 unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all)
 {
-  INFOHOGKEY key, compare_key;
+  if(!pod || !btx) return 0;
+  if(!BuildVirtualEPDB(pod)) return 0;
+
   unsigned objects_found = 0;
-  dllist->ClearList();
+  INFOHOGKEY key;
+  gxList<FAU> address_list;
   
-  // Walk through the tree starting at the first key
-  if(btx->FindFirst(key)) {
+  dllistptr = dllist->GetHead();
+  while(dllistptr) {
+    FAU object_address = dllistptr->data;
+    address_list.Add(object_address);
+    dllistptr = dllistptr->next;
+  }
+
+  dllist->ClearList();
+  gxListNode<FAU> *ptr =  address_list.GetHead();
+  while(ptr) {
     INFOHOG infohog(pod);
-    if(!infohog.ReadObject(key.ObjectID())) {
+    if(!infohog.ReadObject(ptr->data)) {
       return objects_found;
     }
-
+    DBString dbstring = *((DBString *)infohog.GetMember(0));
+    FAU object_id = ptr->data;
+    key.SetObjectName(dbstring);
+    key.SetObjectID(object_id); 
     KeySearchEPDB(key, item, pod, ob, objects_found, find_all);
-    
-    while(btx->FindNext(key, compare_key)) {
-      INFOHOG infohog(pod);
-      if(!infohog.ReadObject(key.ObjectID())) {
-	return objects_found;
-      }
-      KeySearchEPDB(key, item, pod, ob, objects_found, find_all);
-    }
+    ptr = ptr->next;
   }
   return objects_found;
 }

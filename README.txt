@@ -12,21 +12,26 @@ FEATURES
     Multi user access using smart cards
     Supports DOD CAC smart cards
     Graphical User Interface to manage database entries
-    Command line tools for automation (under development)
+    Command line tool for automation
+    Command line tool for scripts and embedded processes to get passwords
+    
+DOCUMENTATION
+-------------
+For the latest updates and documents please visit the online help page:
+
+https://datareel.com/encrypted_password_database/help/
+
 
 INSTALLING
 ----------
-Following a major code rewrite an alpha version was released for
-testing and evaluation.
-
 The Binaries for RHEL distribution includes and installer that can
 install to your user account without root access. To install from the
 command line: 
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2023_107_alpha_rhel_7_8_9_binaries.tar.gz
-tar xvfz encrypted_password_database_2023_107_alpha_rhel_7_8_9_binaries.tar.gz
-cd encrypted_password_database_2023_107_alpha_rhel_7_8_9_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2023_108_rhel_7_8_9_binaries.tar.gz
+tar xvfz encrypted_password_database_2023_108_rhel_7_8_9_binaries.tar.gz
+cd encrypted_password_database_2023_108_rhel_7_8_9_binaries
 ./rh_install.sh
 
 To run the Encrypted Password Database GUI from the command line:
@@ -36,6 +41,10 @@ ${HOME}/.encrypted_password_database/bin/encrypted_password_database
 For GNOME desktops the Encrypted Password Database will be added to your applications list
 For GNOME classic desktops you will have a desktop icon and entry
 under Applications->Other
+
+To run the command line tool:
+
+${HOME}/.encrypted_password_database/bin/epdb_auth_tool --help
 
 SOURCE CODE BUILD
 -----------------
@@ -92,3 +101,4 @@ Change the RHEL version to match your major RHEL release version from
 Run the make to build the command line utility programs:
 
 > make
+

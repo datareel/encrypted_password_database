@@ -51,6 +51,9 @@ void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod, INFOHOG_t &ob, unsigned 
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gxString &err_string);
+void StoreObjectAddress(BtreeNode *n);
+typedef void (*BtreeVisitFunc)(BtreeNode *Node);
+void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree);
 
 // Console based display functions
 int PrintDBConfig(const char *fname, MemoryBuffer &key);
