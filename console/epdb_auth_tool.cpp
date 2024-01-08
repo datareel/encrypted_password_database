@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 01/08/2024
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
       }
       cerr << "Adding RSA key for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
       DatabaseUserAuth db_auth;
-      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string, gxDBASE_READWRITE);
       if(!f) {
 	cerr << "ERROR: " << err_string.c_str() << "\n";
 	ERROR_LEVEL++;
@@ -389,7 +389,7 @@ int main(int argc, char **argv)
       }
       cerr << "Adding smartcard cert for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
       DatabaseUserAuth db_auth;
-      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string, gxDBASE_READWRITE);
       if(!f) {
 	cerr << "ERROR: " << err_string.c_str() << "\n";
 	ERROR_LEVEL++;
@@ -414,7 +414,7 @@ int main(int argc, char **argv)
     if(db_list) {
       num_operations++;
       int admin_rights;
-      POD *pod = OpenEPDB(fname, admin_rights, err_string);
+      POD *pod = OpenEPDB_POD(fname, err_string);
       if(!pod) {
 	cerr << "ERROR: " << err_string.c_str() << "\n";
 	ERROR_LEVEL++;
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
     if(db_find_key) {
       num_operations++;
       int admin_rights;
-      POD *pod = OpenEPDB(fname, admin_rights, err_string);
+      POD *pod = OpenEPDB_POD(fname, err_string);
       if(!pod) {
 	cerr << "ERROR: " << err_string.c_str() << "\n";
 	ERROR_LEVEL++;

@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 01/08/2024
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -41,14 +41,14 @@ Encrypted password database command line functions
 #include "gxlist.h"
 
 // Database functions
-POD *OpenEPDB(gxString &fname, int &admin_rights, gxString &err_string);
-POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, int &admin_rights, gxString &err_string);
+POD *OpenEPDB_POD(gxString &fname, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
+POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
 int BuildVirtualEPDB(POD *pod);
 int ExportEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0);
 int ExportListObjectsEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0);
 unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all = 0);
 void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod, INFOHOG_t &ob, unsigned &objects_found, int find_all = 0);
-gxDatabase *OpenEPDB(const char *fname, gxString &err_string);
+gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gxString &err_string);
 void StoreObjectAddress(BtreeNode *n);

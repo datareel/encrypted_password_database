@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 01/08/2024
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -554,21 +554,21 @@ int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char repla
   return exports;
 }
 
-POD *OpenEPDB(gxString &fname, int &admin_rights, gxString &err_string)
+POD *OpenEPDB_POD(gxString &fname, gxString &err_string, gxDatabaseAccessMode mode)
 {
   gxString data_ext = ".ehd";
   gxString index_ext = ".ehx";
   char database_revision = 'E'; // Database revision letter
-  return OpenEPDB(fname, data_ext, index_ext, database_revision, admin_rights, err_string);
+  return OpenEPDB_POD(fname, data_ext, index_ext, database_revision, err_string, mode);
 }
 
-POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, int &admin_rights, gxString &err_string)
+POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, gxString &err_string, gxDatabaseAccessMode mode)
 {
   err_string.Clear();
   gxString database_file = fname;
   gxString index_file = fname;
   gxString sbuf;
-  admin_rights = 1;
+  
   
   database_file.DeleteAfterLastIncluding(".");
   database_file += data_ext;
@@ -596,26 +596,12 @@ POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char dat
   // Open existing database using a single index file
   gxDatabaseError err = pod->Open(database_file.c_str(), 
 				  index_file.c_str(), key_type,
-				  InfoHogNodeOrder, gxDBASE_READWRITE, 
+				  InfoHogNodeOrder, mode, 
 				  InfoHogUseIndexFile, 
 				  static_data_size,
 				  InfoHogNumTrees,
 				  database_revision,
 				  database_revision);
-  if(err != gxDBASE_NO_ERROR) {
-    // Try to open the database with read-only access
-    err = pod->Open(database_file.c_str(), index_file.c_str(), key_type,
-		    InfoHogNodeOrder, gxDBASE_READONLY,
-		    InfoHogUseIndexFile, 
-		    static_data_size,
-		    InfoHogNumTrees,
-		    database_revision,
-		    database_revision);
-
-    if(err == gxDBASE_NO_ERROR) {
-      admin_rights = 0;
-    }
-  }
   if(err != gxDBASE_NO_ERROR) {
     delete pod;
     err_string << clear << gxDatabaseExceptionMessage(err);
@@ -623,7 +609,7 @@ POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char dat
   }
 
   // Rebuild the index file is neccessary
-  if(pod->RebuildIndex()) {
+  if(pod->RebuildIndex() && mode == gxDBASE_READWRITE) {
     delete pod;
     err_string << clear << "Index file need to be rebuilt " << index_file.c_str();
     return 0;
@@ -632,7 +618,7 @@ POD *OpenEPDB(gxString &fname, gxString &data_ext, gxString &index_ext, char dat
   return pod;
 }
 
-gxDatabase *OpenEPDB(const char *fname, gxString &err_string)
+gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMode mode)
 {
   err_string.Clear();
   
@@ -648,7 +634,7 @@ gxDatabase *OpenEPDB(const char *fname, gxString &err_string)
     return 0;
   }
 
-  err = f->Open(fname,  gxDBASE_READWRITE);
+  err = f->Open(fname,  mode);
   if(err != gxDBASE_NO_ERROR) {
     err_string << clear << gxDatabaseExceptionMessage(err);
     delete f;
