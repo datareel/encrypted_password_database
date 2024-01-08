@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 01/08/2024
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -131,7 +131,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   produced_by = "Datareel Open Source";
   copyright = "Copyright (c) Datareel Open Source"; 
   copyright_dates = "2001-2024";
-  release_date = "12/30/2023";
+  release_date = "01/08/2024";
   default_url = "https://datareel.com";
   support_email = "datareel@datareel.com";
   online_help_page = "https://datareel.com/encrypted_password_database/help";

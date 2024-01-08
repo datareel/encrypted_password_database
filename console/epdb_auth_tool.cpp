@@ -53,7 +53,7 @@ gxString copyright = "Copyright (c) Datareel Open Source";
 gxString copyright_dates = "2003-2024";
 gxString produced_by = "Datareel Open Source";
 gxString default_url = "https://datareel.com";
-gxString release_date = "12/30/2023";
+gxString release_date = "01/08/2024";
 gxString debug_message;
 int debug_mode = 0;
 int debug_level = 1;
