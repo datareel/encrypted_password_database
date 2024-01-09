@@ -29,9 +29,9 @@ install to your user account without root access. To install from the
 command line: 
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2023_108_rhel_7_8_9_binaries.tar.gz
-tar xvfz encrypted_password_database_2023_108_rhel_7_8_9_binaries.tar.gz
-cd encrypted_password_database_2023_108_rhel_7_8_9_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2023_109_rhel_7_8_9_binaries.tar.gz
+tar xvfz encrypted_password_database_2023_109_rhel_7_8_9_binaries.tar.gz
+cd encrypted_password_database_2023_109_rhel_7_8_9_binaries
 ./rh_install.sh
 
 To run the Encrypted Password Database GUI from the command line:
