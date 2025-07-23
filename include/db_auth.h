@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -48,12 +48,15 @@ public:
   int AddRSAKeyToStaticArea(const MemoryBuffer &secret,
 			    char public_key[], unsigned public_key_len,
 			    const gxString &rsa_key_username, char *passphrase = 0);
-  int AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
-				   const MemoryBuffer &secret, const gxString &smartcard_cert_username);
   int DecryptWithRSAKey(char private_key[], unsigned private_key_len,
 			const gxString &rsa_key_username, char *passphrase = 0);
+
+#ifdef __ENABLE_SMART_CARD__
+  int AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
+				   const MemoryBuffer &secret, const gxString &smartcard_cert_username);
   int DecryptWithSmartcard(SmartCardOB *sc, const gxString &smartcard_cert_username);
-  
+#endif // __ENABLE_SMART_CARD__
+
 public:
   gxList<StaticDataBlock> static_block_list;
   int ERROR_LEVEL;

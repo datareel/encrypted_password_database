@@ -320,6 +320,7 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   return ERROR_LEVEL;
 }
 
+#ifdef __ENABLE_SMART_CARD__
 int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
 						   const MemoryBuffer &secret, const gxString &smartcard_cert_username)
 {
@@ -438,6 +439,7 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
 
   return ERROR_LEVEL;
 }
+#endif // __ENABLE_SMART_CARD__
 
 int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key_len,
 					const gxString &rsa_key_username, char *passphrase)
@@ -535,6 +537,7 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
   return ERROR_LEVEL;
 }
 
+#ifdef __ENABLE_SMART_CARD__
 int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smartcard_cert_username)
 {
   ERROR_LEVEL = 0;
@@ -625,6 +628,8 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
   aes_file_decrypt_secret.Clear(1);
   return ERROR_LEVEL;
 }
+#endif // __ENABLE_SMART_CARD__
+
 // ----------------------------------------------------------- // 
 // ------------------------------- //
 // --------- End of File --------- //
