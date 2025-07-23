@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 01/08/2024
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -48,12 +48,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 // Global vars
 gxString program_name = "Encrypted Password Database Auth Tool";
-gxString version_str = "2023.109";
+gxString version_str = "2025.101";
 gxString copyright = "Copyright (c) Datareel Open Source";
-gxString copyright_dates = "2003-2024";
+gxString copyright_dates = "2003-2025";
 gxString produced_by = "Datareel Open Source";
 gxString default_url = "https://datareel.com";
-gxString release_date = "01/08/2024";
+gxString release_date = "07/23/2025";
 gxString debug_message;
 int debug_mode = 0;
 int debug_level = 1;
@@ -77,12 +77,16 @@ int ERROR_LEVEL = 0;
 gxString executable_name;
 gxString HOMEdir;
 gxString USERNAME;
+
+#ifdef __ENABLE_SMART_CARD__
 int add_smart_card = 0;
 int use_smartcard_cert_file = 0;
 gxString smartcard_cert_file;
 SmartCardOB sc;
 gxString smartcard_username;
 int use_smartcard = 0;
+#endif // __ENABLE_SMART_CARD__
+
 gxString input_arg_key_file;
 int use_password = 0;
 int use_key_file = 0;
@@ -203,6 +207,7 @@ int main(int argc, char **argv)
       cout << "\n" << flush;
     }
   }
+#ifdef __ENABLE_SMART_CARD__
   else if(use_smartcard) {
     if(smartcard_username.is_null()) {
       smartcard_username = USERNAME;
@@ -247,6 +252,7 @@ int main(int argc, char **argv)
       cout << "\n" << flush;
     }
   }
+#endif // __ENABLE_SMART_CARD__
   else if(use_password) {
     if(password.is_null()) {
       cout << "Password: " << flush;
@@ -324,6 +330,8 @@ int main(int argc, char **argv)
       f->Close();
       delete f;
     }
+
+#ifdef __ENABLE_SMART_CARD__
     if(use_smartcard) {
       DatabaseUserAuth db_auth;
       gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
@@ -346,7 +354,8 @@ int main(int argc, char **argv)
       f->Close();
       delete f;
     }
-    
+ #endif // __ENABLE_SMART_CARD__
+
     if(display_db_config) {
       if(PrintDBConfig(fname.c_str(), aes_file_decrypt_secret) != 0) ERROR_LEVEL++;
       ptr = ptr->next;
@@ -381,6 +390,8 @@ int main(int argc, char **argv)
       f->Close();
       delete f;
     }
+
+ #ifdef __ENABLE_SMART_CARD__
     if(add_smart_card) {
       num_operations++;
       if(add_username.is_null()) {
@@ -410,6 +421,7 @@ int main(int argc, char **argv)
       f->Close();
       delete f;
     }
+#endif // __ENABLE_SMART_CARD__
 
     if(db_list) {
       num_operations++;
@@ -469,7 +481,9 @@ int ExitProgram(int rv, char *exit_message)
   if(!debug_message.is_null()) DEBUG_m(debug_message.c_str(), debug_level);
 
   if(debug_mode) {
+#ifdef __ENABLE_SMART_CARD__
     cerr << "Smart card: " << sc.err_string << "\n" << flush;
+#endif // __ENABLE_SMART_CARD__
     char err[1024];
     memset(err, 0, sizeof(err));
     ERR_load_crypto_strings();
@@ -499,7 +513,9 @@ void DisplayVersion()
   cout << "Version string: " << OPENSSL_VERSION_TEXT << "\n" << flush;
   cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n" << flush;
   cout << "\n" << flush;
+#ifdef __ENABLE_SMART_CARD__
   cout << "Smart card enabled for " << SC_get_default_engine_ID() << "\n" << flush;
+#endif // __ENABLE_SMART_CARD__
 }
 
 void HelpMessage() 
@@ -523,6 +539,8 @@ void HelpMessage()
   cout << "          --rsa-key (Use a private RSA key file for decryption)" << "\n" << flush;
   cout << "          --rsa-key-passphrase (Passphrase for private RSA key)" << "\n" << flush;
   cout << "          --rsa-key-username=name (Username that owns the private RSA key, defaults to current user)" << "\n" << flush;
+
+#ifdef __ENABLE_SMART_CARD__
   cout << "          --smartcard (Use a smart card for decryption)" << "\n" << flush;
   cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
   cout << "          --smartcard-username=name (Username assigned to the smart card cert, defaults to current user)" << "\n" << flush;
@@ -531,15 +549,26 @@ void HelpMessage()
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
   cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
+#endif // __ENABLE_SMART_CARD__
+
   cout << "\n" << flush;
   cout << "DB add user functions:\n" << flush;
   cout << "          --add-rsa-key (Add access to database for another users public RSA key)" << "\n" << flush;
+#ifdef __ENABLE_SMART_CARD__
   cout << "          --add-smartcard-cert (Add access to database for another users smart card)" << "\n" << flush;
   cout << "          --add-username (Username being added for public RSA key file or exported smart card cert file)" << "\n" << flush;
+#else
+  cout << "          --add-username (Username being added for public RSA key file)" << "\n" << flush;
+#endif // __ENABLE_SMART_CARD__
   cout << "\n" << flush;
   cout << "DB no-auth stat functions:\n" << flush;
   cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
+
+#ifdef __ENABLE_SMART_CARD__
   cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
+#else
+  cout << "          --list-users (List the users with RSA key access and exit)" << "\n" << flush;
+#endif // __ENABLE_SMART_CARD__
   cout << "\n" << flush;
   cout << "DB authenticated functions:\n" << flush;
   cout << "          --db-config (Display database config and exit)" << "\n" << flush;
@@ -749,7 +778,8 @@ int ProcessDashDashArg(gxString &arg)
     rsa_key_username = equal_arg;
     has_valid_args = 1;
   }
-
+  
+#ifdef __ENABLE_SMART_CARD__
   if(arg == "smartcard") {
     use_smartcard = 1;
     has_valid_args = 1;
@@ -807,7 +837,8 @@ int ProcessDashDashArg(gxString &arg)
     sc.SetPin(equal_arg.c_str());
     has_valid_args = 1;
   }
-
+#endif // __ENABLE_SMART_CARD__
+  
   if(arg == "add-rsa-key") {
     if(equal_arg.is_null()) {
       cerr << "ERROR: --add-rsa-key missing filename: --add-rsa-key=/$HOME/keys/rsa_pubkey.pem" << "\n" << flush;
@@ -838,6 +869,7 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
+#ifdef __ENABLE_SMART_CARD__
   if(arg == "add-smartcard-cert") {
     if(equal_arg.is_null()) {
       cerr << "ERROR: --add-smartcard-cert missing filename: --add-smartcard-cert=${HOME}/certs/certfile.pem" << "\n" << flush;
@@ -856,7 +888,8 @@ int ProcessDashDashArg(gxString &arg)
     }
     has_valid_args = 1;
   }
-  
+#endif // __ENABLE_SMART_CARD__ 
+
   if(!has_valid_args) {
     cerr << "Unknown or invalid --" << arg.c_str() << "\n" << flush;
     cerr << "Exiting..." << "\n" << flush;
