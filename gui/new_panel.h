@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/24/2023
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -53,8 +53,10 @@ enum { // Page setup panel IDs
   ID_NEWDATABASE_TEXTCONTROL_KEY_FILE,
   ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME,
   ID_NEWDATABASE_TEXTCONTROL_RSA_KEY,
+#ifdef __ENABLE_SMART_CARD__
   ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
   ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID
+#endif // __ENABLE_SMART_CARD__
 };
 // --------------------------------------------------------------
 
@@ -80,9 +82,12 @@ public: // Event handlers
   void OnTextControlKeyFileEnter(wxCommandEvent &event);
   void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
   void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
+
+#ifdef __ENABLE_SMART_CARD__
   void OnTextControlSCUsernameEnter(wxCommandEvent &event);
   void OnTextControlSCCertIDEnter(wxCommandEvent &event);
-
+#endif // __ENABLE_SMART_CARD__
+  
 public: // Memeber functions
   int CheckPassword();
   void ShowPanel();
@@ -107,13 +112,16 @@ public: // Control objects
   wxStaticText *rsa_key_label;
   wxTextCtrl *rsa_key_input;
   wxButton *rsa_browse;
+
+#ifdef __ENABLE_SMART_CARD__
   wxStaticBox *sc_box;
   wxStaticText *sc_username_label;
   wxTextCtrl *sc_username_input;
   wxStaticText *sc_keyid_label;
   wxTextCtrl *sc_keyid_input;
   wxCheckBox *sc_use_checkbox;
-  
+#endif // __ENABLE_SMART_CARD__  
+
   wxButton *ok_btn;
   wxButton *cancel_btn;
   
@@ -124,13 +132,15 @@ public:
   int use_key;
   int use_password;
   int use_rsa_key;
-  int use_smartcard;
   gxString rsa_key_username;
   char public_key[RSA_max_keybuf_len];
   unsigned public_key_len = 0;
+  int use_cert_file;
+#ifdef __ENABLE_SMART_CARD__
+  int use_smartcard;
   SmartCardOB sc;
   gxString smartcard_username;
-  int use_cert_file;
+#endif // __ENABLE_SMART_CARD__  
   
   // Use a random key if no password or symmectric are provided with RSA or smartcard
   unsigned char random_key[128]; 

@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 07/23/2025
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
@@ -54,9 +54,11 @@ enum { // Page setup panel IDs
   ID_OPENDATABASE_TEXTCONTROL_RSA_USERNAME,
   ID_OPENDATABASE_TEXTCONTROL_RSA_KEY,
   ID_OPENDATABASE_TEXTCONTROL_RSA_PASSPHRASE,
+#ifdef __ENABLE_SMART_CARD__
   ID_OPENDATABASE_TEXTCONTROL_SC_USERNAME,
   ID_OPENDATABASE_TEXTCONTROL_SC_PIN,
   ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID
+#endif // __ENABLE_SMART_CARD__ 
 };
 // --------------------------------------------------------------
 
@@ -83,15 +85,22 @@ public: // Event handlers
   void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
   void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
   void OnTextControlRSAPassPhraseEnter(wxCommandEvent &event);
+
+#ifdef __ENABLE_SMART_CARD__
   void OnTextControlSCUsernameEnter(wxCommandEvent &event);
   void OnTextControlSCPinEnter(wxCommandEvent &event);
   void OnTextControlSCCertIDEnter(wxCommandEvent &event);
+#endif // __ENABLE_SMART_CARD__   
   
 public: // Memeber functions
   void ShowPanel(gxString &fname);
   int TestInput();
   int RSAOpenDatabase();
+
+#ifdef __ENABLE_SMART_CARD__
   int SmartCardOpenDatabase();
+#endif // __ENABLE_SMART_CARD__
+
   int AESKeyOpenDatabase();
   int PasswordOpenDatabase();
   int IsOK() { return is_ok == 1; }
@@ -114,6 +123,8 @@ public: // Control objects
   wxStaticText *rsa_key_label;
   wxTextCtrl *rsa_key_input;
   wxButton *rsa_browse;
+
+#ifdef __ENABLE_SMART_CARD__
   wxStaticBox *sc_box;
   wxStaticText *sc_pin_label;
   wxStaticText *sc_username_label;
@@ -121,15 +132,19 @@ public: // Control objects
   wxTextCtrl *sc_pin_input;
   wxStaticText *sc_keyid_label;
   wxTextCtrl *sc_keyid_input;
-  
+#endif // __ENABLE_SMART_CARD__
+
 private: // Data members
   int is_ok;
   gxString curr_fname;
   int use_key;
   int use_password;
   int use_rsa_key;
+
+#ifdef __ENABLE_SMART_CARD__
   int use_smartcard;
-  
+#endif // __ENABLE_SMART_CARD__ 
+
 private:
   DECLARE_EVENT_TABLE()
 };

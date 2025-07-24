@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 01/08/2024
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -122,7 +122,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 
   envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
-  VersionString = "2023.109";
+  VersionString = "2025.101";
 #ifdef __APP_DEBUG_VERSION__
   ProgramName << " Encrypted Password Database Debug Version";
 #endif
@@ -130,8 +130,8 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   historyFile = default_historyFile = "encrypted_password_database.txt";
   produced_by = "Datareel Open Source";
   copyright = "Copyright (c) Datareel Open Source"; 
-  copyright_dates = "2001-2024";
-  release_date = "01/08/2024";
+  copyright_dates = "2001-2025";
+  release_date = "07/23/2025";
   default_url = "https://datareel.com";
   support_email = "datareel@datareel.com";
   online_help_page = "https://datareel.com/encrypted_password_database/help";
@@ -155,11 +155,13 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 			 (const unsigned char)(i*16));
   }
 
+#ifdef __ENABLE_SMART_CARD__
   // Smart card settings
   SC_enginePath = SC_get_default_enginePath(); 
   SC_modulePath = SC_get_default_modulePath();
   SC_engine_ID = SC_get_default_engine_ID();
   SC_cert_id = SC_get_default_cert_id();
+#endif // __ENABLE_SMART_CARD__
 }
 // ----------------------------------------------------------- // 
 // ------------------------------- //

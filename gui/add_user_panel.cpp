@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -36,12 +36,16 @@ BEGIN_EVENT_TABLE(AdduserPanel, wxDialog)
   EVT_CLOSE(AdduserPanel::OnCloseWindow)
   EVT_BUTTON (ID_ADDUSER_OK, AdduserPanel::OnOK)
   EVT_BUTTON (ID_ADDUSER_CANCEL, AdduserPanel::OnCancel)
+#ifdef __ENABLE_SMART_CARD__
   EVT_BUTTON (ID_ADDUSER_SC_CERT_BROWSE, AdduserPanel::OnCertFileBrowse)
+#endif // __ENABLE_SMART_CARD__
   EVT_BUTTON (ID_ADDUSER_RSA_KEY_BROWSE, AdduserPanel::OnRSAKeyFileBrowse)
   EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_RSA_USERNAME, AdduserPanel::OnTextControlRSAKeyFileEnter)
   EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_RSA_KEY, AdduserPanel::OnTextControlRSAUsernameEnter)
-  EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_USERNAME, AdduserPanel::OnTextControlSCUsernameEnter)
-  EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_CERT, AdduserPanel::OnTextControlSCCertFileEnter)
+#ifdef __ENABLE_SMART_CARD__
+ EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_USERNAME, AdduserPanel::OnTextControlSCUsernameEnter)
+ EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_CERT, AdduserPanel::OnTextControlSCCertFileEnter)
+#endif // __ENABLE_SMART_CARD__
 END_EVENT_TABLE()
 
 AdduserPanel::AdduserPanel(wxWindow *parent, wxWindowID id,
@@ -58,20 +62,22 @@ AdduserPanel::AdduserPanel(wxWindow *parent, wxWindowID id,
   rsa_key_label = 0;
   rsa_key_input = 0;
   rsa_browse = 0;
+  ok_btn = 0;
+  cancel_btn = 0;
+    is_ok = 0;
+  use_rsa_key = 0;
+  memset(public_key, 0, sizeof(public_key));
+
+#ifdef __ENABLE_SMART_CARD__
+  use_smartcard = 0;
   sc_box = 0;
   sc_username_label = 0;
   sc_username_input = 0;
   sc_cert_label = 0;
   sc_cert_input = 0;
   sc_browse = 0;
-  ok_btn = 0;
-  cancel_btn = 0;
-  
-  is_ok = 0;
-  use_rsa_key = 0;
-  use_smartcard = 0;
   use_cert_file = 1;
-  memset(public_key, 0, sizeof(public_key));
+#endif // __ENABLE_SMART_CARD__
 }
   
 AdduserPanel::~AdduserPanel()
@@ -82,16 +88,19 @@ AdduserPanel::~AdduserPanel()
   if(rsa_key_label) delete rsa_key_label;
   if(rsa_key_input) delete rsa_key_input;
   if(rsa_browse) delete rsa_browse;
+  if(ok_btn) delete ok_btn;
+  if(cancel_btn) delete cancel_btn;
+  memset(public_key, 0, sizeof(public_key));
+
+#ifdef __ENABLE_SMART_CARD__
   if(sc_box) delete sc_box;
   if(sc_username_label) delete sc_username_label;
   if(sc_username_input) delete sc_username_input;
   if(sc_cert_label) delete sc_cert_label;
   if(sc_cert_input) delete sc_cert_input;
   if(sc_browse) delete sc_browse;
-  if(ok_btn) delete ok_btn;
-  if(cancel_btn) delete cancel_btn;
-
-  memset(public_key, 0, sizeof(public_key));
+#endif // __ENABLE_SMART_CARD__
+  
 }
 
 void AdduserPanel::ShowPanel()
@@ -113,6 +122,7 @@ void AdduserPanel::OnRSAKeyFileBrowse(wxCommandEvent &event)
   }
 }
 
+#ifdef __ENABLE_SMART_CARD__
 void AdduserPanel::OnCertFileBrowse(wxCommandEvent &event)
 {
   wxFileDialog dialog(this, "Open smart card exported cert file:",
@@ -125,6 +135,7 @@ void AdduserPanel::OnCertFileBrowse(wxCommandEvent &event)
     sc_cert_input->AppendText(dialog.GetPath());
   }
 }
+#endif // __ENABLE_SMART_CARD__
 
 void AdduserPanel::OnTextControlRSAKeyFileEnter(wxCommandEvent &event)
 {
@@ -138,6 +149,7 @@ void AdduserPanel::OnTextControlRSAUsernameEnter(wxCommandEvent &event)
   Show(FALSE);
 }
 
+#ifdef __ENABLE_SMART_CARD__
 void AdduserPanel::OnTextControlSCUsernameEnter(wxCommandEvent &event)
 {
   if(!TestInput()) return;  
@@ -149,21 +161,34 @@ void AdduserPanel::OnTextControlSCCertFileEnter(wxCommandEvent &event)
   if(!TestInput()) return;  
   Show(FALSE);
 }
+#endif // __ENABLE_SMART_CARD__
 
 int AdduserPanel::TestInput()
 {
   use_rsa_key = 0;
-  use_smartcard = 0;
 
+#ifdef __ENABLE_SMART_CARD__
+  use_smartcard = 0;
+#endif // __ENABLE_SMART_CARD__
+  
   gxString sbuf;
   int rv;
 
+#ifdef __ENABLE_SMART_CARD__
   if(rsa_key_input->GetValue().IsNull() && sc_cert_input->GetValue().IsNull()) {
     ProgramError->Message("You must enter an RSA public key file or smart card cert file");
     is_ok = 0;
     return 0;
   }
+#else
+  if(rsa_key_input->GetValue().IsNull()) {
+    ProgramError->Message("You must enter an RSA public key file");
+    is_ok = 0;
+    return 0;
+  }
+#endif // __ENABLE_SMART_CARD__ 
 
+  
   if(!rsa_key_input->GetValue().IsNull()) {
     use_rsa_key = 1;
     
@@ -190,6 +215,7 @@ int AdduserPanel::TestInput()
     rsa_key_username = (const char *)rsa_username_input->GetValue();
   }
 
+#ifdef __ENABLE_SMART_CARD__
   if(!sc_cert_input->GetValue().IsNull()) {
     use_smartcard = 1;
 
@@ -215,12 +241,16 @@ int AdduserPanel::TestInput()
     smartcard_username = (const char *)sc_username_input->GetValue();
     use_cert_file = 1;
   }
-
+#endif // __ENABLE_SMART_CARD__
+  
   rsa_key_input->Clear();
   rsa_username_input->Clear();
+
+#ifdef __ENABLE_SMART_CARD__
   sc_username_input->Clear();
   sc_cert_input->Clear();
-
+#endif // __ENABLE_SMART_CARD__
+  
   is_ok = 1;
   return 1;
 }
@@ -265,6 +295,7 @@ AdduserPanel *InitAdduserPanel(wxWindow *parent)
   panel->rsa_browse = new wxButton(panel, ID_ADDUSER_RSA_KEY_BROWSE, "Browse",
 				   wxPoint(15, 173), wxSize(75, 25));
 
+#ifdef __ENABLE_SMART_CARD__
   panel->sc_box = new wxStaticBox(panel, -1, "Add Users Smart Card Cert", wxPoint(9, 245), wxSize(370,195));
   panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 271));
   panel->sc_username_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
@@ -273,7 +304,7 @@ AdduserPanel *InitAdduserPanel(wxWindow *parent)
   panel->sc_cert_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_CERT, 
 					"", wxPoint(15, 360), wxSize(350, 25));
   panel->sc_browse =  new wxButton(panel, ID_ADDUSER_SC_CERT_BROWSE, "Browse", wxPoint(15, 401), wxSize(75, 25));
-
+#endif // __ENABLE_SMART_CARD__
   
   panel->ok_btn = new wxButton(panel, ID_ADDUSER_OK, "OK",
 			       wxPoint(17, button_ypos),

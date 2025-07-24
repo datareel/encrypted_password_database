@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -73,13 +73,16 @@ public: // Event handlers
   // Button event handlers
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
-  void OnCertFileBrowse(wxCommandEvent &event);
   void OnRSAKeyFileBrowse(wxCommandEvent &event);
-  void OnTextControlSCCertFileEnter(wxCommandEvent &event);
   void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
   void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
-  void OnTextControlSCUsernameEnter(wxCommandEvent &event);
 
+#ifdef __ENABLE_SMART_CARD__
+  void OnTextControlSCCertFileEnter(wxCommandEvent &event);
+  void OnCertFileBrowse(wxCommandEvent &event);
+  void OnTextControlSCUsernameEnter(wxCommandEvent &event);
+#endif // __ENABLE_SMART_CARD__
+  
 public: // Memeber functions
   int CheckPassword();
   void ShowPanel();
@@ -93,12 +96,15 @@ public: // Control objects
   wxStaticText *rsa_key_label;
   wxTextCtrl *rsa_key_input;
   wxButton *rsa_browse;
+
+#ifdef __ENABLE_SMART_CARD__
   wxStaticBox *sc_box;
   wxStaticText *sc_username_label;
   wxTextCtrl *sc_username_input;
   wxStaticText *sc_cert_label;
   wxTextCtrl *sc_cert_input;
   wxButton *sc_browse;
+#endif // __ENABLE_SMART_CARD__
   
   wxButton *ok_btn;
   wxButton *cancel_btn;
@@ -108,14 +114,17 @@ private: // Data members
 
 public:
   int use_rsa_key;
-  int use_smartcard;
   gxString rsa_key_username;
   char public_key[RSA_max_keybuf_len];
   unsigned public_key_len = 0;
+
+#ifdef __ENABLE_SMART_CARD__
+  int use_cert_file;
+  int use_smartcard;
   SmartCardOB sc;
   gxString smartcard_username;
-  int use_cert_file;
-  
+#endif // __ENABLE_SMART_CARD__
+
 private:
   DECLARE_EVENT_TABLE()
 };

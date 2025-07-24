@@ -1,0 +1,9 @@
+all:
+	make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=10 -f ../../env/linux.mak
+
+install:
+	./install.sh
+
+clean:
+	make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=10 -f ../../env/linux.mak clean
+

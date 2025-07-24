@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -134,11 +134,13 @@ struct wxappfwProgramConfig {
   // Colors and fonts
   wxColour custom_colors[16];
 
+#ifdef __ENABLE_SMART_CARD__
   // Smart card settings
   gxString SC_enginePath;
   gxString SC_modulePath;
   gxString SC_engine_ID;
   gxString SC_cert_id;
+#endif // __ENABLE_SMART_CARD__
 };
 
 #endif  // __P_CONFIG_HPP__ 

@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2024
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -302,7 +302,12 @@ MainFrame::MainFrame(wxWindow *parent,
   help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
 
   wxMenu *users_menu = new wxMenu;
+#ifdef __ENABLE_SMART_CARD__
   users_menu->Append(WXAPPFW_USERS_ADD, "Add Users", "Add user access with public RSA key or smart card cert");
+#else
+  users_menu->Append(WXAPPFW_USERS_ADD, "Add Users", "Add user access with public RSA key");
+#endif // __ENABLE_SMART_CARD__
+
   users_menu->Append(WXAPPFW_USERS_REMOVE, "Remove Users", "Removed user access");
   users_menu->Append(WXAPPFW_USERS_LIST, "List Users", "Display list of users with access");
   
@@ -522,7 +527,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
       sbuf << clear << "Added RSA key access for user " << add_user_panel->rsa_key_username;
       ProgramError->Message(sbuf.c_str());
     }
-
+#ifdef __ENABLE_SMART_CARD__
     if(add_user_panel->use_smartcard) {
       db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
        rv = db_auth.AddSmartCardCertToStaticArea(&add_user_panel->sc, add_user_panel->use_cert_file,
@@ -535,6 +540,8 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
        sbuf << clear << "Added smart card access for user " << add_user_panel->rsa_key_username;
       ProgramError->Message(sbuf.c_str());
     }
+#endif // __ENABLE_SMART_CARD__
+    
   }
   
   return;
@@ -566,7 +573,11 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
 
   gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
   if(!list_ptr) {
+#ifdef __ENABLE_SMART_CARD__
     ProgramError->Message("No authorized RSA or smartcard users found in encrypted DB file");
+#else
+    ProgramError->Message("No authorized RSA users found in encrypted DB file");
+#endif // __ENABLE_SMART_CARD__
     return;
   }
 
@@ -644,7 +655,11 @@ void MainFrame::OnListUsers(wxCommandEvent& event)
   gxListNode<StaticDataBlock> *list_ptr = db_auth.static_block_list.GetHead();
   if(!list_ptr) {
     *(frame->statusWin) << "\n";
+#ifdef __ENABLE_SMART_CARD__
     *(frame->statusWin) << "INFO: No authorized RSA or smartcard users found in encrypted DB file" << "\n";
+#else
+    *(frame->statusWin) << "INFO: No authorized RSA users found in encrypted DB file" << "\n";    
+#endif // __ENABLE_SMART_CARD__
   }
   else {
     *(frame->statusWin) << "\n";
@@ -1133,6 +1148,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
       }
     }
 
+#ifdef __ENABLE_SMART_CARD__
     if(new_db_panel->use_smartcard) {
       db_auth.f = subframe->DBParms()->pod->OpenDataFile();
        rv = db_auth.AddSmartCardCertToStaticArea(&new_db_panel->sc, new_db_panel->use_cert_file,
@@ -1153,6 +1169,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
 	 CfgData.ChangeConfigValue("SC_cert_id", (const char *)new_db_panel->sc.cert_id);
        }
     }
+#endif // __ENABLE_SMART_CARD__
     
     subframe->Show(TRUE);
   }

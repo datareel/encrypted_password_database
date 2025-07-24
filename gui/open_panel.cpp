@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/24/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -43,9 +43,11 @@ BEGIN_EVENT_TABLE(OpenDatabasePanel, wxDialog)
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_RSA_USERNAME, OpenDatabasePanel::OnTextControlRSAKeyFileEnter)
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_RSA_KEY, OpenDatabasePanel::OnTextControlRSAUsernameEnter)
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_RSA_PASSPHRASE, OpenDatabasePanel::OnTextControlRSAPassPhraseEnter)
+#ifdef __ENABLE_SMART_CARD__
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_SC_USERNAME, OpenDatabasePanel::OnTextControlSCUsernameEnter)
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_SC_PIN, OpenDatabasePanel::OnTextControlSCPinEnter)
   EVT_TEXT_ENTER(ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID, OpenDatabasePanel::OnTextControlSCCertIDEnter)
+#endif // __ENABLE_SMART_CARD__
 END_EVENT_TABLE()
 OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
 				   char *title,
@@ -72,6 +74,8 @@ OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
   rsa_key_label = 0;
   rsa_key_input = 0;
   rsa_browse = 0;
+
+#ifdef __ENABLE_SMART_CARD__
   sc_box = 0;
   sc_pin_label = 0;
   sc_username_label = 0;
@@ -79,11 +83,15 @@ OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
   sc_pin_input = 0;
   sc_keyid_label = 0;
   sc_keyid_input = 0;
-
+#endif // __ENABLE_SMART_CARD__
+  
   use_key = 0;
   use_password = 0;
   use_rsa_key = 0;
+  
+#ifdef __ENABLE_SMART_CARD__
   use_smartcard = 0;
+#endif // __ENABLE_SMART_CARD__
 }
   
 OpenDatabasePanel::~OpenDatabasePanel()
@@ -105,6 +113,8 @@ OpenDatabasePanel::~OpenDatabasePanel()
   if(rsa_key_label) delete rsa_key_label;
   if(rsa_key_input) delete rsa_key_input;
   if(rsa_browse) delete rsa_browse;
+
+#ifdef __ENABLE_SMART_CARD__
   if(sc_box) delete sc_box;
   if(sc_pin_label) delete sc_pin_label;
   if(sc_username_label) delete sc_username_label;
@@ -112,6 +122,7 @@ OpenDatabasePanel::~OpenDatabasePanel()
   if(sc_pin_input) delete sc_pin_input;
   if(sc_keyid_label) delete sc_keyid_label;
   if(sc_keyid_input) delete sc_keyid_input;
+ #endif // __ENABLE_SMART_CARD__
 }
 
 void OpenDatabasePanel::ShowPanel(gxString &fname)
@@ -124,6 +135,7 @@ void OpenDatabasePanel::ShowPanel(gxString &fname)
   ShowModal();
 }
 
+#ifdef __ENABLE_SMART_CARD__
 int OpenDatabasePanel::SmartCardOpenDatabase()
 {
   int rv;
@@ -194,6 +206,7 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   is_ok = 1;
   return 1;
 }
+#endif // __ENABLE_SMART_CARD__
 
 int OpenDatabasePanel::RSAOpenDatabase()
 {
@@ -383,17 +396,33 @@ int OpenDatabasePanel::TestInput()
   use_key = 0;
   use_password = 0;
   use_rsa_key = 0;
+#ifdef __ENABLE_SMART_CARD__
   use_smartcard = 0;
+#endif // __ENABLE_SMART_CARD__
 
+#ifdef __ENABLE_SMART_CARD__
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) {
+#else
+  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
+     && rsa_key_input->GetValue().IsNull()) {
+#endif // __ENABLE_SMART_CARD__
+
     password_input->Clear();
     key_input->Clear();
+
+#ifdef __ENABLE_SMART_CARD__
     ProgramError->Message("You must use a password, key, or smart card to open this database");
+#else
+    ProgramError->Message("You must use a password or RSA key to open this database");
+#endif // __ENABLE_SMART_CARD__
+    
     is_ok = 0;
     return 0;
   }
 
+
+#ifdef __ENABLE_SMART_CARD__
   if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()
      && !rsa_key_input->GetValue().IsNull() && !sc_pin_input->GetValue().IsNull()) {
     password_input->Clear();
@@ -402,30 +431,57 @@ int OpenDatabasePanel::TestInput()
     is_ok = 0;
     return 0;
   }
+#else
+  if(!password_input->GetValue().IsNull() && !key_input->GetValue().IsNull()
+     && !rsa_key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+    ProgramError->Message("You only one method at a time to open this database");   
+    is_ok = 0;
+    return 0;
+  }
+#endif // __ENABLE_SMART_CARD__ 
 
   // Set the logic here to determine with open method to use
+#ifdef __ENABLE_SMART_CARD__
   if(!key_input->GetValue().IsNull() && password_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) use_key = 1;
   if(!password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) use_password = 1;
   if(!rsa_key_input->GetValue().IsNull() &&  password_input->GetValue().IsNull() 
      && key_input->GetValue().IsNull() && sc_pin_input->GetValue().IsNull()) use_rsa_key = 1;
+#else
+  if(!password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
+     && rsa_key_input->GetValue().IsNull()) use_password = 1;
+  if(!rsa_key_input->GetValue().IsNull() &&  password_input->GetValue().IsNull() 
+     && key_input->GetValue().IsNull()) use_rsa_key = 1;
+#endif // __ENABLE_SMART_CARD__
+
+#ifdef __ENABLE_SMART_CARD__
   if(!sc_pin_input->GetValue().IsNull() && rsa_key_input->GetValue().IsNull()
      && key_input->GetValue().IsNull() && password_input->GetValue().IsNull()) use_smartcard = 1;
-
+#endif // __ENABLE_SMART_CARD__
+  
   if(use_rsa_key) {
     return RSAOpenDatabase();
   }
 
+#ifdef __ENABLE_SMART_CARD__
   if(use_smartcard) {
     return SmartCardOpenDatabase();
   }
+#endif // __ENABLE_SMART_CARD__
   
   if(use_key) {
     return AESKeyOpenDatabase();
   }
 
+
+#ifdef __ENABLE_SMART_CARD__
   if(password_input->GetValue().IsNull() && !use_key && !use_rsa_key && !use_smartcard) {
+#else
+  if(password_input->GetValue().IsNull() && !use_key && !use_rsa_key) {
+#endif // __ENABLE_SMART_CARD__
     password_input->Clear();
     ProgramError->Message("You must enter a password for this database");   
     is_ok = 0;
@@ -470,6 +526,7 @@ void OpenDatabasePanel::OnTextControlRSAPassPhraseEnter(wxCommandEvent &event)
   Show(FALSE);
 }
 
+#ifdef __ENABLE_SMART_CARD__
 void OpenDatabasePanel::OnTextControlSCUsernameEnter(wxCommandEvent &event)
 {
   if(!TestInput()) return;  
@@ -487,7 +544,8 @@ void OpenDatabasePanel::OnTextControlSCCertIDEnter(wxCommandEvent &event)
   if(!TestInput()) return;  
   Show(FALSE);
 }
-
+#endif // __ENABLE_SMART_CARD__  
+ 
 void OpenDatabasePanel::OnOK(wxCommandEvent &WXUNUSED(event))
 {
   if(!TestInput()) return;  
@@ -587,6 +645,7 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
 					      wxSize(250,25),
 					      wxTE_PROCESS_ENTER|wxTE_PASSWORD);
 
+#ifdef __ENABLE_SMART_CARD__  
   panel->sc_box = new wxStaticBox(panel, -1, "Use Smart Card", wxPoint(9, 572), wxSize(270,200));
   panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 598));
   panel->sc_username_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_USERNAME,
@@ -601,7 +660,8 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
   panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 707));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID, 
 					 progcfg->SC_cert_id.c_str(), wxPoint(15, 728), wxSize(250, 25)),
-  
+#endif // __ENABLE_SMART_CARD__
+    
   panel->ok_btn = new wxButton(panel, ID_OPENDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),
 			       wxSize(46, 25));

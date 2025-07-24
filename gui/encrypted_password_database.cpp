@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 07/23/2025
+// Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -320,12 +320,14 @@ void InitProgramConfig(int argc, char *argv[])
       sbuf << clear <<  progcfg->ViewToolBar;
       dfile << "ViewToolBar = " << sbuf.c_str() << "\n";
       dfile << "\n";
+#ifdef __ENABLE_SMART_CARD__
       dfile << "# Smart card settings" << "\n";
       dfile << "SC_enginePath = " << progcfg->SC_enginePath.c_str() << "\n";
       dfile << "SC_modulePath = " << progcfg->SC_modulePath.c_str() << "\n";
       dfile << "SC_engine_ID = " << progcfg->SC_engine_ID.c_str() << "\n";
       dfile << "SC_cert_id = " << progcfg->SC_cert_id.c_str() << "\n";
       dfile << "\n";
+#endif // __ENABLE_SMART_CARD__      
       dfile << "# Default applications" << "\n";
       dfile << "web_browser = " << progcfg->default_web_browser.c_str() << "\n";
       dfile << "mail_client = " << progcfg->default_mail_client.c_str() << "\n";
@@ -358,6 +360,7 @@ void InitProgramConfig(int argc, char *argv[])
     char *s4 = CfgData->GetStrValue("EncryptionMode"); 
     if(s4) mode = s4; 
 
+#ifdef __ENABLE_SMART_CARD__    
     char *s5 = CfgData->GetStrValue("SC_enginePath");
     if(s5) progcfg->SC_enginePath = s5;
 
@@ -369,7 +372,8 @@ void InitProgramConfig(int argc, char *argv[])
 
     char *s8 = CfgData->GetStrValue("SC_cert_id");
     if(s8) progcfg->SC_cert_id = s8;
-
+#endif // __ENABLE_SMART_CARD__
+    
     char *s9 = CfgData->GetStrValue("web_browser");
     if(s9) progcfg->web_browser = s9;
 

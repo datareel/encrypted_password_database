@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 12/30/2023
+// Date Last Modified: 07/23/2025
 // Copyright (c) 2001-2024 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -42,8 +42,10 @@ BEGIN_EVENT_TABLE(NewDatabasePanel, wxDialog)
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_KEY_FILE, NewDatabasePanel::OnTextControlKeyFileEnter)
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME, NewDatabasePanel::OnTextControlRSAKeyFileEnter)
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_RSA_KEY, NewDatabasePanel::OnTextControlRSAUsernameEnter)
+#ifdef __ENABLE_SMART_CARD__
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME, NewDatabasePanel::OnTextControlSCUsernameEnter)
   EVT_TEXT_ENTER(ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID, NewDatabasePanel::OnTextControlSCCertIDEnter)
+#endif // __ENABLE_SMART_CARD__
 END_EVENT_TABLE()
 
 NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
@@ -71,18 +73,24 @@ NewDatabasePanel::NewDatabasePanel(wxWindow *parent, wxWindowID id,
   rsa_key_label = 0;
   rsa_key_input = 0;
   rsa_browse = 0;
+
+#ifdef __ENABLE_SMART_CARD__
   sc_box = 0;
   sc_username_label = 0;
   sc_username_input = 0;
   sc_keyid_label = 0;
   sc_keyid_input = 0;
   sc_use_checkbox = 0;
-
+#endif // __ENABLE_SMART_CARD__
+ 
   use_key = 0;
   use_password = 0;
   use_rsa_key = 0;
-  use_smartcard = 0;
   use_cert_file = 0;
+
+ #ifdef __ENABLE_SMART_CARD__
+  use_smartcard = 0;
+#endif // __ENABLE_SMART_CARD__ 
   
   memset(public_key, 0, sizeof(public_key));
   memset(random_key, 0, sizeof(random_key));
@@ -109,12 +117,15 @@ NewDatabasePanel::~NewDatabasePanel()
   if(rsa_key_label) delete rsa_key_label;
   if(rsa_key_input) delete rsa_key_input;
   if(rsa_browse) delete rsa_browse;
+
+#ifdef __ENABLE_SMART_CARD__
   if(sc_box) delete sc_box;
   if(sc_username_label) delete sc_username_label;
   if(sc_username_input) delete sc_username_input;
   if(sc_keyid_label) delete sc_keyid_label;
   if(sc_keyid_input) delete sc_keyid_input;
   if(sc_use_checkbox) delete sc_use_checkbox;
+#endif // __ENABLE_SMART_CARD__
 
   memset(public_key, 0, sizeof(public_key));
   memset(random_key, 0, sizeof(random_key));
@@ -180,6 +191,7 @@ void NewDatabasePanel::OnTextControlRSAUsernameEnter(wxCommandEvent &event)
   Show(FALSE);
 }
 
+#ifdef __ENABLE_SMART_CARD__
 void NewDatabasePanel::OnTextControlSCUsernameEnter(wxCommandEvent &event)
 {
   if(!TestInput()) return;  
@@ -191,6 +203,7 @@ void NewDatabasePanel::OnTextControlSCCertIDEnter(wxCommandEvent &event)
   if(!TestInput()) return;  
   Show(FALSE);
 }
+#endif // __ENABLE_SMART_CARD__
 
 int NewDatabasePanel::CheckPassword()
 {
@@ -317,8 +330,10 @@ int NewDatabasePanel::TestInput()
   use_key = 0;
   use_password = 0;
   use_rsa_key = 0;
+#ifdef __ENABLE_SMART_CARD__
   use_smartcard = 0;
-
+#endif // __ENABLE_SMART_CARD__
+  
   gxString sbuf;
   int rv;
   
@@ -331,12 +346,25 @@ int NewDatabasePanel::TestInput()
     is_ok = 0;
     return 0;
   }
-  
+
+ #ifdef __ENABLE_SMART_CARD__
   if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
      && rsa_key_input->GetValue().IsNull() && !sc_use_checkbox->IsChecked()) {
     password_input->Clear();
     key_input->Clear();
+#else
+  if(password_input->GetValue().IsNull() && key_input->GetValue().IsNull()
+     && rsa_key_input->GetValue().IsNull()) {
+    password_input->Clear();
+    key_input->Clear();
+#endif // __ENABLE_SMART_CARD__
+    
+#ifdef __ENABLE_SMART_CARD__
     ProgramError->Message("You must use a password, key, or smart card to create this database");
+#else
+    ProgramError->Message("You must use a password or RSA key to create this database");
+#endif // __ENABLE_SMART_CARD__
+    
     is_ok = 0;
     return 0;
   }
@@ -385,6 +413,7 @@ int NewDatabasePanel::TestInput()
     }
   }
 
+ #ifdef __ENABLE_SMART_CARD__
   if(sc_use_checkbox->IsChecked()) {
     use_smartcard = 1;
     if(sc_keyid_input->GetValue().IsNull()) {
@@ -416,8 +445,8 @@ int NewDatabasePanel::TestInput()
       progcfg->global_dbparms.crypt_key.Clear(1);
       progcfg->global_dbparms.crypt_key.Cat(random_key, sizeof(random_key));
     }
-    
   }
+#endif // __ENABLE_SMART_CARD__  
 
   if(!key_input->GetValue().IsNull()) {
     use_key = 1;
@@ -527,6 +556,7 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
   panel->rsa_browse = new wxButton(panel, ID_NEWDATABASE_RSA_KEY_BROWSE, "Browse",
 				   wxPoint(15, 600), wxSize(75, 25));
 
+#ifdef __ENABLE_SMART_CARD__
   panel->sc_box = new wxStaticBox(panel, -1, "Smart Card", wxPoint(9, 672), wxSize(270,180));
   panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 698));
   panel->sc_username_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
@@ -537,7 +567,8 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 					 progcfg->SC_cert_id.c_str(), wxPoint(15, 776), wxSize(250, 25));
   panel->sc_use_checkbox = new wxCheckBox(panel, -1, "Use Smart Card", wxPoint(15, 812), wxSize(250, 25));
   panel->sc_use_checkbox->SetValue(false);
-  
+#endif // __ENABLE_SMART_CARD__
+
   panel->ok_btn = new wxButton(panel, ID_NEWDATABASE_OK, "OK",
 			       wxPoint(17, button_ypos),
 			       wxSize(46, 25));
