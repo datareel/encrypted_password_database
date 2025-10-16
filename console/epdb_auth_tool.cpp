@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 07/23/2025
+// Date Last Modified: 10/16/2025
 // Copyright (c) 2001-2025 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -48,12 +48,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 // Global vars
 gxString program_name = "Encrypted Password Database Auth Tool";
-gxString version_str = "2025.101";
+gxString version_str = "2025.102";
 gxString copyright = "Copyright (c) Datareel Open Source";
 gxString copyright_dates = "2003-2025";
 gxString produced_by = "Datareel Open Source";
 gxString default_url = "https://datareel.com";
-gxString release_date = "07/23/2025";
+gxString release_date = "10/16/2025";
 gxString debug_message;
 int debug_mode = 0;
 int debug_level = 1;

@@ -1,430 +1,430 @@
 # Rules to compile Datareel library components 
 # ===============================================================
-asprint.o:	$(DATAREEL_SRC_PATH)asprint.cpp $(ASPRINT_DEP)
+asprint$(OBJ_EXT):	$(DATAREEL_SRC_PATH)asprint.cpp $(ASPRINT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)asprint.cpp
 
-bstreei.o:	$(DATAREEL_SRC_PATH)bstreei.cpp $(GXSTREEI_DEP)
+bstreei$(OBJ_EXT):	$(DATAREEL_SRC_PATH)bstreei.cpp $(GXSTREEI_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)bstreei.cpp
 
-btcache.o:	$(DATAREEL_SRC_PATH)btcache.cpp $(BTCACHE_DEP)
+btcache$(OBJ_EXT):	$(DATAREEL_SRC_PATH)btcache.cpp $(BTCACHE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)btcache.cpp
 
-btnode.o:	$(DATAREEL_SRC_PATH)btnode.cpp $(BTNODE_DEP)
+btnode$(OBJ_EXT):	$(DATAREEL_SRC_PATH)btnode.cpp $(BTNODE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)btnode.cpp
 
-btstack.o:	$(DATAREEL_SRC_PATH)btstack.cpp $(BTSTACK_DEP)
+btstack$(OBJ_EXT):	$(DATAREEL_SRC_PATH)btstack.cpp $(BTSTACK_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)btstack.cpp
 
-cdate.o:	$(DATAREEL_SRC_PATH)cdate.cpp $(CDATE_DEP)
+cdate$(OBJ_EXT):	$(DATAREEL_SRC_PATH)cdate.cpp $(CDATE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)cdate.cpp
 
-dbfcache.o:	$(DATAREEL_SRC_PATH)dbfcache.cpp $(DBFCACHE_DEP)
+dbfcache$(OBJ_EXT):	$(DATAREEL_SRC_PATH)dbfcache.cpp $(DBFCACHE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)dbfcache.cpp
 
-dbasekey.o:	$(DATAREEL_SRC_PATH)dbasekey.cpp $(DBASEKEY_DEP)
+dbasekey$(OBJ_EXT):	$(DATAREEL_SRC_PATH)dbasekey.cpp $(DBASEKEY_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)dbasekey.cpp
 
-dbugmgr.o:	$(DATAREEL_SRC_PATH)dbugmgr.cpp $(DBUGMGR_DEP)
+dbugmgr$(OBJ_EXT):	$(DATAREEL_SRC_PATH)dbugmgr.cpp $(DBUGMGR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)dbugmgr.cpp
 
-devcache.o:	$(DATAREEL_SRC_PATH)devcache.cpp $(DEVCACHE_DEP)
+devcache$(OBJ_EXT):	$(DATAREEL_SRC_PATH)devcache.cpp $(DEVCACHE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)devcache.cpp
 
-dfileb.o:	$(DATAREEL_SRC_PATH)dfileb.cpp $(DFILEB_DEP)
+dfileb$(OBJ_EXT):	$(DATAREEL_SRC_PATH)dfileb.cpp $(DFILEB_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)dfileb.cpp
 
-ehandler.o:	$(DATAREEL_SRC_PATH)ehandler.cpp $(EHANDLER_DEP)
+ehandler$(OBJ_EXT):	$(DATAREEL_SRC_PATH)ehandler.cpp $(EHANDLER_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)ehandler.cpp
 
-fstring.o:	$(DATAREEL_SRC_PATH)fstring.cpp $(FSTRING_DEP)
+fstring$(OBJ_EXT):	$(DATAREEL_SRC_PATH)fstring.cpp $(FSTRING_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)fstring.cpp
 
-futils.o:	$(DATAREEL_SRC_PATH)futils.cpp $(FUTILS_DEP)
+futils$(OBJ_EXT):	$(DATAREEL_SRC_PATH)futils.cpp $(FUTILS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)futils.cpp
 
-gpersist.o:	$(DATAREEL_SRC_PATH)gpersist.cpp $(GPERSIST_DEP)
+gpersist$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gpersist.cpp $(GPERSIST_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gpersist.cpp
 
-gthreadt.o:	$(DATAREEL_SRC_PATH)gthreadt.cpp $(GTHREADT_DEP)
+gthreadt$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gthreadt.cpp $(GTHREADT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gthreadt.cpp
 
-gxbtree.o:	$(DATAREEL_SRC_PATH)gxbtree.cpp $(GXTREE_DEP)
+gxbtree$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxbtree.cpp $(GXTREE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxbtree.cpp
 
-gxcond.o:	$(DATAREEL_SRC_PATH)gxcond.cpp $(GXCOND_DEP)
+gxcond$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxcond.cpp $(GXCOND_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxcond.cpp
 
-gxconfig.o:	$(DATAREEL_SRC_PATH)gxconfig.cpp $(GXCONFIG_DEP)
+gxconfig$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxconfig.cpp $(GXCONFIG_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxconfig.cpp
 
-gxcrc32.o:	$(DATAREEL_SRC_PATH)gxcrc32.cpp $(GXCRC32_DEP)
+gxcrc32$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxcrc32.cpp $(GXCRC32_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxcrc32.cpp
 
-gxdatagm.o:	$(DATAREEL_SRC_PATH)gxdatagm.cpp $(GXDATAGM_DEP)
+gxdatagm$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxdatagm.cpp $(GXDATAGM_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdatagm.cpp
 
-gxdbase.o:    $(DATAREEL_SRC_PATH)gxdbase.cpp $(GXDBASE_DEP)
+gxdbase$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdbase.cpp $(GXDBASE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdbase.cpp
 
-gxderror.o:	$(DATAREEL_SRC_PATH)gxderror.cpp $(GXDERROR_DEP)
+gxderror$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxderror.cpp $(GXDERROR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxderror.cpp
 
-gxdfp64.o:    $(DATAREEL_SRC_PATH)gxdfp64.cpp $(GXDFP64_DEP)
+gxdfp64$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdfp64.cpp $(GXDFP64_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdfp64.cpp
 
-gxdfptr.o:    $(DATAREEL_SRC_PATH)gxdfptr.cpp $(GXDFPTR_DEP)
+gxdfptr$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdfptr.cpp $(GXDFPTR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdfptr.cpp
 
-gxdlcode.o:	$(DATAREEL_SRC_PATH)gxdlcode.cpp $(GXDLCODE_DEP)
+gxdlcode$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxdlcode.cpp $(GXDLCODE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdlcode.cpp
 
-gxdstats.o:	$(DATAREEL_SRC_PATH)gxdstats.cpp $(GXDSTATS_DEP)
+gxdstats$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxdstats.cpp $(GXDSTATS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdstats.cpp
 
-gxfloat.o:	$(DATAREEL_SRC_PATH)gxfloat.cpp $(GXFLOAT_DEP)
+gxfloat$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxfloat.cpp $(GXFLOAT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxfloat.cpp
 
-gxint16.o:	$(DATAREEL_SRC_PATH)gxint16.cpp $(GXINT16_DEP)
+gxint16$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxint16.cpp $(GXINT16_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxint16.cpp
 
-gxint32.o:	$(DATAREEL_SRC_PATH)gxint32.cpp $(GXINT32_DEP)
+gxint32$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxint32.cpp $(GXINT32_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxint32.cpp
 
-gxint64.o:	$(DATAREEL_SRC_PATH)gxint64.cpp $(GXINT64_DEP)
+gxint64$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxint64.cpp $(GXINT64_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxint64.cpp
 
-gxip32.o:	$(DATAREEL_SRC_PATH)gxip32.cpp $(GXIP32_DEP)
+gxip32$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxip32.cpp $(GXIP32_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxip32.cpp
 
-gxlistb.o:	$(DATAREEL_SRC_PATH)gxlistb.cpp $(GXLISTB_DEP)
+gxlistb$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxlistb.cpp $(GXLISTB_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxlistb.cpp
 
-gxmac48.o:	$(DATAREEL_SRC_PATH)gxmac48.cpp $(GXMAC48_DEP)
+gxmac48$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxmac48.cpp $(GXMAC48_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxmac48.cpp
 
-gxmutex.o:	$(DATAREEL_SRC_PATH)gxmutex.cpp $(GXMUTEX_DEP)
+gxmutex$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxmutex.cpp $(GXMUTEX_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxmutex.cpp
 
-gxrdbdef.o:	$(DATAREEL_SRC_PATH)gxrdbdef.cpp $(GXRDBDEF_DEP)
+gxrdbdef$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxrdbdef.cpp $(GXRDBDEF_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxrdbdef.cpp
 
-gxrdbhdr.o:	$(DATAREEL_SRC_PATH)gxrdbhdr.cpp $(GXRDBHDR_DEP)
+gxrdbhdr$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxrdbhdr.cpp $(GXRDBHDR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxrdbhdr.cpp
 
-gxrdbms.o:	$(DATAREEL_SRC_PATH)gxrdbms.cpp $(GXRDBMS_DEP)
+gxrdbms$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxrdbms.cpp $(GXRDBMS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxrdbms.cpp
 
-gxrdbsql.o:	$(DATAREEL_SRC_PATH)gxrdbsql.cpp $(GXRDBSQL_DEP)
+gxrdbsql$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxrdbsql.cpp $(GXRDBSQL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxrdbsql.cpp
 
-gxscomm.o:	$(DATAREEL_SRC_PATH)gxscomm.cpp $(GXSCOMM_DEP)
+gxscomm$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxscomm.cpp $(GXSCOMM_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxscomm.cpp
 
-gxsema.o:	$(DATAREEL_SRC_PATH)gxsema.cpp $(GXSEMA_DEP)
+gxsema$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsema.cpp $(GXSEMA_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsema.cpp
 
-gxsftp.o:	$(DATAREEL_SRC_PATH)gxsftp.cpp $(GXSFTP_DEP)
+gxsftp$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsftp.cpp $(GXSFTP_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsftp.cpp
 
-gxshtml.o:	$(DATAREEL_SRC_PATH)gxshtml.cpp $(GXSHTML_DEP)
+gxshtml$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxshtml.cpp $(GXSHTML_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxshtml.cpp
 
-gxsrss.o:	$(DATAREEL_SRC_PATH)gxsrss.cpp $(GXSRSS_DEP)
+gxsrss$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsrss.cpp $(GXSRSS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsrss.cpp
 
-gxsxml.o:	$(DATAREEL_SRC_PATH)gxsxml.cpp $(GXSXML_DEP)
+gxsxml$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsxml.cpp $(GXSXML_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsxml.cpp
 
-gxshttp.o:	$(DATAREEL_SRC_PATH)gxshttp.cpp $(GXSHTTP_DEP)
+gxshttp$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxshttp.cpp $(GXSHTTP_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxshttp.cpp
 
-gxshttpc.o:	$(DATAREEL_SRC_PATH)gxshttpc.cpp $(GXSHTTPC_DEP)
+gxshttpc$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxshttpc.cpp $(GXSHTTPC_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxshttpc.cpp
 
-gxsmtp.o:	$(DATAREEL_SRC_PATH)gxsmtp.cpp $(GXSMTP_DEP)
+gxsmtp$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsmtp.cpp $(GXSMTP_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsmtp.cpp
 
-gxsocket.o:	$(DATAREEL_SRC_PATH)gxsocket.cpp $(GXSOCKET_DEP)
+gxsocket$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsocket.cpp $(GXSOCKET_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsocket.cpp
 
-gxsping.o:	$(DATAREEL_SRC_PATH)gxsping.cpp $(GXSPING_DEP)
+gxsping$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsping.cpp $(GXSPING_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsping.cpp
 
-gxspop3.o:	$(DATAREEL_SRC_PATH)gxspop3.cpp $(GXSPOP3_DEP)
+gxspop3$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxspop3.cpp $(GXSPOP3_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxspop3.cpp
 
-gxssl.o:	$(DATAREEL_SRC_PATH)gxssl.cpp $(GXSSL_DEP)
+gxssl$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxssl.cpp $(GXSSL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxssl.cpp
 
-gxstream.o:	$(DATAREEL_SRC_PATH)gxstream.cpp $(GXSTREAM_DEP)
+gxstream$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxstream.cpp $(GXSTREAM_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxstream.cpp
 
-gxsurl.o:	$(DATAREEL_SRC_PATH)gxsurl.cpp $(GXSURL_DEP)
+gxsurl$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsurl.cpp $(GXSURL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsurl.cpp
 
-gxsutils.o:	$(DATAREEL_SRC_PATH)gxsutils.cpp $(GXSUTILS_DEP)
+gxsutils$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxsutils.cpp $(GXSUTILS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxsutils.cpp
 
-gxs_b64.o:	$(DATAREEL_SRC_PATH)gxs_b64.cpp $(GXS_B64_DEP)
+gxs_b64$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxs_b64.cpp $(GXS_B64_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxs_b64.cpp
 
-gxtelnet.o:	$(DATAREEL_SRC_PATH)gxtelnet.cpp $(GXTELNET_DEP)
+gxtelnet$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxtelnet.cpp $(GXTELNET_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxtelnet.cpp
 
-gxthread.o:	$(DATAREEL_SRC_PATH)gxthread.cpp $(GXTHREAD_DEP)
+gxthread$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxthread.cpp $(GXTHREAD_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxthread.cpp
 
-gxuint16.o:	$(DATAREEL_SRC_PATH)gxuint16.cpp $(GXUINT16_DEP)
+gxuint16$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxuint16.cpp $(GXUINT16_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxuint16.cpp
 
-gxuint32.o:	$(DATAREEL_SRC_PATH)gxuint32.cpp $(GXUINT32_DEP)
+gxuint32$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxuint32.cpp $(GXUINT32_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxuint32.cpp
 
-gxuint64.o:	$(DATAREEL_SRC_PATH)gxuint64.cpp $(GXUINT64_DEP)
+gxuint64$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxuint64.cpp $(GXUINT64_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxuint64.cpp
 
-htmldrv.o:	$(DATAREEL_SRC_PATH)htmldrv.cpp $(HTMLDRV_DEP)
+htmldrv$(OBJ_EXT):	$(DATAREEL_SRC_PATH)htmldrv.cpp $(HTMLDRV_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)htmldrv.cpp
 
-httpgrab.o:	$(DATAREEL_SRC_PATH)httpgrab.cpp $(HTTPGRAB_DEP)
+httpgrab$(OBJ_EXT):	$(DATAREEL_SRC_PATH)httpgrab.cpp $(HTTPGRAB_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)httpgrab.cpp
 
-leaktest.o:	$(DATAREEL_SRC_PATH)leaktest.cpp $(LEAKTEST_DEP)
+leaktest$(OBJ_EXT):	$(DATAREEL_SRC_PATH)leaktest.cpp $(LEAKTEST_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)leaktest.cpp
 
-logfile.o:	$(DATAREEL_SRC_PATH)logfile.cpp $(LOGFILE_DEP)
+logfile$(OBJ_EXT):	$(DATAREEL_SRC_PATH)logfile.cpp $(LOGFILE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)logfile.cpp
 
-memblock.o:	$(DATAREEL_SRC_PATH)memblock.cpp $(MEMBLOCK_DEP)
+memblock$(OBJ_EXT):	$(DATAREEL_SRC_PATH)memblock.cpp $(MEMBLOCK_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)memblock.cpp
 
-membuf.o:	$(DATAREEL_SRC_PATH)membuf.cpp $(MEMBUF_DEP)
+membuf$(OBJ_EXT):	$(DATAREEL_SRC_PATH)membuf.cpp $(MEMBUF_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)membuf.cpp
 
-ostrbase.o:	$(DATAREEL_SRC_PATH)ostrbase.cpp $(OSTRBASE_DEP)
+ostrbase$(OBJ_EXT):	$(DATAREEL_SRC_PATH)ostrbase.cpp $(OSTRBASE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)ostrbase.cpp
 
-pod.o:	$(DATAREEL_SRC_PATH)pod.cpp $(POD_DEP)
+pod$(OBJ_EXT):	$(DATAREEL_SRC_PATH)pod.cpp $(POD_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)pod.cpp
 
-pscript.o:	$(DATAREEL_SRC_PATH)pscript.cpp $(PSCRIPT_DEP)
+pscript$(OBJ_EXT):	$(DATAREEL_SRC_PATH)pscript.cpp $(PSCRIPT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)pscript.cpp
 
-scomserv.o:	$(DATAREEL_SRC_PATH)scomserv.cpp $(SCOMSERV_DEP)
+scomserv$(OBJ_EXT):	$(DATAREEL_SRC_PATH)scomserv.cpp $(SCOMSERV_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)scomserv.cpp
 
-stdafx.o:	$(DATAREEL_SRC_PATH)stdafx.cpp $(STDAFX_DEP)
+stdafx$(OBJ_EXT):	$(DATAREEL_SRC_PATH)stdafx.cpp $(STDAFX_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)stdafx.cpp
 
-strutil.o:	$(DATAREEL_SRC_PATH)strutil.cpp $(STRUTIL_DEP)
+strutil$(OBJ_EXT):	$(DATAREEL_SRC_PATH)strutil.cpp $(STRUTIL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)strutil.cpp
 
-systime.o:	$(DATAREEL_SRC_PATH)systime.cpp $(SYSTIME_DEP)
+systime$(OBJ_EXT):	$(DATAREEL_SRC_PATH)systime.cpp $(SYSTIME_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)systime.cpp
 
-terminal.o:	$(DATAREEL_SRC_PATH)terminal.cpp $(TERMINAL_DEP)
+terminal$(OBJ_EXT):	$(DATAREEL_SRC_PATH)terminal.cpp $(TERMINAL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)terminal.cpp
 
-thelpers.o:	$(DATAREEL_SRC_PATH)thelpers.cpp $(THELPERS_DEP)
+thelpers$(OBJ_EXT):	$(DATAREEL_SRC_PATH)thelpers.cpp $(THELPERS_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)thelpers.cpp
 
-thrapiw.o:	$(DATAREEL_SRC_PATH)thrapiw.cpp $(THRAPIW_DEP)
+thrapiw$(OBJ_EXT):	$(DATAREEL_SRC_PATH)thrapiw.cpp $(THRAPIW_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)thrapiw.cpp
 
-thrpool.o:	$(DATAREEL_SRC_PATH)thrpool.cpp $(THRPOOL_DEP)
+thrpool$(OBJ_EXT):	$(DATAREEL_SRC_PATH)thrpool.cpp $(THRPOOL_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)thrpool.cpp
 
-ustring.o:	$(DATAREEL_SRC_PATH)ustring.cpp $(USTRING_DEP)
+ustring$(OBJ_EXT):	$(DATAREEL_SRC_PATH)ustring.cpp $(USTRING_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)ustring.cpp
 
-wserror.o:	$(DATAREEL_SRC_PATH)wserror.cpp $(WSERROR_DEP)
+wserror$(OBJ_EXT):	$(DATAREEL_SRC_PATH)wserror.cpp $(WSERROR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)wserror.cpp
 
 # DLL entry point objects
-DATAREEL_DLL_OBJECTS = stdafx.o \
-	gxdlcode.o
+DATAREEL_DLL_OBJECTS = stdafx$(OBJ_EXT) \
+	gxdlcode$(OBJ_EXT)
 
 # Core database library components
-DATAREEL_DATABASE_CORE_OBJECTS =  gxint32.o \
-	gxint64.o \
-	gxuint32.o \
-	gxuint64.o \
-	gxcrc32.o \
-	gxdbase.o \
-	gxderror.o \
-	gxdfp64.o \
-	gxdfptr.o
+DATAREEL_DATABASE_CORE_OBJECTS =  gxint32$(OBJ_EXT) \
+	gxint64$(OBJ_EXT) \
+	gxuint32$(OBJ_EXT) \
+	gxuint64$(OBJ_EXT) \
+	gxcrc32$(OBJ_EXT) \
+	gxdbase$(OBJ_EXT) \
+	gxderror$(OBJ_EXT) \
+	gxdfp64$(OBJ_EXT) \
+	gxdfptr$(OBJ_EXT)
 
 # RDBMS library components
-DATAREEL_RDBMS_OBJECTS =  gxrdbdef.o \
-	gxrdbhdr.o \
-	gxrdbms.o \
-	gxrdbsql.o
+DATAREEL_RDBMS_OBJECTS =  gxrdbdef$(OBJ_EXT) \
+	gxrdbhdr$(OBJ_EXT) \
+	gxrdbms$(OBJ_EXT) \
+	gxrdbsql$(OBJ_EXT)
 
 # Extra database library components
-DATAREEL_DATABASE_EX_OBJECTS = btstack.o \
-	btcache.o \
-	btnode.o \
-	dbasekey.o \
-	gpersist.o \
-	gxbtree.o \
-	pod.o \
-	gxint16.o \
-	gxuint16.o \
-	gxfloat.o \
-	dbfcache.o \
-	dbugmgr.o
+DATAREEL_DATABASE_EX_OBJECTS = btstack$(OBJ_EXT) \
+	btcache$(OBJ_EXT) \
+	btnode$(OBJ_EXT) \
+	dbasekey$(OBJ_EXT) \
+	gpersist$(OBJ_EXT) \
+	gxbtree$(OBJ_EXT) \
+	pod$(OBJ_EXT) \
+	gxint16$(OBJ_EXT) \
+	gxuint16$(OBJ_EXT) \
+	gxfloat$(OBJ_EXT) \
+	dbfcache$(OBJ_EXT) \
+	dbugmgr$(OBJ_EXT)
 
 # Core socket library components
-DATAREEL_SOCKET_CORE_OBJECTS = gxsocket.o
+DATAREEL_SOCKET_CORE_OBJECTS = gxsocket$(OBJ_EXT)
 
 # Extra socket library components
-DATAREEL_SOCKET_EX_OBJECTS = gxshttp.o \
-	gxshttpc.o \
-	gxsmtp.o \
-	gxsping.o \
-	gxspop3.o \
-	gxsftp.o \
-	gxshtml.o \
-	gxsurl.o \
-	gxsutils.o \
-	gxs_b64.o \
-	gxtelnet.o \
-	wserror.o
+DATAREEL_SOCKET_EX_OBJECTS = gxshttp$(OBJ_EXT) \
+	gxshttpc$(OBJ_EXT) \
+	gxsmtp$(OBJ_EXT) \
+	gxsping$(OBJ_EXT) \
+	gxspop3$(OBJ_EXT) \
+	gxsftp$(OBJ_EXT) \
+	gxshtml$(OBJ_EXT) \
+	gxsurl$(OBJ_EXT) \
+	gxsutils$(OBJ_EXT) \
+	gxs_b64$(OBJ_EXT) \
+	gxtelnet$(OBJ_EXT) \
+	wserror$(OBJ_EXT)
 
 # Database socket library components
-DATAREEL_SOCKET_DB_OBJECTS = gxdatagm.o \
-	gxstream.o
+DATAREEL_SOCKET_DB_OBJECTS = gxdatagm$(OBJ_EXT) \
+	gxstream$(OBJ_EXT)
 
 # Core serial comm library components
-DATAREEL_SERIAL_CORE_OBJECTS = gxscomm.o
+DATAREEL_SERIAL_CORE_OBJECTS = gxscomm$(OBJ_EXT)
 
 # Database serial com library components
-DATAREEL_SERIAL_DB_OBJECTS = scomserv.o
+DATAREEL_SERIAL_DB_OBJECTS = scomserv$(OBJ_EXT)
 
 # Thread library components
-DATAREEL_THREAD_OBJECTS = gthreadt.o \
-	gxmutex.o \
-	thelpers.o \
-	thrapiw.o \
-	gxthread.o \
-	gxsema.o \
-	gxcond.o \
-	thrpool.o
+DATAREEL_THREAD_OBJECTS = gthreadt$(OBJ_EXT) \
+	gxmutex$(OBJ_EXT) \
+	thelpers$(OBJ_EXT) \
+	thrapiw$(OBJ_EXT) \
+	gxthread$(OBJ_EXT) \
+	gxsema$(OBJ_EXT) \
+	gxcond$(OBJ_EXT) \
+	thrpool$(OBJ_EXT)
 
 # General purpose library components
-DATAREEL_GP_OBJECTS = asprint.o \
-	bstreei.o  \
-	cdate.o  \
-	devcache.o \
-	dfileb.o \
-	fstring.o \
-	futils.o \
-	gxconfig.o \
-	gxip32.o \
-	gxlistb.o \
-	gxmac48.o \
-	htmldrv.o \
-	logfile.o \
-	memblock.o \
-	membuf.o \
-	ostrbase.o \
-	pscript.o  \
-	strutil.o \
-	systime.o \
-	ustring.o 
+DATAREEL_GP_OBJECTS = asprint$(OBJ_EXT) \
+	bstreei$(OBJ_EXT)  \
+	cdate$(OBJ_EXT)  \
+	devcache$(OBJ_EXT) \
+	dfileb$(OBJ_EXT) \
+	fstring$(OBJ_EXT) \
+	futils$(OBJ_EXT) \
+	gxconfig$(OBJ_EXT) \
+	gxip32$(OBJ_EXT) \
+	gxlistb$(OBJ_EXT) \
+	gxmac48$(OBJ_EXT) \
+	htmldrv$(OBJ_EXT) \
+	logfile$(OBJ_EXT) \
+	memblock$(OBJ_EXT) \
+	membuf$(OBJ_EXT) \
+	ostrbase$(OBJ_EXT) \
+	pscript$(OBJ_EXT)  \
+	strutil$(OBJ_EXT) \
+	systime$(OBJ_EXT) \
+	ustring$(OBJ_EXT) 
 
 # Optional debug objects
 # NOTE: The leak test functions requires the /D__MSVC_DEBUG__ compiler
 # flag and the /MDd or /MTd compiler flag. 
-DATAREEL_DEBUG_OBJECTS = leaktest.o
+DATAREEL_DEBUG_OBJECTS = leaktest$(OBJ_EXT)
 
 # Term I/O objects
-DATAREEL_TERM_OBJECTS = terminal.o
+DATAREEL_TERM_OBJECTS = terminal$(OBJ_EXT)
 
 # Console/GUI messaging gxcode objects
-DATAREEL_MSG_OBJECTS = ehandler.o \
-	gxdstats.o
+DATAREEL_MSG_OBJECTS = ehandler$(OBJ_EXT) \
+	gxdstats$(OBJ_EXT)
 
 DATAREEL_OBJECTS = $(DATAREEL_DLL_OBJECTS) \
 		 $(DATAREEL_DATABASE_CORE_OBJECTS) \
