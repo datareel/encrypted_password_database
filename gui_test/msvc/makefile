@@ -1,12 +1,11 @@
 #######################
 #### Start of File ####
 #######################
-# Makefile Contents: Datareel wxWidgets makefile for VS 2026
+# Makefile Contents: wxWidgets command line makefile for VS 2026
 
 # Define a name for the executable
-#PROJECT = 
-#FINAL=
-#64BITCFG=
+PROJECT =  wxappfw
+FINAL = 0
 
 !IF "$(FINAL)" == "1"
 LINK_LIB_EXT = wx.lib
@@ -14,66 +13,40 @@ LINK_LIB_EXT = wx.lib
 LINK_LIB_EXT = dwx.lib
 !ENDIF
 
-!IF "$(64BITCFG)" == "1"
-GXLINK_LIB = ../../lib/gxcode64$(LINK_LIB_EXT)
-!ELSE
-GXLINK_LIB = ../../lib/gxcode32$(LINK_LIB_EXT)
-!ENDIF
-
 # Installation directory for the application and config files
 INSTALL_DIR = ..\..\bin\win32
 
-# Set path to wxWidgets library here
-WXDIR = ../../../3plibs/wxWidgets32-3.2.4
-
-# GXD/GXS/GXT library path
-GCODE_LIB_DIR = ../../../3plibs/datareel
-AES_LIB_DIR = ../../../3plibs/aes
-ZCODE_LIB_DIR = ../../../3plibs/zlib
-
-# Use DLL gui libraries
-!include ..\..\env\msvc.env
-!include $(AES_LIB_DIR)\env\aesdeps.mak
-!include $(ZCODE_LIB_DIR)\env\zlibdeps.mak
+!include msvc.env
 
 # Setup additional paths for includes and source code
 APP_PATH = ..
 
 ADD_INC_PATHS = -I../../include -I../../src -I../
 
+# Build dependency rules
+# ===============================================================
+WXAPPFW_DEP =
+
+# ===============================================================
+
+# ===============================================================
+
 # Compile the files and build the executable
 # ===============================================================
 all:	$(PROJECT).exe
 
-!include ../project.mak
-!include $(AES_LIB_DIR)\env\aesobjs.mak
-!include $(ZCODE_LIB_DIR)\env\zlibobjs.mak
+wxappfw$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)wxappfw.cpp $(WXAPPFW_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)wxappfw.cpp
 
-AES_OBJECTS = aescrypt$(OBJ_EXT) \
-	aeskey$(OBJ_EXT) \
-	aestab$(OBJ_EXT) \
-	fileenc$(OBJ_EXT) \
-	hmac$(OBJ_EXT) \
-	prng$(OBJ_EXT) \
-	pwd2key$(OBJ_EXT) \
-	sha1$(OBJ_EXT)
+$(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
+	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
 
+OBJECTS = wxappfw$(OBJ_EXT)
+RCS = $(PROJECT).res
 
-ZLIB_OBJECTS = adler32$(OBJ_EXT) \
-	compress$(OBJ_EXT) \
-	crc32$(OBJ_EXT) \
-	deflate$(OBJ_EXT) \
-	gzio$(OBJ_EXT) \
-	inflate$(OBJ_EXT) \
-	inftrees$(OBJ_EXT) \
-	inffast$(OBJ_EXT) \
-	trees$(OBJ_EXT) \
-	uncompr$(OBJ_EXT) \
-	zutil$(OBJ_EXT)
-
-$(PROJECT).exe:	$(OBJECTS) $(AES_OBJECTS) $(ZLIB_OBJECTS) $(RCS)
-	$(LINKER) $(LINKER_FLAGS) \
-	$(OBJECTS) $(AES_OBJECTS) $(ZLIB_OBJECTS) $(RCS) $(LINK_LIBRARIES) $(GXLINK_LIB) /OUT:$@ 
+$(PROJECT).exe:	$(OBJECTS) $(RCS)
+	$(LINKER) $(LINKER_FLAGS) $(OBJECTS) $(RCS) $(LIBRARIES) \
+	$(LINK_LIBRARIES) /OUT:$@ 
 # ===============================================================
 
 # Install the binaries to the bin directory
@@ -127,6 +100,9 @@ clean:
 
 	@echo Removing the EXECUTABLE file from working directory
 	if exist $(PROJECT).exe del $(PROJECT).exe 
+
+	@echo Removing the manifest files from working directory
+	if exist *.manifest del *.manifest
 
 	@echo Removing all database files from working directory
 	if exist *.ihd del *.idh

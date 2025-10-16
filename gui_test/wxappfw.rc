@@ -13,4 +13,3 @@ wxappfw ICON "wxappfw.ico"
 #endif
 
 #include "wx/msw/wx.rc"
-
