@@ -4,18 +4,16 @@
 # Makefile Contents: wxWidgets command line makefile for VS 2026
 
 # Define a name for the executable
-PROJECT =  wxappfw
+PROJECT =  encrypted_password_database
 
-!include msvc.env
+!include ../../env/msvc.env
 
 # Setup additional paths for includes and source code
 APP_PATH = ..
 
-ADD_INC_PATHS = -I../../include -I../../src -I../
-
 # Build dependency rules
 # ===============================================================
-WXAPPFW_DEP =
+PROJECT_DEP =
 
 # ===============================================================
 
@@ -25,14 +23,7 @@ WXAPPFW_DEP =
 # ===============================================================
 all:	$(PROJECT).exe
 
-wxappfw$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)wxappfw.cpp $(WXAPPFW_DEP)
-	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)wxappfw.cpp
-
-$(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
-	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
-
-OBJECTS = wxappfw$(OBJ_EXT)
-RCS = $(PROJECT).res
+include ../project.mak
 
 $(PROJECT).exe:	$(OBJECTS) $(RCS)
 	$(LINKER) $(LINKER_FLAGS) $(OBJECTS) $(RCS) $(LIBRARIES) \
