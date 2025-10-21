@@ -63,7 +63,12 @@ m_globals$(OBJ_EXT):	$(SRC_PATH)m_globals.cpp $(M_GLOBALS_DEP)
 wxappfw$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)wxappfw.cpp $(WXAPPFW_DEP) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)wxappfw.cpp
 
+$(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
+	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
+
 OBJECTS = wxappfw$(OBJ_EXT) as2print$(OBJ_EXT) db_auth$(OBJ_EXT) \
 	dbstring$(OBJ_EXT) m_compress$(OBJ_EXT) m_dbase$(OBJ_EXT) \
 	m_globals$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
+
+RCS = $(PROJECT).res
 # ===============================================================

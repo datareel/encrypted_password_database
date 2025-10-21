@@ -66,6 +66,7 @@ version 2.X
 #include <wx/clipbrd.h>
 #include <wx/notebook.h>
 #include <wx/dcps.h>
+#include <wx/cmdline.h>
 
 // MDI includes
 #include <wx/mdi.h>

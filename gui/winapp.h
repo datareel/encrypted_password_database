@@ -43,7 +43,7 @@ public:
   // -------------------------------------
   // Called on application startup and is a good place for the application
   // initialization. If OnInit() returns false, the application terminates.
-  bool OnInit();
+  bool OnInit() wxOVERRIDE;
 };
 
 DECLARE_APP(WinApp)

@@ -133,7 +133,11 @@ void CryptDBGrid::MakeGridColLabels()
   m_grid->SetColLabelAlignment(wxCENTRE, -1);
   for(i = 0; i < NumDataMembers; i++) {
     char *p = dbparms.db_config.GetColName(i, dest);
+#ifdef __WXWIN2_GRID__
     m_grid->SetLabelValue(wxHORIZONTAL, p, i);
+#else
+    m_grid->SetColLabelValue(i, p);
+#endif
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Col name = " << p << "\n";
 #endif
@@ -141,7 +145,11 @@ void CryptDBGrid::MakeGridColLabels()
 
   // Set the cell widths
   for(i = 0; i < NumDataMembers; i++) {
+#ifdef __WXWIN2_GRID__
     m_grid->SetColumnWidth(i, (long)dbparms.db_config.col_sizes[i]);
+#else
+    m_grid->SetColSize(i, (long)dbparms.db_config.col_sizes[i]);
+#endif
     
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Setting the cell widths" << "\n";
@@ -159,8 +167,14 @@ void CryptDBGrid::MakeGridColLabels()
 void CryptDBGrid::UpdateGridPosition()
 // Function used to update the current grid position variables.
 {
+#ifdef __WXWIN2_GRID__
   dbparms.current_row = m_grid->GetCursorRow();
   dbparms.current_col = m_grid->GetCursorColumn();
+#else
+  dbparms.current_row = m_grid->GetGridCursorRow();
+  dbparms.current_col = m_grid->GetGridCursorCol();
+#endif
+
   dbparms.current_name = m_grid->GetCellValue(dbparms.current_row, 0);
 }
 
@@ -168,7 +182,7 @@ void CryptDBGrid::ClearCell(int row_number)
 {
   if(row_number == -1) row_number = dbparms.current_row;
   for(int i = 0; i < NumDataMembers; i++) {
-    m_grid->SetCellValue("", row_number, i);
+    m_grid->SetCellValue(row_number, i, "");
   }
 }
 
@@ -207,7 +221,12 @@ int CryptDBGrid::FindGridInsertPosition(INFOHOG &infohog)
   prev_key.MakeUpper();
   wxString sbuf;
 
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // If all the row have been deleted then row zero must be used
@@ -229,7 +248,12 @@ int CryptDBGrid::SetSkipLines(wxColour *color, int refresh_grid)
 {
   if(dbparms.db_config.view_skip_lines == 0) return 0;
 
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -348,7 +372,12 @@ int CryptDBGrid::SetGridTextColor(int refresh_grid)
 
 int CryptDBGrid::SetGridTextColor(wxColour *color, int refresh_grid)
 {
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -401,7 +430,12 @@ int CryptDBGrid::SetGridTextFont(int refresh_grid)
 
 int CryptDBGrid::SetGridTextFont(wxFont *font, int refresh_grid)
 {
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -454,7 +488,12 @@ int CryptDBGrid::SetHyperlinkColor(int refresh_grid)
 
 int CryptDBGrid::SetHyperlinkColor(wxColour *color, int refresh_grid)
 {
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -504,7 +543,12 @@ int CryptDBGrid::SetHyperlinkFont(int refresh_grid)
 
 int CryptDBGrid::SetHyperlinkFont(wxFont *font, int refresh_grid)
 {
+#ifdef __WXWIN2_GRID__ 
   int rows = m_grid->GetRows();
+#else
+    int rows = m_grid->GetNumberRows();
+#endif
+
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -554,7 +598,12 @@ int CryptDBGrid::SetGridBackgroundColor(int refresh_grid)
 
 int CryptDBGrid::SetGridBackgroundColor(wxColour *color, int refresh_grid)
 {
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // All row have been deleted
@@ -611,7 +660,13 @@ int CryptDBGrid::FindGridPosition(wxString &name)
 
   wxString key(name); 
   key.MakeUpper();
+
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // Return an error condition if all the row have been deleted
@@ -642,7 +697,13 @@ int CryptDBGrid::FindGridPosition(INFOHOG &infohog)
   INFOHOG_t *dbstring = (INFOHOG_t *)infohog.GetMember(0);
   wxString key(dbstring->c_str(dest)); 
   key.MakeUpper();
+
+#ifdef __WXWIN2_GRID__
   int rows = m_grid->GetRows();
+#else
+  int rows = m_grid->GetNumberRows();
+#endif
+  
   int pos = 0; // Start at row zero
   
   // Return an error condition if all the row have been deleted
@@ -682,10 +743,18 @@ void CryptDBGrid::LoadCell(INFOHOG &infohog, int row_number)
   for(int i = 0; i < NumDataMembers; i++) {
     // NOTE: Set the cell font and color here
     if(dbparms.db_config.GetGridTextFont(&font)) {
+#ifdef __WXWIN2_GRID__
       m_grid->SetCellTextFont(font, row_number, i);
+#else
+      m_grid->SetCellFont(row_number, i, font);
+#endif
     }
     else {
+#ifdef __WXWIN2_GRID__
       m_grid->SetCellTextFont(*frame->itemFont, row_number, i);
+#else
+      m_grid->SetCellFont(row_number, i, *frame->itemFont);
+#endif
     }
     if(dbparms.db_config.GetGridTextColor(&color)) {
       m_grid->SetCellTextColour(row_number, i, color);
@@ -707,23 +776,31 @@ void CryptDBGrid::LoadCell(INFOHOG &infohog, int row_number)
 	    m_grid->SetCellTextColour(row_number, i, *frame->hyperlinkColor);
 	  }
 	  if(dbparms.db_config.GetHyperlinkFont(&font)) {
+#ifdef __WXWIN2_GRID__
 	    m_grid->SetCellTextFont(font, row_number, i);
+#else
+	    m_grid->SetCellFont(row_number, i, font);
+#endif
 	  }
 	  else {
+#ifdef __WXWIN2_GRID__
 	    m_grid->SetCellTextFont(*frame->hyperlinkFont, row_number, i);
+#else
+	    m_grid->SetCellFont(row_number, i, *frame->hyperlinkFont);
+#endif
 	  }
 	}
-	m_grid->SetCellValue(cell_str.c_str(), row_number, i);
+	m_grid->SetCellValue(row_number, i, cell_str.c_str());
 	::wxYield();
       }
       else {
 	// Clear the cell if the member is null
-	m_grid->SetCellValue("", row_number, i);
+	m_grid->SetCellValue(row_number, i, "");
       }
     }
     else {
       // Clear the cell if member is an invalid size
-      m_grid->SetCellValue("", row_number, i);
+      m_grid->SetCellValue(row_number, i, "");
     }
   }
 }
@@ -734,9 +811,15 @@ void CryptDBGrid::LoadGrid(long num_entries)
   long i = num_entries;
   
   // Ensure that the proper number of rows have been allocated
+#ifdef __WXWIN2_GRID__
   if(i > m_grid->GetRows()) {
     m_grid->InsertRows(0, (i - m_grid->GetRows()));
   }
+#else
+  if(i > m_grid->GetNumberRows()) {
+    m_grid->InsertRows(0, (i - m_grid->GetNumberRows()));
+  }
+#endif
   
   const long display_count = num_entries/10;
   long count = 0;
@@ -769,7 +852,13 @@ void CryptDBGrid::LoadGrid(long num_entries)
   sbuf.Printf("Total number of index keys = %d",
 	      (int)dbparms.pod->Index()->NumKeys());
   frame->spanel->WriteMessage(sbuf.c_str());
+
+#ifdef __WXWIN2_GRID__
   sbuf.Printf("Total number of grid rows = %d", m_grid->GetRows());
+#else
+  sbuf.Printf("Total number of grid rows = %d", m_grid->GetNumberRows());
+#endif
+
   frame->spanel->WriteMessage(sbuf.c_str());
 #else
   if(dbparms.display_status) {
@@ -852,7 +941,11 @@ void CryptDBGrid::LoadGrid(long num_entries)
     m_grid->AutoSizeRows();
     // Reset the DB config col values without saving
     for(i = 0; i < NumDataMembers; i++) {
+#ifdef __APP_DEBUG_VERSION__
       int col_width = m_grid->GetColumnWidth(i);
+#else
+      int col_width = m_grid->GetColSize(i);
+#endif
       dbparms.db_config.col_sizes[i] = col_width;
     }
   }

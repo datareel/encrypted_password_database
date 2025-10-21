@@ -6,13 +6,16 @@
 # Define a name for the executable
 PROJECT =  wxappfw
 
-include ../../env/msvc.env
+!include msvc_wx_only.env
 
 # Setup additional paths for includes and source code
 APP_PATH = ..
 
+ADD_INC_PATHS = -I../../include -I../../src -I../
+
 # Build dependency rules
 # ===============================================================
+WXAPPFW_DEP =
 
 # ===============================================================
 
@@ -22,7 +25,14 @@ APP_PATH = ..
 # ===============================================================
 all:	$(PROJECT).exe
 
-include ../project.mak
+wxappfw$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)wxappfw.cpp $(WXAPPFW_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)wxappfw.cpp
+
+$(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
+	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
+
+OBJECTS = wxappfw$(OBJ_EXT)
+RCS = $(PROJECT).res
 
 $(PROJECT).exe:	$(OBJECTS) $(RCS)
 	$(LINKER) $(LINKER_FLAGS) $(OBJECTS) $(RCS) $(LIBRARIES) \

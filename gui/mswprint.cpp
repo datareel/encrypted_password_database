@@ -441,7 +441,8 @@ void mswPrintout::DrawTextPage(wxDC *dc, int page)
   int end = page * print_config->lines_per_page;  // Last line to write
   int start = end - print_config->lines_per_page; // First line to write
 
-  long textW, textH; // Text width and height 
+  // long textW, textH; // Text width and height
+  wxCoord textW, textH; // Text width and height 
   char *p;
   p = db_config->GetColName(0, dest);
   dc->GetTextExtent(p, &textW, &textH);
@@ -552,7 +553,8 @@ void mswPrintout::DrawTextPage(wxDC *dc, int page)
 
   // Dummy page number used to calculate the text extent
   wxString sbuf("Page 1 of 1"); 
-  long xFooterTextExtent, yFooterTextExtent;
+  // long xFooterTextExtent, yFooterTextExtent;
+  wxCoord xFooterTextExtent, yFooterTextExtent;
   dc->GetTextExtent(sbuf, &xFooterTextExtent, &yFooterTextExtent);
   int bottomMargin = (int)print_config->bottom_margin;
   float bottomMarginLogical = (float)(logUnitsFactor * (page_height - \
@@ -740,7 +742,8 @@ void mswPrintout::WritePageHeader(wxDC *dc, wxString &doc_name,
 
   float topMarginLogical = (float)(logUnitsFactor * topMargin);
 
-  long xExtentName, yExtentName, xExtentDate, yExtentDate;
+  // long xExtentName, yExtentName, xExtentDate, yExtentDate;
+  wxCoord xExtentName, yExtentName, xExtentDate, yExtentDate;
   float xPos, offset;
   dc->GetTextExtent(doc_name, &xExtentName, &yExtentName);
   if(doc_date != "") { // Printing document name and date strings
@@ -789,7 +792,8 @@ void mswPrintout::WritePageNumber(wxDC *dc, int pagenum)
 
   float bottomMarginLogical = (float)(logUnitsFactor * (page_height - \
 							bottomMargin));
-  long xExtent, yExtent;
+  // long xExtent, yExtent;
+  wxCoord xExtent, yExtent;
   wxString sbuf;
   sbuf.Printf("Page %d of %d", pagenum, last_page);
 
@@ -996,7 +1000,8 @@ int mswPrintout::InitPrintout()
   ScaleDC(dc);
   float ypos = logUnitsFactor * print_config->top_margin;
   wxString sbuf("Item Bar Font");
-  long textW, textH; // Text width and height 
+  // long textW, textH; // Text width and height
+  wxCoord textW, textH; // Text width and height 
   dc->GetTextExtent(sbuf, &textW, &textH);
 
   // Account for the item bar plus the one line separator
@@ -1006,8 +1011,10 @@ int mswPrintout::InitPrintout()
   int bottomMargin = (int)print_config->bottom_margin;
   float bottomMarginLogical = (float)(logUnitsFactor * (page_height - \
 							bottomMargin));
-  long xFooterTextExtent = 0;
-  long yFooterTextExtent = 0;
+  // long xFooterTextExtent = 0;
+  // long yFooterTextExtent = 0;
+  wxCoord xFooterTextExtent = 0;
+  wxCoord yFooterTextExtent = 0;
 
   if(db_config->print_page_footer) {
     dc->SetFont(footer_font);

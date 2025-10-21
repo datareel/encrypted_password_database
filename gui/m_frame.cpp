@@ -1345,23 +1345,40 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
 
 #ifdef __APP_DEBUG_VERSION__
   *(statusWin) << "Current row " << child_frame->GridFrame()->dbparms.current_row << "\n";
+#ifdef __WXWIN2_GRID__
   *(statusWin) << "Number of rows " << child_frame->GridFrame()->m_grid->GetRows() << "\n";
+#else
+  *(statusWin) << "Number of rows " << child_frame->GridFrame()->m_grid->GetNumberRows() << "\n";
+#endif
 #endif
   
   // Delete the row and update the "current_name" varible
+#ifdef __WXWIN2_GRID__
   if(child_frame->GridFrame()->m_grid->GetRows() == 1) { // There is only one row in this table
+#else
+    if(child_frame->GridFrame()->m_grid->GetNumberRows() == 1) { // There is only one row in this table
+#endif
+      
     child_frame->GridFrame()->m_grid->DeleteRows(child_frame->GridFrame()->dbparms.current_row);
     child_frame->GridFrame()->dbparms.current_name = "";
     return;
   }
+#ifdef __WXWIN2_GRID__
   else if(child_frame->GridFrame()->dbparms.current_row == child_frame->GridFrame()->m_grid->GetRows()-1) { // At the last row
+#else
+  else if(child_frame->GridFrame()->dbparms.current_row == child_frame->GridFrame()->m_grid->GetNumberRows()-1) { // At the last row
+#endif
     child_frame->GridFrame()->m_grid->DeleteRows(child_frame->GridFrame()->dbparms.current_row);
     child_frame->GridFrame()->dbparms.current_row--; // Use the previous name value
     child_frame->GridFrame()->dbparms.current_name = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0);
   }
   else {
     child_frame->GridFrame()->m_grid->DeleteRows(child_frame->GridFrame()->dbparms.current_row);
+#ifdef __WXWIN2_GRID__
     if(child_frame->GridFrame()->dbparms.current_row == child_frame->GridFrame()->m_grid->GetRows()-1) {
+#else
+    if(child_frame->GridFrame()->dbparms.current_row == child_frame->GridFrame()->m_grid->GetNumberRows()-1) {
+#endif
       // This is now the last row so use this row as the current name
       child_frame->GridFrame()->dbparms.current_name = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0);
     }
@@ -1770,7 +1787,11 @@ void MainFrame::AutoSize(wxCommandEvent& event)
   }
 
   for(int i = 0; i < NumDataMembers; i++) {
+#ifdef __WXWIN2_GRID__
     int col_width = child_frame->GetGrid()->GetColumnWidth(i);
+#else
+    int col_width = child_frame->GetGrid()->GetColSize(i);
+#endif
     db_config->col_sizes[i] = col_width;
   }
 

@@ -53,8 +53,13 @@ void StartDocument(const gxString &document_name, const gxString &app_name)
 
   // Use the Windows default application to launch this document
   HWND hwnd = NULL;
-  HINSTANCE h = ShellExecute(hwnd, NULL, document_name.c_str(), NULL, NULL,
-			     SW_SHOWNORMAL);
+
+  const char* narrowString = document_name.c_str();
+  int bufferSize = MultiByteToWideChar(CP_ACP, 0, narrowString, -1, NULL, 0);
+  std::wstring wideString(bufferSize, 0);
+  MultiByteToWideChar(CP_ACP, 0, narrowString, -1, &wideString[0], bufferSize);
+  
+  HINSTANCE h = ShellExecute(hwnd, NULL, wideString.c_str(), NULL, NULL, SW_SHOWNORMAL);
   if((long)h <= 32) {
     gxString sbuf;
 

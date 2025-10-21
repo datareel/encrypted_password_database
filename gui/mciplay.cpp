@@ -46,9 +46,13 @@ void MCIPlay(const gxString &fname)
 #if defined (__WIN32__)
   gxString sbuf;
   sbuf << clear << "OPEN " << fname << " ALIAS MM_FILE";
-  mciSendString(sbuf.c_str(), NULL, 0, NULL);
-  mciSendString("PLAY MM_FILE WAIT", NULL, 0, NULL);
-  mciSendString("CLOSE MM_FILE", NULL, 0, NULL);
+
+  const char* asciiString = sbuf.c_str();
+  wxString wideStringFromAscii = wxString::FromAscii(asciiString);
+
+  mciSendString(wideStringFromAscii, NULL, 0, NULL);
+  mciSendString(_T("PLAY MM_FILE WAIT"), NULL, 0, NULL);
+  mciSendString(_T("CLOSE MM_FILE"), NULL, 0, NULL);
 #elif defined (__LINUX__)
   gxString command("play");
   command << " " << fname;

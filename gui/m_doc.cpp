@@ -260,7 +260,12 @@ void CryptDBDocument::OnLabelRightClick(wxGridEvent& event)
       }
 
       p = DBParms()->db_config.GetColName(col, dest);
+
+#ifdef __WXWIN2_GRID__
       grid_frame->m_grid->SetLabelValue(wxHORIZONTAL, p, col);
+#else
+      grid_frame->m_grid->SetColLabelValue(col, p);
+#endif
     }
   }
   event.Skip();
@@ -418,7 +423,11 @@ void CryptDBDocument::OnRowSize(wxGridSizeEvent& event)
 void CryptDBDocument::OnColSize(wxGridSizeEvent& event)
 {
   int current_col = event.GetRowOrCol();
+#ifdef __WXWIN2_GRID__
   int col_width = grid_frame->m_grid->GetColumnWidth(current_col);
+#else
+  int col_width = grid_frame->m_grid->GetColSize(current_col);
+#endif
   
   if(!TestDatabase(0, 1, 0)) {
     event.Skip();
@@ -496,8 +505,13 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
     wxString curr_val, find_val;
     curr_val = grid_frame->m_grid->GetCellValue(my_current_row, 0);
     curr_val.MakeUpper();
-    
+
+#ifdef __WXWIN2_GRID__
     int rows = grid_frame->m_grid->GetRows();
+#else
+    int rows = grid_frame->m_grid->GetNumberRows();
+#endif
+
     int pos = 0; // Start at row zero
       
     // Find the row excluding row zero
@@ -566,12 +580,19 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 						*frame->hyperlinkColor);
 	}
 	if(DBParms()->db_config.GetHyperlinkFont(&font)) {
-	  grid_frame->m_grid->SetCellTextFont(font, 
-					      my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	  grid_frame->m_grid->SetCellTextFont(font, my_current_row, 0);
+#else
+	  grid_frame->m_grid->SetCellFont(my_current_row, 0, font);
+#endif
 	}
 	else {
-	  grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, 
-					      my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	  grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, my_current_row, 0);
+#else
+	  grid_frame->m_grid->SetCellFont(my_current_row, 0, *frame->hyperlinkFont);
+#endif
+	  
 	}
       }
       return 1;
@@ -616,20 +637,25 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 	gbuf = (const char *)DBParms()->prev_name.c_str();
 	if(IsHyperlink(gbuf)) { // Reset the font it the previous name is a hyperlink
 	  if(DBParms()->db_config.GetGridTextColor(&color)) {
-	    grid_frame->m_grid->SetCellTextColour(my_current_row, 0, 
-						  color);
+	    grid_frame->m_grid->SetCellTextColour(my_current_row, 0, color);
 	  }
 	  else {
-	    grid_frame->m_grid->SetCellTextColour(my_current_row, 0, 
-						  *frame->cellFontColor);
+	    grid_frame->m_grid->SetCellTextColour(my_current_row, 0, *frame->cellFontColor);
 	  }
 	  if(DBParms()->db_config.GetGridTextFont(&font)) {
-	    grid_frame->m_grid->SetCellTextFont(font, 
-						my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	    grid_frame->m_grid->SetCellTextFont(font, my_current_row, 0);
+#else
+	    grid_frame->m_grid->SetCellFont(my_current_row, 0, font);
+#endif
+
 	  }
 	  else {
-	    grid_frame->m_grid->SetCellTextFont(*frame->itemFont, 
-						my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	    grid_frame->m_grid->SetCellTextFont(*frame->itemFont, my_current_row, 0);
+#else
+	    grid_frame->m_grid->SetCellFont(my_current_row, 0, *frame->itemFont);
+#endif
 	  }
 	}
 	*(frame->statusWin) << "Changed " << DBParms()->prev_name
@@ -647,12 +673,18 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 						  *frame->hyperlinkColor);
 	  }
 	  if(DBParms()->db_config.GetHyperlinkFont(&font)) {
-	    grid_frame->m_grid->SetCellTextFont(font, 
-						my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	    grid_frame->m_grid->SetCellTextFont(font, my_current_row, 0);
+#else
+	    grid_frame->m_grid->SetCellFont(my_current_row, 0, font);
+#endif
 	  }
 	  else {
-	    grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, 
-						my_current_row, 0);
+#ifdef __WXWIN2_GRID__
+	    grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, my_current_row, 0);
+#else
+	    grid_frame->m_grid->SetCellFont(my_current_row, 0, *frame->hyperlinkFont);
+#endif
 	  }
 	}
 	return 1;
@@ -716,13 +748,18 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 					      *frame->cellFontColor);
       }
       if(DBParms()->db_config.GetGridTextFont(&font)) {
-	grid_frame->m_grid->SetCellTextFont(font, 
-					    my_current_row, my_current_col);
-
+#ifdef __WXWIN2_GRID__
+	grid_frame->m_grid->SetCellTextFont(font, my_current_row, my_current_col);
+#else
+	grid_frame->m_grid->SetCellFont(my_current_row, my_current_col, font);
+#endif
       }
       else {
-	grid_frame->m_grid->SetCellTextFont(*frame->itemFont, 
-					    my_current_row, my_current_col);
+#ifdef __WXWIN2_GRID__
+	grid_frame->m_grid->SetCellTextFont(*frame->itemFont, my_current_row, my_current_col);
+#else
+	grid_frame->m_grid->SetCellFont(my_current_row, my_current_col, *frame->itemFont);
+#endif
 
       }
 
@@ -744,12 +781,18 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 					      *frame->hyperlinkColor);
 	}
 	if(DBParms()->db_config.GetHyperlinkFont(&font)) {
-	  grid_frame->m_grid->SetCellTextFont(font, 
-					      my_current_row, my_current_col);
+#ifdef __WXWIN2_GRID__
+	  grid_frame->m_grid->SetCellTextFont(font, my_current_row, my_current_col);
+#else
+	  grid_frame->m_grid->SetCellFont(my_current_row, my_current_col, font);
+#endif
 	}
 	else {
-	  grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, 
-					      my_current_row, my_current_col);
+#ifdef __WXWIN2_GRID__
+	  grid_frame->m_grid->SetCellTextFont(*frame->hyperlinkFont, my_current_row, my_current_col);
+#else
+	  grid_frame->m_grid->SetCellFont(my_current_row, my_current_col, *frame->hyperlinkFont);
+#endif
 	}
       }
       return 1;
