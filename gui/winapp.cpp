@@ -37,8 +37,22 @@ bool WinApp::OnInit(void)
 #ifdef __APP_DEBUG_VERSION__
   gxString work_dir = (const char *)wxGetCwd();
   gxString debug_file_name;
+
 #if defined (__WIN32__)
-  debug_file_name << clear << work_dir << "\\debug.log";
+  gxString user_profile;
+  CheckEnvVar("USERPROFILE", user_profile);
+  gxString debugdir = user_profile;
+  debugdir << "\\.encrypted_password_database\\logs";
+  if(!::wxDirExists(debugdir.c_str())) {
+   futils_mkdir(debugdir.c_str());
+  }
+  if(!::wxDirExists(debugdir.c_str())) {
+    // Error making the log dir
+    debug_file_name << clear << work_dir << "\\debug.log";
+  }
+  else {
+    debug_file_name << clear << debugdir << "\\debug.log";
+  }
 #else // If not WIN32 assume a UNIX path
   gxString debugdir = (const char *)wxGetHomeDir().c_str();
   debugdir << "/.encrypted_password_database/logs";
@@ -56,6 +70,8 @@ bool WinApp::OnInit(void)
   InitProgramConfig(argc, argv);
   // NOTE: Cannot access progcfg-> members until the InitProgramConfig()
   // call has returned.
+
+  progcfg->debug_file_name = debug_file_name;
   
 #ifdef __APP_DEBUG_VERSION__
   debug_log << "Constructing main frame" << "\n" << flush;

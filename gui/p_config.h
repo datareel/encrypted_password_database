@@ -61,10 +61,9 @@ struct wxappfwProgramConfig {
   gxString default_historyFile; // Default history file
   gxString arg0_dir;            // ARG 0 present working directory
   gxString USERNAME;
-#if defined (__UNIX__)
   gxString logDir;
-#endif
-
+  gxString debug_file_name;
+  
   // Config values used to adjust frame sizes
   int MainFrameHeight;
   int MainFrameWidth;
@@ -93,6 +92,7 @@ struct wxappfwProgramConfig {
   gxString produced_by;
   gxString copyright;
   gxString copyright_dates;
+  gxString build_type;
   gxString release_date;
   gxString default_url;
   gxString support_email;

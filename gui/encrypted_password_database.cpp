@@ -99,11 +99,8 @@ void InitProgramConfig(int argc, char *argv[])
 
 #if defined (__WIN32__)
   progcfg->arg0_dir.DeleteAfterLastIncluding("\\");
-  ::wxSetWorkingDirectory(progcfg->arg0_dir.c_str());
-  // Set the default directory paths to the program's working directory
-  progcfg->homeDir = progcfg->docDir = progcfg->dataDir = progcfg->workDir = (const char *)::wxGetCwd().c_str();
-
-  // Windows XP environmental variable list used by this application
+  
+  // Windows environmental variable list used by this application
   gxString app_data;
   CheckEnvVar("APPDATA", app_data);
   gxString home_share;
@@ -117,121 +114,57 @@ void InitProgramConfig(int argc, char *argv[])
   gxString user_profile;
   CheckEnvVar("USERPROFILE", user_profile);
 
-#ifdef __APP_DEBUG_VERSION__
-  debug_log << "Env setting for APPDATA = " << app_data.c_str() << "\n";
-  debug_log << "Env setting for HOMESHARE = " << home_share.c_str() << "\n";
-  debug_log << "Env setting for HOMEDRIVE = " << home_drive.c_str() << "\n";
-  debug_log << "Env setting for HOMEPATH = " << home_path.c_str() << "\n";
-  debug_log << "Env setting for SystemDrive = " << system_drive.c_str() << "\n";
-  debug_log << "Env setting for USERPROFILE = " << user_profile.c_str() << "\n";
-#endif
-
-  int has_app_dir = 0;
-  int has_doc_dir = 0;
-  gxString data_dirbuf;
-  gxString doc_dirbuf;
-  gxString dirbuf;
-
-  // Check for the applications data directory. The programs
-  // config file is stored in the user's app_dir in subdirectory
-  // named after the program.
-  if(!app_data.is_null()) {
-    data_dirbuf << clear << app_data << "\\" << progcfg->ProgramName;
-    if(::wxDirExists(data_dirbuf.c_str())) {
-      has_app_dir = 1;
-    }
-    else {
-      if(futils_mkdir(data_dirbuf.c_str()) != 0) {
-	has_app_dir = 0;
-      }
-      else {
-	has_app_dir = 1;
-      }
-    }
-  }
-  else {
-    has_app_dir = 0;
-  }
-
-  // Check for the My Documents directory 
-   if(!user_profile.is_null()) {
-    doc_dirbuf << clear << user_profile << "\\My Documents";
-    if(::wxDirExists(doc_dirbuf.c_str())) { // Has a My Documents dir
-      doc_dirbuf << "\\" << progcfg->ProgramName;
-      if(futils_mkdir(doc_dirbuf.c_str()) != 0) {
-	has_doc_dir = 0;
-      }
-      else {
-	has_doc_dir = 1;
-      }
-    }
-    else { // There is no local My Documents directory 
-      // MS C++.NET alternative
-      // System::Environment::GetFolderPath(System:Environment::SpecialFolder::Personal);
-      if(!home_share.is_null()) { // My Documents has been redirected
-	if((!home_drive.is_null()) && (!home_path.is_null())) {
-	  doc_dirbuf << clear << home_drive << home_path;
-	  if(doc_dirbuf[doc_dirbuf.length()-1] != '\\') doc_dirbuf << "\\";
-	  doc_dirbuf << "My Documents";
-	  if(::wxDirExists(doc_dirbuf.c_str())) { // Has a My Documents dir
-	    doc_dirbuf << "\\" <<  progcfg->ProgramName;
-	    if(futils_mkdir(doc_dirbuf.c_str()) != 0) {
-	      has_doc_dir = 0;
-	    }
-	    else {
-	      has_doc_dir = 1;
-	    }
-	  }
-	  else {
-	    has_doc_dir = 0;
-	  }
-	}
-      }
-      else {
-	has_doc_dir = 0;
-      }
-    }
-  }
-
-  if(has_app_dir) {
-    progcfg->dataDir = data_dirbuf;
-  }
-  else {
-    if(has_doc_dir) {
-      progcfg->dataDir = doc_dirbuf;
-    }
-  }
-
-  if(has_doc_dir) {
-    progcfg->homeDir = progcfg->docDir = doc_dirbuf;
-  }
-  else {
-    if(has_app_dir) {
-      progcfg->homeDir = progcfg->docDir = progcfg->dataDir = data_dirbuf;
-    }
-  }
+  // Set the default directory paths to the program's working directory
+  gxString default_doc_dir = user_profile;
+  default_doc_dir << "\\.encrypted_password_database";
   
-  if((!has_app_dir) && (!has_doc_dir)) {
-    if(!system_drive.is_null()) {
-      dirbuf << clear << system_drive;
-      if(dirbuf[dirbuf.length()-1] != '\\') dirbuf << "\\";
-      dirbuf << progcfg->ProgramName;
+  if(!::wxDirExists(default_doc_dir.c_str())) {
+    futils_mkdir(default_doc_dir.c_str());
+  }
+  if(!::wxDirExists(default_doc_dir.c_str())) {
+    // Error making the default dir
+    default_doc_dir = progcfg->homeDir = progcfg->docDir = progcfg->dataDir = progcfg->workDir = progcfg->logDir = (const char *)::wxGetCwd().c_str();
+  }
+  else {
+    progcfg->homeDir = progcfg->docDir = progcfg->dataDir = progcfg->workDir = progcfg->logDir = default_doc_dir;
+  }
+
+  progcfg->docDir << "\\" << "docs";
+  progcfg->dataDir << "\\" << "data";
+  progcfg->logDir << "\\" << "logs";
+  
+  if(!::wxDirExists(progcfg->docDir.c_str())) {
+    if(futils_mkdir(progcfg->docDir.c_str()) != 0) {
+      progcfg->docDir = default_doc_dir;
     }
-    else {
-      dirbuf << clear << "C:\\" << progcfg->ProgramName;
+  }
+  if(!::wxDirExists(progcfg->dataDir.c_str())) {
+    if(futils_mkdir(progcfg->dataDir.c_str()) != 0) {
+       progcfg->dataDir = default_doc_dir;
     }
-    if(futils_mkdir(dirbuf.c_str()) != 0) {
-      progcfg->homeDir = progcfg->docDir = progcfg->dataDir = progcfg->workDir;
+  }
+  if(!::wxDirExists(progcfg->logDir.c_str())) {
+    if(futils_mkdir(progcfg->logDir.c_str()) != 0) {
+      progcfg->logDir = default_doc_dir;
     }
-    else {
-      progcfg->homeDir = progcfg->docDir = progcfg->dataDir = dirbuf;
-    }
-  } 
+  }
+
+  // Set the default working directory 
+  ::wxSetWorkingDirectory(progcfg->workDir.c_str());
 
   // Set all the program config and log file names  
-  progcfg->cfgFile << clear << progcfg->dataDir << "\\" << progcfg->default_cfgFile;
-  progcfg->logFile << clear << progcfg->dataDir << "\\" << progcfg->default_logFile;
+  progcfg->cfgFile << clear << progcfg->homeDir << "\\" << progcfg->default_cfgFile;
+  progcfg->logFile << clear << progcfg->logDir << "\\" << progcfg->default_logFile;
   progcfg->historyFile << clear << progcfg->dataDir << "\\" << progcfg->default_historyFile;
+
+#ifdef __APP_DEBUG_VERSION__
+  debug_log << "Env setting for APPDATA = " << app_data.c_str() << "\n" << flush;
+  debug_log << "Env setting for HOMESHARE = " << home_share.c_str() << "\n" << flush;
+  debug_log << "Env setting for HOMEDRIVE = " << home_drive.c_str() << "\n" << flush;
+  debug_log << "Env setting for HOMEPATH = " << home_path.c_str() << "\n" << flush;
+  debug_log << "Env setting for SystemDrive = " << system_drive.c_str() << "\n" << flush;
+  debug_log << "Env setting for USERPROFILE = " << user_profile.c_str() << "\n" << flush;
+#endif // __APP_DEBUG_VERSION__
 
 #elif defined (__UNIX__)
   ::wxSetWorkingDirectory(progcfg->homeDir.c_str());
@@ -257,7 +190,6 @@ void InitProgramConfig(int argc, char *argv[])
 	 has_docdir = 0;
        }
   }
-  
 #endif
 
 #ifdef __APP_DEBUG_VERSION__

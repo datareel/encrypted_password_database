@@ -393,6 +393,52 @@ void MainFrame::InitStatusWin()
 {
   statusWin = sframe->status_win;
   *(statusWin) << "Database Engine: Idle" << "\n";
+
+#ifdef __APP_DEBUG_VERSION__
+  *(statusWin) << "\n";
+  *(statusWin) << "Debug output:" << "\n";
+  *(statusWin) << "ARG0 = " << progcfg->arg0_dir.c_str() << "\n";
+  *(statusWin) << "Working DIR = " << progcfg->workDir.c_str() << "\n";
+  *(statusWin) << "Home DIR = " << progcfg->homeDir.c_str() << "\n";
+  *(statusWin) << "Doc DIR = " << progcfg->docDir.c_str() << "\n";
+  *(statusWin) << "Data DIR = " << progcfg->dataDir.c_str() << "\n";
+  *(statusWin) << "Log DIR = " << progcfg->logDir.c_str() << "\n";
+  *(statusWin) << "Default log file = " << progcfg->default_logFile.c_str() << "\n";
+  *(statusWin) << "Log file = " << progcfg->logFile.c_str() << "\n";
+  *(statusWin) << "Default Config file = " << progcfg->default_cfgFile.c_str() << "\n";
+  *(statusWin) << "Config file = " << progcfg->cfgFile.c_str() << "\n";
+  *(statusWin) << "Default history file = " << progcfg->historyFile.c_str() << "\n";
+  *(statusWin) << "History file = " << progcfg->historyFile.c_str() << "\n";
+  *(statusWin) << "ENV setting = " << progcfg->envSetting.c_str() << "\n";
+  *(statusWin) << "\n";
+  
+#if defined (__WIN32__)
+  // Windows environmental variable list used by this application
+  gxString app_data;
+  CheckEnvVar("APPDATA", app_data);
+  gxString home_share;
+  CheckEnvVar("HOMESHARE", home_share);
+  gxString home_drive;
+  CheckEnvVar("HOMEDRIVE", home_drive);
+  gxString home_path;
+  CheckEnvVar("HOMEPATH", home_path);
+  gxString system_drive;
+  CheckEnvVar("SystemDrive", system_drive);
+  gxString user_profile;
+  CheckEnvVar("USERPROFILE", user_profile);
+
+  *(statusWin) << "Debug output:" << "\n";
+  *(statusWin) << "Env setting for APPDATA = " << app_data.c_str() << "\n";
+  *(statusWin) << "Env setting for HOMESHARE = " << home_share.c_str() << "\n";
+  *(statusWin) << "Env setting for HOMEDRIVE = " << home_drive.c_str() << "\n";
+  *(statusWin) << "Env setting for HOMEPATH = " << home_path.c_str() << "\n";
+  *(statusWin) << "Env setting for SystemDrive = " << system_drive.c_str() << "\n";
+  *(statusWin) << "Env setting for USERPROFILE = " << user_profile.c_str() << "\n";
+  *(statusWin) << "\n";
+#endif // __WIN32__
+
+#endif // __APP_DEBUG_VERSION__
+
 }
 
 MainFrame *GetMainFrame(void)
@@ -475,6 +521,7 @@ void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
       << "Produced by: " << progcfg->produced_by << "\n"
       <<  progcfg->default_url << "\n"
       << "\n"
+      << "Build: " << progcfg->build_type << "\n"
       << "Release date: " << progcfg->release_date << "\n"
       << "\n"
       << "Designed for " << progcfg->Platform << "\n"

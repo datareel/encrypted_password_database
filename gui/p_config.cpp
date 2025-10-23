@@ -46,18 +46,37 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   ViewToolBar = 1;
 
   logFile = default_logFile = "encrypted_password_database.log";
-
+  historyFile = default_historyFile = "encrypted_password_database_history.txt";
+  
 #if defined (__WIN32__)
   path_sepc = '\\';
   path_sep = "\\";
   cfgFile = default_cfgFile = "encrypted_password_database.ini";
   dataDir = "Encrypted Password Database";
   docDir = "Encrypted Password Database";
-  Platform = "Windows 10";
+  Platform = "Windows 11";
+
   default_web_browser = "Windows default application";
   default_mail_client = "Windows default application";
   default_help_launch = "Windows default application";
   default_file_manager = "Windows default application";
+
+  homeDir = (const char *)wxGetHomeDir().c_str();
+  if(homeDir == "") homeDir = ".";
+  homeDir << "/" << ".encrypted_password_database";
+  dataDir << clear << homeDir <<  path_sep << "data";
+  docDir << clear << homeDir <<  path_sep << "docs";
+  logDir << clear << homeDir << path_sep << "logs";
+  workDir = (const char *)wxGetCwd();
+  USERNAME = getenv("USERNAME");
+
+  // Set the configuration file path                                           
+  cfgFile << clear << homeDir << path_sep << default_cfgFile;
+  logFile << clear << logDir << path_sep << default_logFile;
+  historyFile << clear << dataDir << path_sep << default_historyFile;
+
+  install_directory =  homeDir;
+  
 #elif defined (__WXMAC__)
 #error MAC platform currently not supported in this version of app framework
 #elif defined (__UNIX__)
@@ -67,9 +86,9 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   homeDir = (const char *)wxGetHomeDir().c_str();
   if(homeDir == "") homeDir = ".";
   homeDir << "/" << ".encrypted_password_database";
-  dataDir << clear << homeDir << "/" << "data";
-  docDir << clear << homeDir << "/" << "docs";
-  logDir << clear << homeDir << "logs";
+  dataDir << clear << homeDir << path_sep << "data";
+  docDir << clear << homeDir << path_sep << "docs";
+  logDir << clear << homeDir << path_sep << "logs";
   workDir = (const char *)wxGetCwd();
   USERNAME = getenv("USER");
   
@@ -123,11 +142,11 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
   VersionString = "2025.102";
+  build_type = "Release";
 #ifdef __APP_DEBUG_VERSION__
-  ProgramName << " Encrypted Password Database Debug Version";
+    build_type = "Debug";
 #endif
 
-  historyFile = default_historyFile = "encrypted_password_database.txt";
   produced_by = "Datareel Open Source";
   copyright = "Copyright (c) Datareel Open Source"; 
   copyright_dates = "2001-2025";

@@ -942,7 +942,8 @@ void CryptDBGrid::LoadGrid(long num_entries)
     // Reset the DB config col values without saving
     for(i = 0; i < NumDataMembers; i++) {
 #ifdef __APP_DEBUG_VERSION__
-      int col_width = m_grid->GetColumnWidth(i);
+      // int col_width = m_grid->GetColumnWidth(i);
+      int col_width = m_grid->GetColSize(i);
 #else
       int col_width = m_grid->GetColSize(i);
 #endif
