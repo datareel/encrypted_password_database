@@ -71,9 +71,9 @@ bool WinApp::OnInit(void)
   // NOTE: Cannot access progcfg-> members until the InitProgramConfig()
   // call has returned.
 
-  progcfg->debug_file_name = debug_file_name;
-  
+ 
 #ifdef __APP_DEBUG_VERSION__
+  progcfg->debug_file_name = debug_file_name;
   debug_log << "Constructing main frame" << "\n" << flush;
 #endif
 
