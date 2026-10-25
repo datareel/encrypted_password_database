@@ -44,8 +44,9 @@ Encrypted password database command line functions
 POD *OpenEPDB_POD(gxString &fname, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
 POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
 int BuildVirtualEPDB(POD *pod);
-int ExportEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0);
-int ExportListObjectsEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0);
+extern int epdb_btree_errors;
+int ExportEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0, int *read_errors = 0);
+int ExportListObjectsEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0, int *read_errors = 0);
 unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all = 0);
 void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod, INFOHOG_t &ob, unsigned &objects_found, int find_all = 0);
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);

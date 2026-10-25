@@ -252,24 +252,34 @@ void DBString::Copy(const DBString &s)
   delete dest;
 }
 
-GXDLCODE_API int Compare(const DBString &a, const DBString &b)
+static void FreeDBStringBuffer(char *s)
 {
-  int rv;
-  char *dest1 = (char *)a.GetString();
-  if(!dest1) return 0;
-  if(dest1[0] == 0) return 0;
-  char *dest2 = (char *)b.GetString();
-  if(!dest2) {
-    delete[] dest1;
-    return 0;
+  if(!s || s == DBStringNULLPtr::DBStringNUllStr) return;
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
+}
+
+GXDLCODE_API int Compare(const DBString &a, const DBString &b)
+// 10/25/2026: A string that cannot be decrypted is never equal to
+// another string, and an empty string is only equal to an empty string.
+// Both used to compare equal to anything, so a search with the wrong
+// key matched every record. Empty strings sort before other strings.
+{
+  int rv, err1 = 0, err2 = 0;
+  char *dest1 = a.GetString(DBStringConfig::crypt_key, err1);
+  char *dest2 = b.GetString(DBStringConfig::crypt_key, err2);
+  DBStringConfig::AES_error_level = err1 ? err1 : err2;
+  if(!dest1 || err1 || !dest2 || err2) {
+    rv = (!dest1 || err1) ? -1 : 1;
   }
-  if(dest2[0] == 0) {
-    delete[] dest1;
-    return 0;
+  else if(dest1[0] == 0 || dest2[0] == 0) {
+    rv = (dest1[0] == 0) ? ((dest2[0] == 0) ? 0 : -1) : 1;
   }
-  rv = StringANCompare(dest1, dest2, DBStringConfig::DBStringCaseCompare);
-  delete[] dest1;
-  delete[] dest2;
+  else {
+    rv = StringANCompare(dest1, dest2, DBStringConfig::DBStringCaseCompare);
+  }
+  FreeDBStringBuffer(dest1);
+  FreeDBStringBuffer(dest2);
   return rv;
 }
 

@@ -440,6 +440,10 @@ void StoreObjectAddress(BtreeNode *n)
   }
 }
 
+// 10/25/2026: Set when a B-tree node cannot be read during a walk, so a
+// damaged index file is reported instead of listing part of the database.
+int epdb_btree_errors = 0;
+
 void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
 // Recursive function used to walk through the B-tree node by node.
 {
@@ -457,7 +461,11 @@ void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
   BtreeNode n(tree->KeySize(), tree->NodeOrder());
   
   if(t != (FAU_t)0) {
-    tree->ReadNode(n, t);
+    if(epdb_btree_errors) return;
+    if(tree->ReadNode(n, t) != gxDBASE_NO_ERROR) {
+      epdb_btree_errors++;
+      return;
+    }
     n.node_address = t;
     (*Visit)(&n); // Process the node data
     BtreeKeyCount_t nc = n.key_count;
@@ -477,7 +485,13 @@ int BuildVirtualEPDB(POD *pod)
   int num_entries = 0;
   gxBtree *btx = pod->Index();
   dllist->ClearList();
+  epdb_btree_errors = 0;
   gxBtreeWalk(btx->Root(), StoreObjectAddress, btx);
+  if(epdb_btree_errors) {
+    cerr << "ERROR: Cannot read the database index file" << "\n" << flush;
+    dllist->ClearList();
+    return 0;
+  }
 
   dllistptr = dllist->GetHead();
   while(dllistptr) {
@@ -488,15 +502,21 @@ int BuildVirtualEPDB(POD *pod)
   return num_entries;
 }
 
-int ExportEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with)
+int ExportEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with, int *read_errors)
 {
   if(!pod) return 0;
   if(!BuildVirtualEPDB(pod)) return 0;
-  return ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with);
+  return ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with, read_errors);
 }
 
-int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with)
+int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char replace_char, char replace_char_with, int *read_errors)
+// Writes the objects in the dllist to stdout. Returns the number of
+// objects written or -1 if a field could not be decrypted. Records that
+// cannot be read are skipped and counted in read_errors.
+// 10/25/2026: A field that cannot be decrypted stops the export. It
+// used to be written as an empty field.
 {
+  if(read_errors) *read_errors = 0;
   if(!dllist || !pod) return 0;
   
   char dest[DBStringLength];
@@ -516,40 +536,52 @@ int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char repla
     if(!infohog.ReadObject(dllistptr->data) ||
        (infohog.GetMemberLen(0) != sizeof(INFOHOG_t))) {
       cerr << "ERROR: Cannot read database record, skipping" << "\n" << flush;
+      if(read_errors) (*read_errors)++;
       dllistptr = dllistptr->next;
       continue;
     }
-    dbstring = (DBString *)infohog.GetMember(0);
-    INFOHOG_t ob(dbstring->c_str(dest));
-    dbuf << clear << ob.c_str(dest);
-    if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
-    dbuf.FilterChar('\n');
-    if(filter_char != 0) dbuf.FilterChar(filter_char);
-    if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
-    cout << dbuf.c_str();
-    cout << delimiter;
-    // Write the remaining members account for null members
-    for(i = 1; i < (unsigned)NumDataMembers; i ++) {
-      if(infohog.GetMemberLen(i) == sizeof(INFOHOG_t)) {
-        dbstring = (DBString *)infohog.GetMember(i);
-        if(!dbstring->is_null()) {
-          ob = dbstring->c_str(dest);
-          dbuf << clear << ob.c_str(dest);
-          if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
-	  dbuf.FilterChar('\n');
-	  if(filter_char != 0) dbuf.FilterChar(filter_char);
-	  if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
-          cout << dbuf.c_str();
-        }
-        else {
-          cout << Fill;
-        }
+    // Decrypt all the fields of the record before writing any of it
+    gxString fields[NumDataMembers];
+    int is_set[NumDataMembers];
+    for(i = 0; i < (unsigned)NumDataMembers; i++) {
+      is_set[i] = 0;
+      if(infohog.GetMemberLen(i) != sizeof(INFOHOG_t)) continue;
+      dbstring = (DBString *)infohog.GetMember(i);
+      int err = 0;
+      char *s = dbstring->GetString(DBStringConfig::crypt_key, err);
+      if(!s || err != 0) {
+	cerr << "ERROR: Cannot decrypt database record field " << i << " " << AES_err_string(err) << "\n" << flush;
+	for(unsigned j = 0; j < (unsigned)NumDataMembers; j++) fields[j].Clear(1);
+	return -1;
+      }
+      if(s != DBStringNULLPtr::DBStringNUllStr) {
+	if(s[0] != 0) { fields[i] = s; is_set[i] = 1; }
+	OPENSSL_cleanse(s, strlen(s));
+	delete[] s;
+      }
+    }
+    if(!is_set[0]) { // Every record has a key name
+      cerr << "ERROR: Database record has no key name, skipping" << "\n" << flush;
+      if(read_errors) (*read_errors)++;
+      dllistptr = dllistptr->next;
+      continue;
+    }
+    for(i = 0; i < (unsigned)NumDataMembers; i ++) {
+      if(is_set[i]) {
+	dbuf << clear << fields[i];
+	if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  fields[i] << "\"";
+	dbuf.FilterChar('\n');
+	if(filter_char != 0) dbuf.FilterChar(filter_char);
+	if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
+	cout << dbuf.c_str();
+	dbuf.Clear(1);
+	fields[i].Clear(1);
       }
       else {
-        cout << Fill;
+	cout << Fill;
       }
       // Reached the last member so do not print the delimiter
-      if(i == (NumDataMembers - 1)) break;
+      if(i == (unsigned)(NumDataMembers - 1)) break;
       cout << delimiter;
     }
     cout << "\n" << flush;
@@ -705,8 +737,14 @@ unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_al
   gxListNode<FAU> *ptr =  address_list.GetHead();
   while(ptr) {
     INFOHOG infohog(pod);
-    if(!infohog.ReadObject(ptr->data)) {
-      return objects_found;
+    // 10/25/2026: Report records that cannot be read instead of
+    // silently ending the search
+    if(!infohog.ReadObject(ptr->data) ||
+       (infohog.GetMemberLen(0) != sizeof(INFOHOG_t))) {
+      cerr << "ERROR: Cannot read database record" << "\n" << flush;
+      epdb_btree_errors++;
+      ptr = ptr->next;
+      continue;
     }
     DBString dbstring = *((DBString *)infohog.GetMember(0));
     FAU object_id = ptr->data;

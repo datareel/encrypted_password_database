@@ -197,14 +197,14 @@ int main(int argc, char **argv)
     }
     if(clientcfg->verbose_mode) cerr << "Using private RSA key file for decryption" << "\n" << flush;
     if(has_passphrase && rsa_key_passphrase.is_null()) {
-      cout << "RSA key passphrase: " << flush;
+      cerr << "RSA key passphrase: " << flush;
       if(!consoleGetString(rsa_key_passphrase, 1)) {
 	rsa_key_passphrase.Clear(1);
-	cout << "\n" << flush;
+	cerr << "\n" << flush;
 	cerr << "Invalid entry!" << "\n" << flush;
 	return ExitProgram(1);
       }
-      cout << "\n" << flush;
+      cerr << "\n" << flush;
     }
   }
 #ifdef __ENABLE_SMART_CARD__
@@ -240,29 +240,29 @@ int main(int argc, char **argv)
     if(debug_mode) sc.verbose_mode = 1;
     gxString pin_buf;
     if(sc.pin[0] == 0) {
-      cout << "Smart card PIN: " << flush;
+      cerr << "Smart card PIN: " << flush;
       if(!consoleGetString(pin_buf, 1)) {
 	pin_buf.Clear(1);
-	cout << "\n" << flush;
+	cerr << "\n" << flush;
 	cerr << "Invalid entry!" << "\n" << flush;
 	return ExitProgram(1);
       }
       sc.SetPin(pin_buf.c_str());
       pin_buf.Clear(1);
-      cout << "\n" << flush;
+      cerr << "\n" << flush;
     }
   }
 #endif // __ENABLE_SMART_CARD__
   else if(use_password) {
     if(password.is_null()) {
-      cout << "Password: " << flush;
+      cerr << "Password: " << flush;
       if(!consoleGetString(password, 1)) {
-	cout << "\n" << flush;
+	cerr << "\n" << flush;
 	password.Clear(1);
 	cerr << "Invalid entry!" << "\n" << flush;
 	return ExitProgram(1);
       }
-      cout << "\n" << flush;
+      cerr << "\n" << flush;
     }
     aes_file_decrypt_secret.Clear(1);
     aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
@@ -272,15 +272,15 @@ int main(int argc, char **argv)
     DEBUG_m("No auth operation");
   }
   else {
-    if(clientcfg->verbose_mode) cout << "No decryption method specifed, defaulting to password" << "\n" << flush;
-    cout << "Password: " << flush;
+    if(clientcfg->verbose_mode) cerr << "No decryption method specifed, defaulting to password" << "\n" << flush;
+    cerr << "Password: " << flush;
     if(!consoleGetString(password, 1)) {
-      cout << "\n" << flush;
+      cerr << "\n" << flush;
       password.Clear(1);
       cerr << "Invalid entry!" << "\n" << flush;
       return ExitProgram(1);
     }
-    cout << "\n" << flush;
+    cerr << "\n" << flush;
     aes_file_decrypt_secret.Clear(1);
     aes_file_decrypt_secret.Cat(password.GetSPtr(), password.length());
     DBStringConfig::crypt_key = aes_file_decrypt_secret;
@@ -289,6 +289,9 @@ int main(int argc, char **argv)
   while(ptr) {
     fname = ptr->data;
     if(!check_if_file_exists(fname)) {
+      // 10/25/2026: A missing file is an error, scripts must not see success
+      cerr << "ERROR: Encrypted password database file " << fname.c_str() << " does not exist or cannot be read" << "\n" << flush;
+      ERROR_LEVEL++;
       ptr = ptr->next;
       continue; 
     }
@@ -355,6 +358,29 @@ int main(int argc, char **argv)
       delete f;
     }
  #endif // __ENABLE_SMART_CARD__
+
+    // 10/25/2026: Check the key against the database before listing or
+    // searching it. A wrong key decrypted every field to an empty string
+    // and the search matched every record.
+    if(db_list || db_find_key) {
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
+      if(!f) {
+	cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue; 
+      }
+      if(UnlockEPDB(f, aes_file_decrypt_secret, err_string) != 0) {
+	cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
+	ERROR_LEVEL++;
+	f->Close();
+	delete f;
+	ptr = ptr->next;
+	continue; 
+      }
+      f->Close();
+      delete f;
+    }
 
     if(display_db_config) {
       if(PrintDBConfig(fname.c_str(), aes_file_decrypt_secret) != 0) ERROR_LEVEL++;
@@ -433,10 +459,12 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      if(!ExportEPDB(pod, delimiter, filter_char, replace_char, replace_char_with)) {
-	cout << "No objects exported from the encrypted database" << "\n" << flush;
+      int read_errors = 0;
+      if(ExportEPDB(pod, delimiter, filter_char, replace_char, replace_char_with, &read_errors) <= 0) {
+	cerr << "No objects exported from the encrypted database" << "\n" << flush;
 	ERROR_LEVEL++;
       }
+      if(read_errors || epdb_btree_errors) ERROR_LEVEL++;
       delete pod;
     }
 
@@ -452,10 +480,15 @@ int main(int argc, char **argv)
       }
       INFOHOG_t key(db_find_key_name.c_str());
       SearchEPDB(pod->Index(), 0, pod, key, db_find_all);
-      if(!ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with)) {
-	cout << "No objects found matching " << db_find_key_name.c_str() << " key name" << "\n" << flush;
+      int read_errors = 0;
+      if(epdb_btree_errors) {
 	ERROR_LEVEL++;
       }
+      else if(ExportListObjectsEPDB(pod, delimiter, filter_char, replace_char, replace_char_with, &read_errors) <= 0) {
+	cerr << "No objects found matching " << db_find_key_name.c_str() << " key name" << "\n" << flush;
+	ERROR_LEVEL++;
+      }
+      if(read_errors) ERROR_LEVEL++;
       delete pod;
     }
     
@@ -465,7 +498,8 @@ int main(int argc, char **argv)
     ptr = ptr->next;
   }
 
-  return ExitProgram(ERROR_LEVEL);
+  // 10/25/2026: Exit with 0 or 1. The error count wrapped to 0 at 256.
+  return ExitProgram(ERROR_LEVEL ? 1 : 0);
 }
 
 int ExitProgram(int rv, char *exit_message)
@@ -491,7 +525,7 @@ int ExitProgram(int rv, char *exit_message)
     cerr << "Openssl " << err << "\n" << flush;
   }
 
-  if(!exit_message) {
+  if(exit_message) { // 10/25/2026: Was if(!exit_message)
     cerr << exit_message << "\n" << flush;
   }
   return rv;
