@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 07/21/2003
-// Date Last Modified: 12/10/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -42,6 +42,8 @@ File encryption include file.
 #include "aesdb.h"
 #include "rsadb.h"
 #include "smart_card.h"
+#include "fcfips.h"
+#include "fcfile.h"
 
 #endif // __GX_FILE_CRYPT_HPP__
 // ----------------------------------------------------------- // 

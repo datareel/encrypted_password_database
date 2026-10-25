@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/10/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -57,6 +57,10 @@ const unsigned DEFAULT_STATIC_DATA_AREA_SIZE = 16384;
 const unsigned MIN_STATIC_DATA_AREA_SIZE = 1;
 const unsigned MAX_STATIC_DATA_AREA_SIZE = 65535;
 const unsigned MAX_FILENAME_LEN = 256;
+// 10/24/2026: Longest file name stored in a file header. Names longer than
+// MAX_FILENAME_LEN continue into CryptFileHdr::reserved, which is how
+// older versions stored and read them back.
+const unsigned MAX_STORED_FILENAME_LEN = MAX_FILENAME_LEN + 32;
 const unsigned MAX_USERNAME_LEN = 64;
 const gxUINT32 STATIC_DATA_VERSION = 2023103;
 const gxUINT32 STATIC_DATA_BLOCK_VERSION = 2023103;
@@ -227,6 +231,52 @@ struct GXDLCODE_API CryptFileHdr
   unsigned char reserved[32]; // Reserved for future use
 };
 
+// 10/24/2026: Whole-file integrity record. It is stored in the encrypted
+// file header, right after CryptFileHdr, in the random padding that every
+// fcrypt version writes there and ignores on decrypt. Files with this
+// record are protected against truncated, reordered, removed or spliced
+// data blocks. Older fcrypt versions can still decrypt these files.
+const char CRYPT_FILE_INTEGRITY_MAGIC[8] = { 'F', 'C', 'I', 'N', 'T', '0', '1', 0 };
+const unsigned CRYPT_FILE_INTEGRITY_KEY_LEN = 32;
+const unsigned CRYPT_FILE_INTEGRITY_MAC_LEN = 32;
+
+struct GXDLCODE_API CryptFileIntegrity
+{
+  CryptFileIntegrity() { Wipe(); }
+  ~CryptFileIntegrity() { Wipe(); }
+  void Wipe() {
+    OPENSSL_cleanse(magic, sizeof(magic));
+    OPENSSL_cleanse(mac_key, sizeof(mac_key));
+    OPENSSL_cleanse(data_len, sizeof(data_len));
+    OPENSSL_cleanse(plaintext_len, sizeof(plaintext_len));
+    OPENSSL_cleanse(file_mac, sizeof(file_mac));
+  }
+  int IsSet() const { return memcmp(magic, CRYPT_FILE_INTEGRITY_MAGIC, sizeof(magic)) == 0; }
+
+  char magic[8];
+  unsigned char mac_key[CRYPT_FILE_INTEGRITY_KEY_LEN]; // Random per file
+  unsigned char data_len[8];      // Little endian length of all data after the header
+  unsigned char plaintext_len[8]; // Little endian length of the original file
+  unsigned char file_mac[CRYPT_FILE_INTEGRITY_MAC_LEN]; // HMAC-SHA256 over the data
+};
+
+// 10/24/2026: How decrypt uses the file name stored in the file header
+enum {
+  CRYPT_PATH_RELATIVE = 0, // Default: stored path under the current or output DIR
+  CRYPT_PATH_ABSOLUTE,     // Restore the exact stored path
+  CRYPT_PATH_NONE          // File name only, in the current or output DIR
+};
+
+// 10/25/2026: Receives decrypted data instead of an output file, used by
+// fmigrate to convert files without writing the plaintext to disk.
+// WriteData() returns false to stop decryption.
+class GXDLCODE_API CryptDataSink
+{
+public:
+  virtual ~CryptDataSink() { }
+  virtual int WriteData(const unsigned char *buf, unsigned len) = 0;
+};
+
 // Cached file encryption class
 class GXDLCODE_API FCryptCache : public gxDeviceCache
 {
@@ -241,9 +291,13 @@ public: // Decrypt fucntions
   int DecryptFileHeader(CryptFileHdr &hdr, const char *fname, const MemoryBuffer &secret, gxUINT32 &version);
   int DecryptFile(const char *fname, const MemoryBuffer &secret, gxUINT32 &version, char *outfile_name = 0);
   int DecryptOnlyTheFileName(const char *fname, const MemoryBuffer &secret, gxUINT32 &version, gxString &crypt_file_name);
+  // 10/25/2026: Decrypt to sink. The data is only complete and
+  // authentic if this returns true.
+  int DecryptToSink(const char *fname, const MemoryBuffer &secret, gxUINT32 &version, CryptDataSink *sink);
 
 public: // RSA key functions
   int TestStaticDataHeader(const StaticDataHeader &sd_header_read);
+  int CheckStaticDataHeader(const StaticDataHeader &sd_header_read, FAU_t file_length);
   int UpdateStaticData();
   int WriteStaticDataAreaToFile(const char *fname);
   int AddRSAKeyToStaticArea(const char *fname, const MemoryBuffer &secret,
@@ -269,6 +323,10 @@ public: // Helper functions
   void SetDotExt(const char *s) { en_dot_ext = s; }
   void SetDir(const char *s) { output_dir_name = s; }
   void SetOutputFileName(const char *s) { output_file_name = s; }
+  void SetPathMode(int m) { path_mode = m; }
+  void SetAllowUnencrypted(int m) { allow_unencrypted = m; }
+  int HasIntegrity() const { return has_integrity; }
+  const gxString &StoredFileName() const { return stored_name; }
   FAU_t BytesWrote() { return bytes_wrote; }
   FAU_t BytesRead() { return bytes_read; }
   
@@ -283,6 +341,12 @@ private: // Internal processing functions
   int OpenOutputFile();
   int LoadFile(gxDeviceCachePtr p);
   int TestVersion(CryptFileHdr hdr, gxUINT32 &version);
+  int WriteIntegrityHeader();
+  int VerifyIntegrity();
+  int StartIntegrity();
+  int OpenDecryptOutputFile();
+  int FinishDecryptOutputFile(int ok);
+  void IntegrityUpdate(const void *buf, unsigned len);
 
 private: // Base class interface
   void Read(void *buf, unsigned Bytes, gxDeviceTypes dev);
@@ -304,6 +368,20 @@ private: // Device cache
   int crypt_stream;
   FAU_t bytes_wrote;
   FAU_t bytes_read;
+  int path_mode;
+  int has_integrity;
+  CryptFileIntegrity integrity;
+  AES_hmac_ctx *integrity_ctx;
+  FAU_t integrity_data_len;
+  FAU_t integrity_plaintext_len;
+  FAU_t header_offset;
+  FAU_t data_offset;
+  unsigned header_crypt_len;
+  unsigned char header_plain[AES_MAX_INPUT_BUF_LEN];
+  gxString tmp_ofname;   // Temp file decrypted data is written to
+  gxString stored_name;  // File name stored in the encrypted file header
+  int allow_unencrypted; // Allow decrypting mode 0 (unencrypted) files
+  CryptDataSink *data_sink; // Set by DecryptToSink()
 
 public: // Functions used to get the current device cache
   gxDeviceBucketCache *GetCache() { return &cache; }
@@ -328,6 +406,11 @@ public:
 
 // Standalone functions
 // -------------------------------------------------------------
+int cryptdb_makedirs(const gxString &path);
+int cryptdb_make_restore_path(const gxString &stored_name, int path_mode,
+			      gxString &path, gxString &err);
+int cryptdb_create_private_file(const char *fname);
+int cryptdb_rename_file(const char *from, const char *to, int overwrite);
 int read_key_file(const char *fname, MemoryBuffer &key, gxString &err, int expected_key_len = 0);
 int cryptdb_gethomedir(gxString &home_dir);
 int cryptdb_makeabspath(gxString &path);

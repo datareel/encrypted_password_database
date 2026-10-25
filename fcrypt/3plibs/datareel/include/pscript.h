@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 12/17/1997
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -183,8 +183,7 @@ public: // Document header and trailer information
   char *HeaderFont() { return header_font; }
   double HeaderFontSize() { return header_font_size; }
   void SetHeaderFont(PSFonts font, double size);
-  void SetDocumentName(char *s) { document_name = s; }
-  void SetDocumentName(const char *s) { document_name = (char *)s; }
+  void SetDocumentName(const char *s) { document_name = s; }
   void SetDateString(char *s) { date_string = s; }
   void SetDateString(const char *s) { date_string = (char *)s; }
   void DrawHeaderLine() { draw_header_line = 1; }
@@ -241,7 +240,7 @@ private: // Page header and trailer information
   int use_header;          // Use page headers and trailers if true
   char *header_font;       // Text font for headers and trailers
   double header_font_size; // Font or point size for page headers
-  char *document_name;     // Name of this document
+  const char *document_name; // Name of this document
   char *date_string;       // Time and date this document was printed
   int draw_header_line; // Draw line between header and document text if true 
 

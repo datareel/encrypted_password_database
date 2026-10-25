@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 10/17/2001
-// Date Last Modified: 06/17/2016
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -217,7 +217,10 @@ Shutting down the server");
       return (void *)0;
     }
     
+#if !defined (__USE_GX_SCHANNEL__)
+    // Schannel uses the cipher suites set by the Windows TLS policy
     SSL_CTX_set_cipher_list(openssl.GetCTX(), "ALL");
+#endif
 
     // Record the file descriptor assigned by the Operating System
     s->client_socket = GetRemoteSocket();

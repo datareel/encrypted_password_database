@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -99,8 +99,8 @@ public:
   virtual ~gxSocket();
   
 private: // Disallow copying and assignment
-  gxSocket(const gxSocket &ob) { }
-  void operator=(const gxSocket &ob) { }
+  gxSocket(const gxSocket &) { }
+  void operator=(const gxSocket &) { }
   
 public: // Functions used to set the socket parameters
   void SetAddressFamily(gxsAddressFamily af) { address_family = af; }
@@ -258,7 +258,7 @@ public: // Socket functions
 public: // Overloaded operators
   int operator!() const { return socket_error != gxSOCKET_NO_ERROR; }
   int operator!() { return socket_error != gxSOCKET_NO_ERROR; }
-  operator const int () const { return socket_error == gxSOCKET_NO_ERROR; }
+  operator int () const { return socket_error == gxSOCKET_NO_ERROR; }
   operator int () { return socket_error == gxSOCKET_NO_ERROR; }
 
 protected: // Socket variables 

@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 11/29/1996  
-// Date Last Modified: 06/17/2016
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -1404,7 +1404,7 @@ void MixedStringTest()
   else {
     cout << "Could not find ASCII match" << "\n";
   }
-  delete wpattern; // Free memory before calling conversion function again
+  delete[] wpattern; // Free memory before calling conversion function again
   wpattern = ASCII2Unicode("FOX");
   offset = IFindMatch(wsearch_str, wpattern);
   if(offset != -1) {
@@ -1415,13 +1415,14 @@ void MixedStringTest()
   }
 
   // Free all memory buffers
-  delete umesg;
-  delete gxws_t1;
-  delete comp; delete wcomp;
-  delete ws1; delete ws2; delete ws3;
-  delete ws_strings;
-  delete wacomp; delete wbcomp;
-  delete wsearch_str; delete wpattern;
+  // 10/14/2026: The conversion functions allocate with new[], free with delete[]
+  delete[] umesg;
+  delete[] gxws_t1;
+  delete[] comp; delete[] wcomp;
+  delete[] ws1; delete[] ws2; delete[] ws3;
+  delete[] ws_strings;
+  delete[] wacomp; delete[] wbcomp;
+  delete[] wsearch_str; delete[] wpattern;
   
   cout << "\n";
   cout << "Exiting mixed string test" << "\n";

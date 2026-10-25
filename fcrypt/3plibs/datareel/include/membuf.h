@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -49,6 +49,10 @@ the contents of the buffer will not cleared.
 06/04/2002: Added the __MEMBUF_INT__ type definition and the
 __MEMBUF_NO_MATCH__ constant used to eliminate signed and 
 unsigned comparison warnings.
+
+10/25/2026: Clear(1), Alloc(), Realloc(), Destroy() and the destructor
+overwrite the allocated buffer with zeros before it is cleared or freed,
+so no sensitive data is left in memory. Added SecureZero().
 ==============================================================
 */
 // ----------------------------------------------------------- //   
@@ -84,7 +88,7 @@ public:
     mptr = 0; l_length = d_length = 0; Alloc(bytes);
   }
   MemoryBuffer(const void *buf, __MEMBUF_INT__ bytes);
-  ~MemoryBuffer() { if(mptr) delete mptr; }
+  ~MemoryBuffer() { Destroy(); } // 10/25/2026: Wipes the buffer before freeing it
   MemoryBuffer(const MemoryBuffer &buf);
   MemoryBuffer &operator=(const MemoryBuffer &buf);
 
@@ -131,6 +135,11 @@ public: // Search functions
     return Find(buf.mptr, buf.l_length, offset); 
   }
   
+public: // Secure memory functions
+  // 10/25/2026: Overwrite memory with zeros in a way the compiler will
+  // not optimize away. Used before any buffer memory is freed or cleared.
+  static void SecureZero(void *buf, __MEMBUF_INT__ bytes);
+
 public: // Memory allocation/de-allocation routines
   void *Alloc(__MEMBUF_INT__ bytes);
   void *Realloc(__MEMBUF_INT__ bytes, int keep = 1, int reuse = 1);
@@ -140,7 +149,7 @@ public: // Memory allocation/de-allocation routines
 public: // Conversion functions
   operator char *() const { return (char *)mptr; }
   operator const char *() const { return (const char*)mptr; }
-  operator const int () const { return ((mptr != 0) && (l_length != 0)); }
+  operator int () const { return ((mptr != 0) && (l_length != 0)); }
   operator int () { return ((mptr != 0) && (l_length != 0)); }
 
 public: // Overloaded operators

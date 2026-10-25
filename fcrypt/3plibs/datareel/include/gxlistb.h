@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 04/05/1996
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -68,8 +68,8 @@ public:
   virtual ~gxListB();
 
 private: // Disallow copying and assignment
-  gxListB(const gxListB &ob) { }
-  void operator=(const gxListB &ob) { }
+  gxListB(const gxListB &) { }
+  void operator=(const gxListB &) { }
   
 public: // Pointer manipulation operations
   gxListNodeB *GetHead() { return head; }
@@ -95,6 +95,7 @@ public: // Add and remove functions
   void ClearList(); 
   void Clear() { ClearList(); }
   void DestroyList();
+  void DestroyArrayList(); // 10/24/2026: For char data allocated with new[]
   void MakeEmpty(); // Called only if all the nodes have been removed 
   void *RemoveHead();
   void *RemoveTail();

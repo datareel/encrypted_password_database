@@ -6,11 +6,13 @@
 # C/C++ Compiler Used: MSVC 6.0 SP5, Visual C++ .NET, and VS 2022
 # Produced By: DataReel Software Development Team
 # File Creation Date: 05/25/2001
-# Date Last Modified: 10/08/2024
+# Date Last Modified: 10/24/2026
 # --------------------------------------------------------------- 
 
 # Set FINAL to 0 for debug build
 # Set 64BITCFG to 1 for 64 bit build
+# 10/24/2026: Builds the gxSSL class with OpenSSL instead of the default
+# native Windows Schannel. See winslib/openssl.env for the OpenSSL path.
 
 # Compile the object files and build the static LIB files
 # ===============================================================

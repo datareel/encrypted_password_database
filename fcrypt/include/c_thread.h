@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // Date Last Modified: 03/21/2004
-// Date Last Modified: 12/06/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -45,7 +45,7 @@ void consolePutChar(const char c);
 int consoleGetString(gxString &s, int password = 0, int clear_input = 1);
 int consoleGetString(gxString &s, char *defval, int password = 0,
 		     int clear_input = 1);
-int consoleGetString(char *s, int password = 0);
+int consoleGetString(char *s, int password = 0, unsigned max_len = 0);
 
 #endif // __GX_C_MTHREAD_CLIENT_HPP__
 // ----------------------------------------------------------- // 

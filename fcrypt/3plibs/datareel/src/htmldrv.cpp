@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 03/09/1999 
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program description and details ------------- // 
 // ----------------------------------------------------------- // 
@@ -96,7 +96,7 @@ void HyperTextDrv::WriteString(const char *s)
  unsigned len = strlen(s);
 
  while(len--) {
-   WriteChar((const unsigned char)*p);
+   WriteChar((unsigned char)*p);
    p++;
  }
 }
@@ -138,17 +138,17 @@ void HyperTextDrv::WriteChar(const unsigned char c) const
 
 void HyperTextDrv::Write(char c)
 {
-  WriteChar((const unsigned char)c);
+  WriteChar((unsigned char)c);
 }
 
 void HyperTextDrv::Write(const char c) const
 {
-  WriteChar((const unsigned char)c);
+  WriteChar((unsigned char)c);
 }
 
 void HyperTextDrv::Write(unsigned char c)
 {
-  WriteChar((const unsigned char)c);
+  WriteChar((unsigned char)c);
 }
 
 void HyperTextDrv::Write(const unsigned char c) const
@@ -447,14 +447,14 @@ void HyperText::StartTableRow()
   *(stream) << tr << "\n"; 
 }
 
-void HyperText::TableHeader(char *valign, int colspan, int rowspan, int width)
+void HyperText::TableHeader(const char *valign, int colspan, int rowspan, int width)
 {
   *(stream) << lt << "TH ALIGN=" << valign << ' ' << "COLSPAN=" << colspan;
   *(stream) << ' ' << "ROWSPAN=" << rowspan << ' ';
   *(stream) << "WIDTH=\"%" << width << "\"" << gt;
 }
 
-void HyperText::TableData(char *valign, int colspan, int rowspan, int width)
+void HyperText::TableData(const char *valign, int colspan, int rowspan, int width)
 {
   *(stream) << lt << "TD ALIGN=" << valign << ' ' << "COLSPAN=" << colspan;
   *(stream) << ' ' << "ROWSPAN=" << rowspan << ' ';

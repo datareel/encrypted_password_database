@@ -43,10 +43,14 @@ CPP = g++
 LINKER = ld
 
 # Define compiler and linker flags macros
-COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2
+# 10/25/2026: Hardening flags, position independent executable with
+# stack protection, full RELRO and a non-executable stack
+HARDEN_CFLAGS = -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2
+HARDEN_LDFLAGS = -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
+COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2 $(HARDEN_CFLAGS)
 COMPILE_ONLY = -c
 OUTPUT = -o
-LINKER_FLAGS = -lpthread -lm -lssl -lcrypto -lz
+LINKER_FLAGS = $(HARDEN_LDFLAGS) -lpthread -lm -lssl -lcrypto -lz
 
 # Set the project dependencies  
 # ===============================================================

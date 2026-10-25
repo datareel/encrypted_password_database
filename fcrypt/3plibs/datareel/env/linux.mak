@@ -6,7 +6,7 @@
 # C/C++ Compiler Used: GNU, Intel, Cray
 # Produced By: DataReel Software Development Team
 # File Creation Date: 05/25/2001
-# Date Last Modified: 10/30/2025
+# Date Last Modified: 10/24/2026
 # --------------------------------------------------------------- 
 # Setup my path to the gxcode library
 GCODE_LIB_DIR = ../..
@@ -27,10 +27,6 @@ GXCODE_LIB_PATH = -L$(GCODE_LIB_DIR)$(PATHSEP)lib
 
 # Link to static library 
 LIB_GXCODE = $(GCODE_LIB_DIR)$(PATHSEP)lib/libdatareel.a
-
-ifeq ($(USE_OPEN_SSL),YES)
-LIB_GXCODE = $(GCODE_LIB_DIR)$(PATHSEP)lib/libdatareel_ssl.a
-endif
 
 
 $(PROJECT):	$(OBJECTS)

@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // Date Last Modified: 03/21/2004
-// Date Last Modified: 12/06/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/25/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -95,10 +95,14 @@ int consoleGetChar(int &c)
   select(1, &readfds, &writefds, &exceptfds, &timeout);
 
   // Block until a key is pressed
-  if(read(fileno(stdin), &c, 1) < 0) {
+  // 10/25/2026: read() returns 0 at end of input, which was treated as
+  // a key press and made consoleGetString() loop forever.
+  unsigned char ch_in = 0;
+  if(read(fileno(stdin), &ch_in, 1) <= 0) {
     tcsetattr(fd, TCSANOW, &otty);
     return 0;
   }
+  c = ch_in;
 
   // Reset the tty back to its original mode 
   tcsetattr(fd, TCSANOW, &otty);
@@ -137,13 +141,16 @@ int consoleGetString(gxString &s, char *defval, int password,
       sbuf[max_len-1] = 0;
     }
   }
-  int rv = consoleGetString(sbuf, password);
+  int rv = consoleGetString(sbuf, password, max_len);
   if(clear_input) {
     s << clear << sbuf;
   }
   else {
     s << sbuf;
   }
+  // Wipe the input, which can be a password
+  volatile char *vp = sbuf;
+  for(int i = 0; i < max_len; i++) vp[i] = 0;
   return rv;
 }
 
@@ -152,20 +159,26 @@ int consoleGetString(gxString &s, int password, int clear_input)
   const int max_len = 1024;
   char sbuf[max_len];
   memset(sbuf, 0, max_len);
-  int rv = consoleGetString(sbuf, password);
+  int rv = consoleGetString(sbuf, password, max_len);
   if(clear_input) {
     s << clear << sbuf;
   }
   else {
     s << sbuf;
   }
+  // Wipe the input, which can be a password
+  volatile char *vp = sbuf;
+  for(int i = 0; i < max_len; i++) vp[i] = 0;
   return rv;
 }
 
-int consoleGetString(char *s, int password)
+int consoleGetString(char *s, int password, unsigned max_len)
+// 10/24/2026: If max_len is set, s is a buffer of max_len bytes and input
+// beyond max_len-1 characters is ignored.
 {
 #if defined (__CONSOLE__)
   if(!s) return 0; // check to null pointers
+  if(max_len > 0) s[max_len-1] = 0;
   int key, i;
   char ch;
   int slen = strlen(s);
@@ -174,7 +187,10 @@ int consoleGetString(char *s, int password)
   char *p = s;
 
   while (1) {
-    consoleGetChar(key);
+    if(!consoleGetChar(key)) { // 10/25/2026: End of input or read error
+      *pos = 0;
+      return (charcount > 0) ? 1 : 0;
+    }
     ch = (char)key;
 
     if((ch == '\n') || (ch == '\r') || (ch == consoleCONTROL_KEY('c'))) {
@@ -216,6 +232,7 @@ int consoleGetString(char *s, int password)
 	  }
 	}
 	if(clientcfg->prev_command < 0) clientcfg->prev_command = 0;   
+	if(max_len > 0 && clientcfg->history[clientcfg->prev_command].length() >= max_len) continue;
 	consolePutString(clientcfg->history[clientcfg->prev_command].c_str());
 	strcpy(p, clientcfg->history[clientcfg->prev_command].c_str());
 	charcount = strlen(p);
@@ -236,6 +253,7 @@ int consoleGetString(char *s, int password)
 	    consolePutChar('\b');
 	  }
 	}
+	if(max_len > 0 && clientcfg->history[clientcfg->next_command].length() >= max_len) continue;
 	consolePutString(clientcfg->history[clientcfg->next_command].c_str());
 	strcpy(p, clientcfg->history[clientcfg->next_command].c_str());
 	charcount = strlen(p);
@@ -275,6 +293,7 @@ int consoleGetString(char *s, int password)
       }
     }
     else {
+      if(max_len > 0 && (unsigned)charcount >= (max_len-1)) continue; // Buffer full
       *pos++ = ch;
       charcount++;
       if(password) {

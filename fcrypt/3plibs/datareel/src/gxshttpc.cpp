@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 01/25/2000
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -889,7 +889,7 @@ int gxsHTTPClient::ParseHTTPHeader(const gxsURLInfo &u,
 }
 
 void gxsHTTPClient::BuildSimpleRequestString(const gxsURLInfo &u,
-					     int method, 
+					     int /* method */, 
 					     gxString &request)
 // Build a simple request string.
 {
@@ -1087,7 +1087,7 @@ int gxsHTTPClient::SimpleRequest(const gxsURLInfo &u, MemoryBuffer &mbuf)
   return socket_error = gxSOCKET_NO_ERROR;
 }
 
-int gxsHTTPClient::RequestFile(const gxsURLInfo &u, const gxsHTTPHeader &hdr,
+int gxsHTTPClient::RequestFile(const gxsURLInfo &u, const gxsHTTPHeader & /* hdr */,
 			       gxdFPTR *stream)
 // This function is depreciated in version 4.11 and has been retained for 
 // backward compatibility. Request a file and write it to the specified stream.
@@ -1098,7 +1098,7 @@ int gxsHTTPClient::RequestFile(const gxsURLInfo &u, const gxsHTTPHeader &hdr,
   return Request(u, http_header, stream);
 }
 
-int gxsHTTPClient::RequestFile(const gxsURLInfo &u, const gxsHTTPHeader &hdr,
+int gxsHTTPClient::RequestFile(const gxsURLInfo &u, const gxsHTTPHeader & /* hdr */,
 			       MemoryBuffer &mbuf)
 // This function is depreciated in version 4.11 and has been retained for 
 // backward compatibility. Request a file and write it to the specified buffer.
@@ -1154,6 +1154,10 @@ int gxsHTTPSClient::ConnectClient(const char *host, int port)
     return socket_error;
   }
   if(Connect() < 0) return socket_error;
+
+  // 10/24/2026: Send the host name to the server (SNI). Most HTTPS
+  // servers need it to pick the certificate.
+  openssl.SetHostName(host);
 
   // Open and init the SSL object
   if(openssl.OpenSSLSocket(gxsocket) != gxSSL_NO_ERROR) {
@@ -2010,7 +2014,7 @@ int gxsHTTPSClient::ParseHTTPHeader(const gxsURLInfo &u,
 }
 
 void gxsHTTPSClient::BuildSimpleRequestString(const gxsURLInfo &u,
-					     int method, 
+					     int /* method */, 
 					     gxString &request)
 // Build a simple request string.
 {
