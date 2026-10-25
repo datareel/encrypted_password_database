@@ -144,7 +144,10 @@ the latest download and build instructions for Linux wxGTK:
 To build the latest release of the Encrypted Password Database:
 
 > mkdir -pv ${HOME}/git
-> git clone https://github.com/datareel/encrypted_password_database.git
+> cd ${HOME}/git
+> wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database-<version>.tar.gz
+> tar xzf encrypted_password_database-<version>.tar.gz
+> mv encrypted_password_database-<version> encrypted_password_database
 > cd encrypted_password_database
 
 Set up the build environment for the GUI build:
