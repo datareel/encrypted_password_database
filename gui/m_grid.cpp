@@ -55,6 +55,38 @@ CryptDBGrid::CryptDBGrid(wxWindow *parent, const wxPoint& pos,
   m_grid = new wxGrid(parent_frame, CHILD_FRAME_ID, grid_pos, grid_size);
 }
 
+// 10/25/2026: Draws the password columns as a fixed mask unless
+// View/Show passwords is checked. The cell editor shows the value.
+class MaskedCellRenderer : public wxGridCellStringRenderer
+{
+public:
+  virtual void Draw(wxGrid& grid, wxGridCellAttr& attr, wxDC& dc,
+		    const wxRect& rect, int row, int col, bool isSelected) wxOVERRIDE {
+    if(progcfg->show_passwords) {
+      wxGridCellStringRenderer::Draw(grid, attr, dc, rect, row, col, isSelected);
+      return;
+    }
+    wxGridCellRenderer::Draw(grid, attr, dc, rect, row, col, isSelected);
+    if(grid.GetCellValue(row, col).IsEmpty()) return;
+    SetTextColoursAndFont(grid, attr, dc, isSelected);
+    int hAlign, vAlign;
+    attr.GetAlignment(&hAlign, &vAlign);
+    wxRect r = rect;
+    r.Inflate(-1);
+    grid.DrawTextRectangle(dc, MaskText(), r, hAlign, vAlign);
+  }
+  virtual wxSize GetBestSize(wxGrid& grid, wxGridCellAttr& attr, wxDC& dc,
+			     int row, int col) wxOVERRIDE {
+    if(progcfg->show_passwords) return wxGridCellStringRenderer::GetBestSize(grid, attr, dc, row, col);
+    dc.SetFont(attr.GetFont());
+    wxCoord w, h;
+    dc.GetTextExtent(MaskText(), &w, &h);
+    return wxSize(w, h);
+  }
+  virtual wxGridCellRenderer *Clone() const wxOVERRIDE { return new MaskedCellRenderer; }
+  static wxString MaskText() { return wxString("********"); }
+};
+
 long CryptDBGrid::InitGrid()
 {
   long num_rows = dbparms.default_num_rows;
@@ -83,6 +115,14 @@ long CryptDBGrid::InitGrid()
 
   m_grid->CreateGrid(num_rows, NumDataMembers);
   MakeGridColLabels();
+
+  // 10/25/2026: Mask the password columns
+  for(int col = 0; col < NumDataMembers; col++) {
+    if(!IsPasswordField(col)) continue;
+    wxGridCellAttr *attr = new wxGridCellAttr;
+    attr->SetRenderer(new MaskedCellRenderer);
+    m_grid->SetColAttr(col, attr);
+  }
 
   dbparms.row_label_size = m_grid->GetDefaultRowLabelSize();
 

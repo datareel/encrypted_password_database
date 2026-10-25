@@ -53,8 +53,161 @@ external to the wxWindow library.
 // --------------------------------------------------------------
 // Standalone Functions
 // --------------------------------------------------------------
+#if defined (__UNIX__)
+#include <sys/stat.h>
+#include <sys/resource.h>
+#include <fcntl.h>
+#include <unistd.h>
+#if defined (__LINUX__)
+#include <sys/prctl.h>
+#endif
+#else
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#endif
+
+void SecureProcessSetup()
+// 10/25/2026: Called at program start. Files and directories this
+// program creates (exports, backups, config files, databases) can only
+// be read by the user, and the process does not write core dumps, which
+// would hold decrypted passwords and keys.
+{
+#if defined (__UNIX__)
+  umask(077);
+  struct rlimit rl;
+  rl.rlim_cur = rl.rlim_max = 0;
+  setrlimit(RLIMIT_CORE, &rl);
+#if defined (__LINUX__)
+  prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+#endif
+#endif
+}
+
+void SecureWipe(gxString &s)
+// 10/25/2026: Overwrite and clear a string that held a secret
+{
+  if(s.length() > 0) OPENSSL_cleanse((void *)s.GetSPtr(), s.length());
+  s.Clear(1);
+}
 
 // --------------------------------------------------------------
+
+int IsHyperlink(const gxString &s)
+// 10/25/2026: Only http and https URLs are links. Any text with "://"
+// or "mailto:", UNC paths and Windows paths were links, and opening
+// one could run a program from the database contents.
+{
+  gxString sbuf(s);
+  sbuf.TrimLeading(' ');
+  if(sbuf.length() < 8) return 0;
+  if(CaseICmp(gxString(sbuf.c_str(), 7), "http://") == 0) return sbuf.length() > 7;
+  if(CaseICmp(gxString(sbuf.c_str(), 8), "https://") == 0) return sbuf.length() > 8;
+  return 0;
+}
+
+
+int CSVFormulaPrefixLength(const gxString &value)
+// 10/25/2026: Returns the number of leading quote characters if the
+// value, after them, starts with a character spreadsheets read as a
+// formula (= + - @), or -1 if it does not.
+{
+  unsigned i = 0;
+  while(i < value.length() && value[i] == '\'') i++;
+  if(i >= value.length()) return -1;
+  char c = value[i];
+  if(c == '=' || c == '+' || c == '-' || c == '@') return (int)i;
+  return -1;
+}
+
+void EscapeCSVFormula(gxString &value)
+// 10/25/2026: Prefix a quote so spreadsheets show the value as text
+// instead of running it as a formula. Values that already start with
+// quotes before a formula character get one more, so the import can
+// remove exactly one and get the stored value back.
+{
+  if(CSVFormulaPrefixLength(value) >= 0) value.InsertAt(0, "'");
+}
+
+void UnescapeCSVFormula(gxString &value)
+// 10/25/2026: Undo EscapeCSVFormula() when importing
+{
+  if(CSVFormulaPrefixLength(value) > 0) value.DeleteAt(0, 1);
+}
+
+void AppendCSVField(gxString &out, const gxString &value, char delimiter, char filter)
+// 10/25/2026: Append one export field. The filter character and line
+// breaks, which would split the record, are removed, formulas are
+// escaped and fields with the delimiter are quoted.
+{
+  gxString v(value);
+  if(filter) v.FilterChar(filter);
+  v.ReplaceChar('\r', ' ');
+  v.ReplaceChar('\n', ' ');
+  EscapeCSVFormula(v);
+  gxString d;
+  d << delimiter;
+  if(v.Find(d) != -1) out << "\"" << v << "\"";
+  else out << v;
+  SecureWipe(v);
+}
+
+int WritePrivateFile(const char *fname, const char *data, unsigned len, gxString &err)
+// 10/25/2026: Write data to a new file only the user can read and
+// write. An existing file is removed first (the file dialog asked to
+// overwrite it) and a symbolic link is not followed. On failure no file
+// is left behind. Returns 0 if successful.
+{
+  err.Clear();
+#if defined (__UNIX__)
+  struct stat st;
+  if(lstat(fname, &st) == 0) { // Also removes a symbolic link, not its target
+    if(unlink(fname) != 0) {
+      err << clear << "Error overwriting existing file " << fname;
+      return 1;
+    }
+  }
+#else
+  if(futils_exists(fname)) {
+    if(futils_remove(fname) != 0) {
+      err << clear << "Error overwriting existing file " << fname;
+      return 1;
+    }
+  }
+#endif
+#if defined (__UNIX__)
+  int fd = open(fname, O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC, 0600);
+#else
+  int fd = _open(fname, _O_WRONLY|_O_CREAT|_O_EXCL|_O_BINARY, _S_IREAD|_S_IWRITE);
+#endif
+  if(fd < 0) {
+    err << clear << "Error creating file " << fname;
+    return 1;
+  }
+  unsigned written = 0;
+  while(written < len) {
+#if defined (__UNIX__)
+    ssize_t n = write(fd, data+written, len-written);
+#else
+    int n = _write(fd, data+written, len-written);
+#endif
+    if(n <= 0) break;
+    written += (unsigned)n;
+  }
+#if defined (__UNIX__)
+  int sync_ok = (fsync(fd) == 0);
+  int close_ok = (close(fd) == 0);
+#else
+  int sync_ok = 1;
+  int close_ok = (_close(fd) == 0);
+#endif
+  if(written != len || !sync_ok || !close_ok) {
+    futils_remove(fname);
+    err << clear << "Error writing file " << fname;
+    return 1;
+  }
+  return 0;
+}
 
 // ----------------------------------------------------------- // 
 // ------------------------------- //

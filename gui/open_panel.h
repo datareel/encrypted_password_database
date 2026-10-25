@@ -96,6 +96,7 @@ public: // Memeber functions
   void ShowPanel(gxString &fname);
   int TestInput();
   int RSAOpenDatabase();
+  int RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxString &pbuf);
 
 #ifdef __ENABLE_SMART_CARD__
   int SmartCardOpenDatabase();
@@ -103,6 +104,7 @@ public: // Memeber functions
 
   int AESKeyOpenDatabase();
   int PasswordOpenDatabase();
+  int PasswordOpenDatabase(gxString &pass_buf);
   int IsOK() { return is_ok == 1; }
 
 public: // Control objects

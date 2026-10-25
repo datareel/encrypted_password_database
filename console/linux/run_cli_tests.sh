@@ -58,6 +58,9 @@ ${TESTDB} dump known.ehd "${PW}" > dump.txt 2>>${logFILE}
 [ $? -eq 0 ] && [ $(wc -l < dump.txt) -eq 12 ]
 check $? "dump the test database"
 
+${TESTDB} selftest ${testDIR} >>${logFILE} 2>&1
+check $? "helper self test: links, CSV formula escaping, private files, process setup"
+
 # Key check and exit codes
 ${TOOL} --password="${PW}" --db-list known.ehd > list.txt 2>>${logFILE}
 [ $? -eq 0 ] && [ $(wc -l < list.txt) -eq 12 ]

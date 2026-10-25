@@ -193,6 +193,11 @@ enum {
   WXAPPFW_HELP_ABOUT,    // Display information about this program 
   WXAPPFW_HELP_ONLINE,   // Invoke online help
 
+  // 10/25/2026: Security timers and view settings
+  WXAPPFW_CLIPBOARD_TIMER,     // Clears copied values from the clipboard
+  WXAPPFW_IDLE_TIMER,          // Closes databases after the idle time
+  WXAPPFW_VIEW_SHOW_PASSWORDS, // Show or mask the password columns
+
   // Extended help function event handler IDs
   WXAPPFW_HELP_GUIVER,  // Display GUI library information
   WXAPPFW_HELP_DBVER,   // Display database library information
@@ -264,7 +269,9 @@ void FixHomeDirID(gxString &dir);
 int CheckEnvVar(const char *var_name, gxString &var_value);
 int LoadCustomColors(wxColourData *data);
 int SaveCustomColors(wxColourData *retData);
-int IsHyperlink(const gxString &s);
+long PasswordFieldStyle(int member); // 10/25/2026: wxTE_PASSWORD for password fields
+int IsPasswordField(int member);     // 10/25/2026: True for the password columns
+
 
 // Database helper functions
 POD *OpenDatabase(CryptDBDocument *child_frame, gxString &fname, POD *pod, 

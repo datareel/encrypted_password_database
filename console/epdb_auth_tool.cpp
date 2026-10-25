@@ -120,6 +120,8 @@ void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char);
 
 int main(int argc, char **argv)
 {
+  SecureProcessSetup(); // 10/25/2026: No core dumps with decrypted data
+
   HOMEdir = getenv("HOME");
   USERNAME = getenv("USER");
   

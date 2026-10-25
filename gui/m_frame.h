@@ -66,6 +66,9 @@ public: // Event handlers
   void OnCut(wxCommandEvent& event);
   void OnPaste(wxCommandEvent& event);
   void OnClearClipboard(wxCommandEvent& event);
+  void OnClipboardTimer(wxTimerEvent& event);
+  void OnIdleTimer(wxTimerEvent& event);
+  void OnToggleShowPasswords(wxCommandEvent& event);
 #endif
   void OnPreferences(wxCommandEvent& event);
 
@@ -148,6 +151,16 @@ public: // Font, Pen, and Cursor objects
   wxColour *cellFontColor;
   wxColour *textreadonlyColor;  
   wxColour *hyperlinkColor;
+
+public: // 10/25/2026: Clipboard clearing and idle auto-lock
+  int CopyToClipboard(const wxString &value);
+  void ClearClipboardIfOurs();
+  void LockAllDatabases(const char *reason);
+  void NoteUserActivity() { last_activity = time(0); }
+  wxTimer *clipboard_timer;
+  wxTimer *idle_timer;
+  wxString clipboard_value; // The value this program last copied
+  time_t last_activity;
 
 public: // Public data members
   wxTextCtrl *statusWin;

@@ -34,6 +34,8 @@ wxWindow 2.X/3.X application class.
 
 bool WinApp::OnInit(void)
 {
+  SecureProcessSetup(); // 10/25/2026: Private files, no core dumps
+
 #ifdef __APP_DEBUG_VERSION__
   gxString work_dir = (const char *)wxGetCwd();
   gxString debug_file_name;
@@ -94,6 +96,16 @@ bool WinApp::OnInit(void)
 
   return TRUE;
 }
+int WinApp::FilterEvent(wxEvent& event)
+{
+  wxEventType t = event.GetEventType();
+  if(frame && ((t == wxEVT_KEY_DOWN) || (t == wxEVT_LEFT_DOWN) || (t == wxEVT_RIGHT_DOWN) ||
+	       (t == wxEVT_MIDDLE_DOWN) || (t == wxEVT_MOUSEWHEEL) || (t == wxEVT_MOTION))) {
+    frame->NoteUserActivity();
+  }
+  return -1; // Process the event normally
+}
+
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //

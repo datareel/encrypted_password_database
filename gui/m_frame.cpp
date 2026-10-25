@@ -65,6 +65,11 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
 #endif
   EVT_MENU(WXAPPFW_EDIT_PREFERENCES, MainFrame::OnPreferences)
 
+  // 10/25/2026: Clipboard clearing, idle auto-lock and password masking
+  EVT_TIMER(WXAPPFW_CLIPBOARD_TIMER, MainFrame::OnClipboardTimer)
+  EVT_TIMER(WXAPPFW_IDLE_TIMER, MainFrame::OnIdleTimer)
+  EVT_MENU(WXAPPFW_VIEW_SHOW_PASSWORDS, MainFrame::OnToggleShowPasswords)
+
   // Database menu
   EVT_MENU(WXAPPFW_DATABASE_ADD, MainFrame::OnAddObject)
   EVT_MENU(WXAPPFW_DATABASE_DELETE, MainFrame::OnDeleteObject)
@@ -145,6 +150,13 @@ MainFrame::MainFrame(wxWindow *parent,
   // Set the frame icon
   SetIcon(wxICON(wxappfw));
   SetTitle(progcfg->ProgramName.c_str());
+
+  // 10/25/2026: Timers that clear copied values from the clipboard and
+  // close open databases when the program is idle
+  clipboard_timer = new wxTimer(this, WXAPPFW_CLIPBOARD_TIMER);
+  idle_timer = new wxTimer(this, WXAPPFW_IDLE_TIMER);
+  last_activity = time(0);
+  if(progcfg->auto_lock_minutes > 0) idle_timer->Start(15000);
   
   // Make the menubar bars
   wxMenu *file_menu = new wxMenu;
@@ -255,6 +267,9 @@ MainFrame::MainFrame(wxWindow *parent,
 		    "View database skip lines");
   view_menu->Append(WXAPPFW_VIEW_SKIPLINECOLOR, "Skip line color",
 		    "Set the skip line color lines");
+  view_menu->AppendSeparator();
+  view_menu->AppendCheckItem(WXAPPFW_VIEW_SHOW_PASSWORDS, "Show passwords",
+			     "Show the password columns in clear text");
   view_menu->AppendSeparator();
   view_menu->Append(WXAPPFW_VIEW_HYPERLINKCOLOR, "Hyperlink text color",
 		    "Set the hyperlink text color for all cells");
@@ -476,6 +491,22 @@ void MainFrame::OnCloseWindow(wxCloseEvent& event)
     dpanel->Show(FALSE);
   }
 
+  // 10/25/2026: Stop the timers, remove a value this program copied from
+  // the clipboard and wipe the database keys
+  if(clipboard_timer) {
+    clipboard_timer->Stop();
+    delete clipboard_timer;
+    clipboard_timer = 0;
+  }
+  if(idle_timer) {
+    idle_timer->Stop();
+    delete idle_timer;
+    idle_timer = 0;
+  }
+  ClearClipboardIfOurs();
+  DBStringConfig::crypt_key.Clear(1);
+  if(progcfg) progcfg->global_dbparms.crypt_key.Clear(1);
+
   // Clean up heap space
   if(labelFont) delete labelFont;
   if(itemFont) delete itemFont;
@@ -509,7 +540,7 @@ void MainFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 
 void MainFrame::OnOpenOnlineHelp(wxCommandEvent& WXUNUSED(event))
 {
-  StartDocument(progcfg->online_help_page, progcfg->web_browser);
+  LaunchURL(progcfg->online_help_page, this, 0); // 10/25/2026: Default browser
 }
 
 void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
@@ -726,27 +757,121 @@ void MainFrame::OnListUsers(wxCommandEvent& event)
 
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
 void MainFrame::OnClearClipboard(wxCommandEvent& event)
+// 10/25/2026: Clear the clipboard instead of copying an empty string
+// to it, and do not flush it, which kept the data after the program
+// exited.
 {
   if(!wxTheClipboard->Open()) {
     ProgramError->Message("Failed to open clipboard\n");
     return;
   }
-  wxString clipData = "";
-  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)))  {
-    ProgramError->Message("Failed to clear clipboard\n");
-    wxTheClipboard->Close();
-    return;
-  }
-
-  if(!wxTheClipboard->Flush()) {
-    ProgramError->Message("Failed to flush clipboard\n");
-    wxTheClipboard->Close();
-    return;
-  }
-
+  wxTheClipboard->Clear();
   wxTheClipboard->Close();
+  clipboard_value.Clear();
+  if(clipboard_timer) clipboard_timer->Stop();
 }
 
+#endif // __USE_CLIPBOARD_FUNCTIONS__
+
+int MainFrame::CopyToClipboard(const wxString &value)
+// 10/25/2026: Copy a value to the clipboard and clear it again after
+// progcfg->clipboard_clear_seconds. Returns 1 if successful.
+{
+  if(!wxTheClipboard->Open()) {
+    ProgramError->Message("Failed to open clipboard\n");
+    return 0;
+  }
+  if(!wxTheClipboard->SetData(new wxTextDataObject(value))) {
+    ProgramError->Message("Failed to put text on clipboard\n");
+    wxTheClipboard->Close();
+    return 0;
+  }
+  wxTheClipboard->Close();
+  clipboard_value = value;
+  if(clipboard_timer && progcfg->clipboard_clear_seconds > 0) {
+    clipboard_timer->StartOnce(progcfg->clipboard_clear_seconds * 1000);
+  }
+  return 1;
+}
+
+void MainFrame::ClearClipboardIfOurs()
+// 10/25/2026: Clear the clipboard if it still holds the value this
+// program copied, so a value the user copied since is left alone.
+{
+  if(clipboard_value.IsEmpty()) return;
+  if(wxTheClipboard->Open()) {
+    int ours = 0;
+    if(wxTheClipboard->IsSupported(wxDF_UNICODETEXT) || wxTheClipboard->IsSupported(wxDF_TEXT)) {
+      wxTextDataObject data;
+      if(wxTheClipboard->GetData(data)) ours = (data.GetText() == clipboard_value);
+    }
+    if(ours) wxTheClipboard->Clear();
+    wxTheClipboard->Close();
+  }
+  clipboard_value.Clear();
+}
+
+void MainFrame::OnClipboardTimer(wxTimerEvent& WXUNUSED(event))
+{
+  ClearClipboardIfOurs();
+}
+
+void MainFrame::OnIdleTimer(wxTimerEvent& WXUNUSED(event))
+// 10/25/2026: Close the open databases after the idle time
+{
+  if(progcfg->auto_lock_minutes <= 0) return;
+  if(progcfg->child_frame_list.IsEmpty()) return;
+  if((time(0) - last_activity) < (time_t)(progcfg->auto_lock_minutes * 60)) return;
+  gxString msg;
+  msg << clear << "Closed the open databases after " << progcfg->auto_lock_minutes << " minutes with no activity";
+  LockAllDatabases(msg.c_str());
+}
+
+void MainFrame::LockAllDatabases(const char *reason)
+// 10/25/2026: Close every open database, hide the panels that show
+// database entries, clear the status window and the clipboard, and
+// wipe the keys. The databases must be opened again with the password
+// or key.
+{
+  if(apanel) apanel->Show(FALSE);
+  if(cpanel) cpanel->Show(FALSE);
+  if(fpanel) fpanel->Show(FALSE);
+  if(dpanel && dpanel->PanelIsOpen()) dpanel->ClosePanel();
+
+  // Close the child frames, the list changes as each one is deleted
+  gxList<CryptDBDocument *> to_close;
+  gxListNode<CryptDBDocument *> *ptr = progcfg->child_frame_list.GetHead();
+  while(ptr) {
+    to_close.Add(ptr->data);
+    ptr = ptr->next;
+  }
+  ptr = to_close.GetHead();
+  while(ptr) {
+    ptr->data->Close(TRUE);
+    ptr = ptr->next;
+  }
+
+  ClearClipboardIfOurs();
+  DBStringConfig::crypt_key.Clear(1);
+  progcfg->global_dbparms.crypt_key.Clear(1);
+  if(statusWin) statusWin->Clear();
+  if(reason && statusWin) *(statusWin) << reason << "\n";
+}
+
+void MainFrame::OnToggleShowPasswords(wxCommandEvent& event)
+// 10/25/2026: Show or mask the password columns in every open grid
+{
+  progcfg->show_passwords = event.IsChecked() ? 1 : 0;
+  gxListNode<CryptDBDocument *> *ptr = progcfg->child_frame_list.GetHead();
+  while(ptr) {
+    if(ptr->data->GridFrame() && ptr->data->GridFrame()->m_grid) {
+      ptr->data->GridFrame()->m_grid->ForceRefresh();
+    }
+    ptr = ptr->next;
+  }
+}
+
+#ifdef __USE_CLIPBOARD_FUNCTIONS__
 void MainFrame::OnCopy(wxCommandEvent& event)
 {
   if(!TestDatabase(1, 1, 1)) return;
@@ -757,22 +882,11 @@ void MainFrame::OnCopy(wxCommandEvent& event)
     return;
   }
 
-  if(!wxTheClipboard->Open()) {
-    ProgramError->Message("Failed to open clipboard\n");
-    return;
-  }
-
   child_frame->GridFrame()->UpdateGridPosition();
   
   wxString clipData = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
 								     child_frame->GridFrame()->dbparms.current_col);
-  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)) ) {
-    ProgramError->Message("Failed to put text on clipboard\n");
-    wxTheClipboard->Close();
-    return;
-  }
-
-  wxTheClipboard->Close();
+  CopyToClipboard(clipData);
 }
 
 void MainFrame::OnCut(wxCommandEvent& event)
@@ -808,20 +922,9 @@ void MainFrame::OnCut(wxCommandEvent& event)
     return;
   }
   
-  if(!wxTheClipboard->Open()) {
-    ProgramError->Message("Failed to open clipboard\n");
-    return;
-  }
-
   wxString clipData = child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row,
 								     child_frame->GridFrame()->dbparms.current_col);
-  if(!wxTheClipboard->AddData(new wxTextDataObject(clipData)) ) {
-    ProgramError->Message("Failed to put text on clipboard\n");
-    wxTheClipboard->Close();
-    return;
-  }
-
-  wxTheClipboard->Close();
+  if(!CopyToClipboard(clipData)) return;
 
   INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
   infohog.SetMember(&key, sizeof(key), 0);

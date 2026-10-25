@@ -128,6 +128,11 @@ OpenDatabasePanel::~OpenDatabasePanel()
 void OpenDatabasePanel::ShowPanel(gxString &fname)
 {
   password_input->Clear();
+  // 10/25/2026: The panel is reused, do not keep the last passphrase or PIN
+  if(rsa_passphrase_input) rsa_passphrase_input->Clear();
+#ifdef __ENABLE_SMART_CARD__
+  if(sc_pin_input) sc_pin_input->Clear();
+#endif
   curr_fname = fname;
 
   is_ok = 0;
@@ -209,14 +214,25 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
 #endif // __ENABLE_SMART_CARD__
 
 int OpenDatabasePanel::RSAOpenDatabase()
+// 10/25/2026: Wipe the private key and passphrase on every return path
+{
+  char private_key[RSA_max_keybuf_len];
+  gxString pbuf;
+  int rv = RSAOpenDatabase(private_key, pbuf);
+  OPENSSL_cleanse(private_key, sizeof(private_key));
+  SecureWipe(pbuf);
+  rsa_passphrase_input->Clear();
+  return rv;
+}
+
+int OpenDatabasePanel::RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxString &pbuf)
 {
   int rv;
-  char private_key[RSA_max_keybuf_len];
   unsigned private_key_len = 0;
   int has_passphrase = 0;
   char *passphrase = 0;
   gxString rsa_key_username;
-  gxString sbuf, pbuf;
+  gxString sbuf;
   
   if(!futils_exists(rsa_key_input->GetValue().c_str()) || !futils_isfile(rsa_key_input->GetValue().c_str())) {
     ProgramError->Message("The private RSA key file does not exist or cannot be read");   
@@ -224,7 +240,7 @@ int OpenDatabasePanel::RSAOpenDatabase()
     return 0;
   }
    
-  rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), private_key, sizeof(private_key), &private_key_len, &has_passphrase);
+  rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), private_key, RSA_max_keybuf_len, &private_key_len, &has_passphrase);
   if(rv != RSA_NO_ERROR) {
     sbuf << clear << "Error reading private key file " << RSA_err_string(rv);
     ProgramError->Message(sbuf.c_str());
@@ -345,17 +361,22 @@ int OpenDatabasePanel::AESKeyOpenDatabase()
 }
 
 int OpenDatabasePanel::PasswordOpenDatabase()
+// 10/25/2026: Wipe the password copy and clear the input on every path
+{
+  gxString pass_buf = (const char *)password_input->GetValue();
+  int rv = PasswordOpenDatabase(pass_buf);
+  SecureWipe(pass_buf);
+  password_input->Clear();
+  return rv;
+}
+
+int OpenDatabasePanel::PasswordOpenDatabase(gxString &pass_buf)
 {
   gxString sbuf;
-  gxString pass_buf = (const char *)password_input->GetValue();
   if(pass_buf.length() < 8) { 
     ProgramError->Message("Your password should be at least 8 characters long");
     is_ok = 0;
     return 0;
-    password_input->Clear();
-    progcfg->global_dbparms.crypt_key.Clear();
-    progcfg->global_dbparms.crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
-    pass_buf.Clear(1);
   }
 
   gxDatabase f;

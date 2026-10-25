@@ -253,6 +253,9 @@ Exiting the import operation");
     	INFOHOG infohog(child_frame->GetPOD());
 	INFOHOG infohog_a(child_frame->GetPOD());
 
+	// 10/25/2026: Undo the formula escaping added by the export
+	for(i = 0; i < num; i++) UnescapeCSVFormula(csv_array[i]);
+
 	sbuf = csv_array[0].c_str();
 	// Trim all leading and trailing spaces
 	sbuf.Trim(); sbuf.Trim(FALSE);	 

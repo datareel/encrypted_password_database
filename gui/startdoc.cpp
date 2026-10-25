@@ -92,8 +92,33 @@ extension " << document_name << "\n";
   wxExecute(command.c_str());
 #endif
 }
+
+int LaunchURL(const gxString &url, wxWindow *parent, int confirm)
+// 10/25/2026: Open an http or https URL in the default web browser,
+// after asking the user. Other text is never started as a program or
+// passed to a shell. Returns 1 if the browser was started.
+{
+  gxString sbuf(url);
+  sbuf.TrimLeading(' '); sbuf.TrimTrailing(' ');
+  if(!IsHyperlink(sbuf)) return 0;
+  for(unsigned i = 0; i < sbuf.length(); i++) {
+    unsigned char c = (unsigned char)sbuf[i];
+    if(c < 32 || c == 127 || c == ' ' || c == '"' || c == '\\') {
+      ProgramError->Message("This link has spaces or control characters and was not opened");
+      return 0;
+    }
+  }
+  if(confirm) {
+    gxString mbuf;
+    mbuf << clear << "Open this link in your web browser?" << "\n\n" << sbuf;
+    if(wxMessageBox(mbuf.c_str(), "Open Link", wxYES_NO | wxCENTRE | wxICON_QUESTION, parent) != wxYES) {
+      return 0;
+    }
+  }
+  return wxLaunchDefaultBrowser(sbuf.c_str()) ? 1 : 0;
+}
+
 // ----------------------------------------------------------- //
 // ------------------------------- //
 // --------- End of File --------- //
 // ------------------------------- //
-

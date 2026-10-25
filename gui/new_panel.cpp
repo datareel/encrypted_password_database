@@ -229,7 +229,7 @@ int NewDatabasePanel::CheckPassword()
     if(pass_buf.length() < (unsigned)progcfg->min_password_length) {
       password_input->Clear();
       confirm_password_input->Clear();
-      pass_buf.Clear();
+      SecureWipe(pass_buf);
       sbuf << clear << "Your password does not meet the minimum security requirement!"
 	   << "\n" << "Your password must be at least " 
 	   << progcfg->min_password_length << " characters long.";
@@ -240,6 +240,10 @@ int NewDatabasePanel::CheckPassword()
   }
   else {
     if(pass_buf.length() < 8) { 
+      // 10/25/2026: Clear the inputs and the copy, as on the other paths
+      password_input->Clear();
+      confirm_password_input->Clear();
+      SecureWipe(pass_buf);
       ProgramError->Message("Your password must be at least 8 characters long");
       is_ok = 0;
       return 0;
@@ -305,7 +309,7 @@ int NewDatabasePanel::CheckPassword()
     if(!is_complex) {
       password_input->Clear();
       confirm_password_input->Clear();
-      pass_buf.Clear();
+      SecureWipe(pass_buf);
       ProgramError->Message("Your password does not meet the minimum security requirement! \
        \n\nYour password must contain a combination of upper and lower case letters \
        \nnumbers, and special characters (meaning punctuation marks or symbol keys)");
@@ -320,7 +324,7 @@ int NewDatabasePanel::CheckPassword()
   
   password_input->Clear();
   confirm_password_input->Clear();
-  pass_buf.Clear(1);
+  SecureWipe(pass_buf);
   return 1;
 }
 

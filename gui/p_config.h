@@ -81,6 +81,9 @@ struct wxappfwProgramConfig {
   int password_length;
   int min_password_length;
   int password_aging;
+  int auto_lock_minutes;       // 10/25/2026: Close databases after this idle time, 0 is off
+  int clipboard_clear_seconds; // 10/25/2026: Clear copied values after this time, 0 is off
+  int show_passwords;          // 10/25/2026: Show the password columns in clear text
   
   // Printer document variables
   gxString document_name;

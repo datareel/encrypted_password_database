@@ -166,6 +166,9 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   password_length = 1;
   min_password_length = 8;
   password_aging = 0;
+  auto_lock_minutes = 15;
+  clipboard_clear_seconds = 30;
+  show_passwords = 0;
 
   // Colors and font init
   for(i = 0; i < 16; i++) {

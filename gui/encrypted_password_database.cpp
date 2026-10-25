@@ -36,6 +36,10 @@ wxWindow 2.X/3.X application frame work.
 // Include files
 // --------------------------------------------------------------
 #include "encrypted_password_database.h"
+
+#if defined (__UNIX__)
+#include <sys/stat.h>
+#endif
 // --------------------------------------------------------------
 
 // --------------------------------------------------------------
@@ -190,6 +194,13 @@ void InitProgramConfig(int argc, char *argv[])
 	 has_docdir = 0;
        }
   }
+
+  // 10/25/2026: Only the user can read the program directories and
+  // config file. New ones are private because of the umask set at start.
+  chmod(progcfg->homeDir.c_str(), 0700);
+  chmod(progcfg->dataDir.c_str(), 0700);
+  chmod(progcfg->docDir.c_str(), 0700);
+  chmod(progcfg->cfgFile.c_str(), 0600);
 #endif
 
 #ifdef __APP_DEBUG_VERSION__
@@ -260,6 +271,12 @@ void InitProgramConfig(int argc, char *argv[])
       dfile << "SC_cert_id = " << progcfg->SC_cert_id.c_str() << "\n";
       dfile << "\n";
 #endif // __ENABLE_SMART_CARD__      
+      dfile << "# Security settings" << "\n";
+      dfile << "# Close open databases after this many idle minutes, 0 turns it off" << "\n";
+      dfile << "AutoLockMinutes = " << progcfg->auto_lock_minutes << "\n";
+      dfile << "# Clear a value copied to the clipboard after this many seconds, 0 turns it off" << "\n";
+      dfile << "ClipboardClearSeconds = " << progcfg->clipboard_clear_seconds << "\n";
+      dfile << "\n";
       dfile << "# Default applications" << "\n";
       dfile << "web_browser = " << progcfg->default_web_browser.c_str() << "\n";
       dfile << "mail_client = " << progcfg->default_mail_client.c_str() << "\n";
@@ -288,6 +305,18 @@ void InitProgramConfig(int argc, char *argv[])
 
     char *s3 = CfgData->GetStrValue("ViewToolBar");
     if(s3) reToolBar = s3; 
+
+    // 10/25/2026: Security settings
+    char *s_lock = CfgData->GetStrValue("AutoLockMinutes");
+    if(s_lock) {
+      progcfg->auto_lock_minutes = atoi(s_lock);
+      if(progcfg->auto_lock_minutes < 0) progcfg->auto_lock_minutes = 0;
+    }
+    char *s_clip = CfgData->GetStrValue("ClipboardClearSeconds");
+    if(s_clip) {
+      progcfg->clipboard_clear_seconds = atoi(s_clip);
+      if(progcfg->clipboard_clear_seconds < 0) progcfg->clipboard_clear_seconds = 0;
+    }
 
     char *s4 = CfgData->GetStrValue("EncryptionMode"); 
     if(s4) mode = s4; 
@@ -670,22 +699,17 @@ int CheckEnvVar(const char *var_name, gxString &var_value)
   return 0;
 }
 
-int IsHyperlink(const gxString &s)
+int IsPasswordField(int member)
+// 10/25/2026: The Password and Previous Password columns
 {
-  if(s.IFind("://") != -1) return 1;
-  if(s.IFind("mailto:") != -1) return 1;  
-  if(s[0] == '\\') { // UNC path
-    if(s[0] == '\\') {
-      return 1;
-    }
-  }
-  if(s[1] == ':') { // Windows path
-    if(s[2] == '\\') {
-      return 1;
-    }
-  }
-  return 0;
+  return (member == 2) || (member == 3);
 }
+
+long PasswordFieldStyle(int member)
+{
+  return IsPasswordField(member) ? wxTE_PASSWORD : 0;
+}
+
 
 int LoadCustomColors(wxColourData *data)
 {
@@ -806,9 +830,8 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 	char *s1 = buf.c_str(dest1);
 	char *s2 = ob.c_str(dest2);
 
-#ifdef __wxWINALL__
-	*(frame->statusWin) << s1 << " " << s2 << "\n";
-#endif
+	// 10/25/2026: Do not write every value of the searched column, which
+	// can be the password column, to the status window
 	offset = IFindMatch(s1, s2, 0);
 	if(offset != -1) {
 	  object_id = key.ObjectID();

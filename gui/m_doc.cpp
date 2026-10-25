@@ -84,6 +84,9 @@ CryptDBDocument::~CryptDBDocument()
 {
   GetPOD()->Close(); // Close the open database
 
+  // 10/25/2026: Wipe this database's key
+  DBParms()->crypt_key.Clear(1);
+
   if(progcfg->active_child_frame == this) {
     progcfg->active_child_frame = 0;
   }
@@ -97,6 +100,11 @@ CryptDBDocument::~CryptDBDocument()
     ptr = ptr->next;
   } 
 
+  // 10/25/2026: Wipe the shared key copies when no database is open
+  if(progcfg->child_frame_list.IsEmpty()) {
+    DBStringConfig::crypt_key.Clear(1);
+    progcfg->global_dbparms.crypt_key.Clear(1);
+  }
 }
 
 void CryptDBDocument::OnQuit(wxCommandEvent& WXUNUSED(event))
@@ -330,7 +338,8 @@ void CryptDBDocument::OnCellLeftDClick(wxGridEvent& event)
 								     DBParms()->current_col).c_str();
 
   if(IsHyperlink(cell_str)) { // Start the hyperlink
-    StartDocument(cell_str, progcfg->web_browser);
+    // 10/25/2026: Only http and https links, after the user confirms
+    LaunchURL(cell_str, this);
     event.Skip(); // Process the default behavior and return
     return;
   }

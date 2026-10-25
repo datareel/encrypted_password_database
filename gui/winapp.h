@@ -44,6 +44,9 @@ public:
   // Called on application startup and is a good place for the application
   // initialization. If OnInit() returns false, the application terminates.
   bool OnInit() wxOVERRIDE;
+
+  // 10/25/2026: Records keyboard and mouse activity for the idle auto-lock
+  int FilterEvent(wxEvent& event) wxOVERRIDE;
 };
 
 DECLARE_APP(WinApp)

@@ -315,7 +315,8 @@ AddPanel *InitAddPanel(wxWindow *parent)
     panel->db_input[i] = new wxTextCtrl(panel, -1, "",
 				wxPoint(start_x, start_y),
 				wxSize(AddPanelConfig::text_input_width, 
-				       AddPanelConfig::text_input_height));
+				       AddPanelConfig::text_input_height),
+				PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
   }
 
   start_y += AddPanelConfig::y_offset_button;

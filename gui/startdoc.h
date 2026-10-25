@@ -36,6 +36,7 @@ WIN32/UNIX function used to open known file types.
 #include "app_defs.h"
 
 void StartDocument(const gxString &document_name, const gxString &app_name);
+int LaunchURL(const gxString &url, wxWindow *parent, int confirm = 1);
 
 #endif // __STARTDOC_HPP__
 // ----------------------------------------------------------- //

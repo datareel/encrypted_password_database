@@ -120,7 +120,15 @@ const int MAX_PROGRESS_METER_COUNT = 11;
 // --------------------------------------------------------------
 // Standalone Functions
 // --------------------------------------------------------------
-
+void SecureProcessSetup();   // 10/25/2026: Private files, no core dumps
+void SecureWipe(gxString &s); // 10/25/2026: Wipe a string holding a secret
+int IsHyperlink(const gxString &s); // 10/25/2026: Only http and https URLs
+// 10/25/2026: CSV export and import helpers
+int CSVFormulaPrefixLength(const gxString &value);
+void EscapeCSVFormula(gxString &value);
+void UnescapeCSVFormula(gxString &value);
+void AppendCSVField(gxString &out, const gxString &value, char delimiter, char filter);
+int WritePrivateFile(const char *fname, const char *data, unsigned len, gxString &err);
 // --------------------------------------------------------------
 
 #endif  // __M_GLOBALS_HPP__

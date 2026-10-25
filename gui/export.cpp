@@ -89,13 +89,6 @@ void ExportToASCII(wxWindow *parent)
 		      wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
 
   if(dialog.ShowModal() == wxID_OK) {
-    if(wxFileExists(dialog.GetPath())) {
-      if(!wxRemoveFile(dialog.GetPath())) {
-	ProgramError->Message("Error overwriting exiting file\n");
-	return;
-      }
-    }
-
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Opening " << dialog.GetPath() << "\n";
 #endif
@@ -105,21 +98,17 @@ void ExportToASCII(wxWindow *parent)
     return;
   }
 
-  DiskFileB stream;
-  stream.df_Create(dialog.GetPath().c_str());
+  // 10/25/2026: Build the export in memory and write it when it is
+  // complete, to a new file only the user can read. A canceled or
+  // failed export leaves no partial clear text file behind.
+  gxString stream;
+  gxString export_fname = (const char *)dialog.GetPath().c_str();
   *(frame->statusWin) << "Exporting database to: " << dialog.GetPath() << "\n";
-  
-  if(!stream) { // Could not open the stream
-    *(frame->statusWin) << "Could not write to: " << dialog.GetPath() << "\n";
-    ProgramError->Message("Error opening the export file\n");
-    return; 
-  }
 
   // Write the item bar to the file first
   for(i = 0; i < (int)NumDataMembers; i++) {
     gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);
-    ASPrint(label.c_str(),
-	    stream, label.length());
+    AppendCSVField(stream, label, dchar, filter);
     stream << dchar;
   }
   stream << as2LineFeed;
@@ -150,11 +139,8 @@ void ExportToASCII(wxWindow *parent)
 
     // Write the key member, which should always be set
     dbstring = (DBString *)infohog.GetMember(0);
-    INFOHOG_t ob(dbstring->c_str(dest));
-    dbuf << clear << ob.c_str(dest);
-    if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
-
-    ASPrint(dbuf.c_str(), filter, stream, dbuf.length());
+    dbuf = dbstring->c_str(dest);
+    AppendCSVField(stream, dbuf, dchar, filter);
     stream << dchar;
 
     // Write the remaining members account for null members
@@ -163,17 +149,15 @@ void ExportToASCII(wxWindow *parent)
       if(infohog.GetMemberLen(i) == sizeof(INFOHOG_t)) {
 	dbstring = (DBString *)infohog.GetMember(i);
 	if(!dbstring->is_null()) {
-	  ob = dbstring->c_str(dest);
-	  dbuf << clear << ob.c_str(dest);
-	  if(dbuf.Find(dchar_str) != -1) dbuf << clear << "\"" <<  ob.c_str(dest) << "\"";
-	  ASPrint(dbuf.c_str(), filter, stream, dbuf.length());
+	  dbuf = dbstring->c_str(dest);
+	  AppendCSVField(stream, dbuf, dchar, filter);
 	}
 	else {
-	  ASPrint(Fill, stream, strlen(Fill));
+	  stream << Fill;
 	}
       }
       else {
-	ASPrint(Fill, stream, strlen(Fill));
+	stream << Fill;
       }
 
       // Reached the last member so do not print the delimiter
@@ -200,6 +184,9 @@ void ExportToASCII(wxWindow *parent)
 			    wxYES_NO | wxCENTRE | wxICON_QUESTION, parent);
       if(yn == wxYES) {
 	frame->spanel->Close();
+	SecureWipe(stream);
+	SecureWipe(dbuf);
+	OPENSSL_cleanse(dest, sizeof(dest));
 	*(frame->statusWin) << "Export operation canceled" << "\n"; 
 	return;
       }
@@ -210,8 +197,20 @@ void ExportToASCII(wxWindow *parent)
     dllistptr = dllistptr->next;
   }
 
+  gxString err;
+  if(WritePrivateFile(export_fname.c_str(), stream.c_str(), stream.length(), err) != 0) {
+    SecureWipe(stream);
+    SecureWipe(dbuf);
+    OPENSSL_cleanse(dest, sizeof(dest));
+    *(frame->statusWin) << "Could not write to: " << export_fname.c_str() << "\n";
+    ProgramError->Message(err.c_str());
+    frame->spanel->Close();
+    return;
+  }
+  SecureWipe(stream);
+  SecureWipe(dbuf);
+  OPENSSL_cleanse(dest, sizeof(dest));
   *(frame->statusWin) << "Exported " << exports << " objects." << "\n";
-  stream.df_Close();
 
   wxSleep(1); // Allow the user to view the results
   frame->spanel->WriteMessage("Export complete");

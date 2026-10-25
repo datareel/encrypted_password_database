@@ -39,6 +39,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include <stdio.h>
 #include "epdb_functions.h"
 
+#if defined (__UNIX__)
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/resource.h>
+#endif
+
 // Value of record r, field i. Covers empty fields, delimiters, quotes,
 // newlines, leading formula characters and long values.
 static gxString TestValue(int r, int i)
@@ -196,9 +202,78 @@ static int Dump(const char *fname, const char *password)
   return rv;
 }
 
+static int SelfTest(const char *dir)
+// Tests the helpers in m_globals.cpp the GUI uses for links, CSV export
+// and private files, and the process setup.
+{
+  int fails = 0;
+  struct { const char *s; int link; } links[] = {
+    { "https://example.com/x", 1 }, { "HTTP://example.com", 1 }, { "http://", 0 },
+    { "\\\\server\\share\\x.exe", 0 }, { "C:\\Windows\\x.exe", 0 },
+    { "file:///etc/passwd", 0 }, { "javascript://x", 0 }, { "mailto:a@b.c", 0 },
+    { "see https://example.com", 0 }, { "ftp://x.y", 0 }, { 0, 0 } };
+  for(int i = 0; links[i].s; i++) {
+    if(IsHyperlink(gxString(links[i].s)) != links[i].link) {
+      cerr << "FAIL: IsHyperlink(" << links[i].s << ")" << "\n"; fails++;
+    }
+  }
+  const char *values[] = { "=cmd|' /C calc'!A0", "+1", "-1", "@SUM(A1)", "'=x", "''+y",
+			   "plain", "'quoted", "", "a=b", 0 };
+  for(int i = 0; values[i]; i++) {
+    gxString v(values[i]);
+    EscapeCSVFormula(v);
+    if(CSVFormulaPrefixLength(gxString(values[i])) >= 0 && v[0] != '\'') {
+      cerr << "FAIL: EscapeCSVFormula(" << values[i] << ") not escaped" << "\n"; fails++;
+    }
+    UnescapeCSVFormula(v);
+    if(v != gxString(values[i])) {
+      cerr << "FAIL: CSV formula escaping does not round trip for " << values[i] << "\n"; fails++;
+    }
+  }
+  gxString out;
+  AppendCSVField(out, gxString("a,b\nc"), ',', '\t');
+  if(out != gxString("\"a,b c\"")) { cerr << "FAIL: AppendCSVField " << out.c_str() << "\n"; fails++; }
+
+  gxString fname, err;
+  fname << dir << "/private_file.txt";
+  if(WritePrivateFile(fname.c_str(), "secret\n", 7, err) != 0) {
+    cerr << "FAIL: WritePrivateFile " << err.c_str() << "\n"; fails++;
+  }
+#if defined (__UNIX__)
+  else {
+    struct stat st;
+    if(lstat(fname.c_str(), &st) != 0 || (st.st_mode & 0777) != 0600) {
+      cerr << "FAIL: WritePrivateFile mode is not 0600" << "\n"; fails++;
+    }
+  }
+  gxString target, link;
+  target << dir << "/link_target.txt";
+  link << dir << "/link.txt";
+  unlink(link.c_str());
+  if(symlink(target.c_str(), link.c_str()) == 0) {
+    // An existing link is removed and replaced, the target is not written
+    if(WritePrivateFile(link.c_str(), "x", 1, err) != 0 || futils_exists(target.c_str())) {
+      cerr << "FAIL: WritePrivateFile followed a symbolic link" << "\n"; fails++;
+    }
+  }
+  SecureProcessSetup();
+  mode_t old_mask = umask(077);
+  if(old_mask != 077) { cerr << "FAIL: SecureProcessSetup umask" << "\n"; fails++; }
+  struct rlimit rl;
+  if(getrlimit(RLIMIT_CORE, &rl) != 0 || rl.rlim_cur != 0) {
+    cerr << "FAIL: SecureProcessSetup core size limit" << "\n"; fails++;
+  }
+#endif
+  cout << (fails ? "SELFTEST FAIL" : "SELFTEST PASS") << "\n";
+  return fails ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
   AES_openssl_init();
+  if(argc == 3 && strcmp(argv[1], "selftest") == 0) {
+    return SelfTest(argv[2]);
+  }
   if(argc == 5 && strcmp(argv[1], "create") == 0) {
     return Create(argv[2], argv[3], atoi(argv[4]));
   }
@@ -207,6 +282,7 @@ int main(int argc, char **argv)
   }
   cerr << "Usage: " << argv[0] << " create dbfile.ehd password num_records" << "\n";
   cerr << "       " << argv[0] << " dump dbfile.ehd password" << "\n";
+  cerr << "       " << argv[0] << " selftest dir" << "\n";
   return 1;
 }
 // ----------------------------------------------------------- //

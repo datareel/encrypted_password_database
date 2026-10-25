@@ -640,7 +640,7 @@ DisplayPanel *InitDisplayPanel(wxWindow *parent)
 				wxPoint(start_x, start_y),
 				wxSize(DisplayPanelConfig::text_input_width, 
 				       DisplayPanelConfig::text_input_height),
-					wxTE_READONLY);
+					wxTE_READONLY|PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
   }
 
   start_y += DisplayPanelConfig::y_offset_button;

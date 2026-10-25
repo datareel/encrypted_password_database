@@ -427,7 +427,8 @@ ChangePanel *InitChangePanel(wxWindow *parent)
     panel->db_input[i] = new wxTextCtrl(panel, -1, "",
 				wxPoint(start_x, start_y),
 				wxSize(ChangePanelConfig::text_input_width, 
-				       ChangePanelConfig::text_input_height));
+				       ChangePanelConfig::text_input_height),
+				PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
   }
 
   start_y += ChangePanelConfig::y_offset_button;
