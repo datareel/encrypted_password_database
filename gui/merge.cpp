@@ -88,6 +88,15 @@ void Merge(wxWindow *parent)
 Exiting the merge operation");
     return;
   }
+  // 10/25/2026: Merge reads both databases with one key, which only works
+  // for v1 databases with the same password. Each v2 database has its
+  // own keys.
+  if(EPDBIsV2(&f) || EPDBIsKeyset(child_frame->DBParms()->crypt_key)) {
+    f.Close();
+    ProgramError->Message("Merge does not support database format v2 yet.\n \
+Export the other database to CSV and import it instead.");
+    return;
+  }
   gxDatabaseConfig dbconfig;
   if(!dbconfig.ReadConfig(&f)) {
     ProgramError->Message("Error reading database merge database config!\n \

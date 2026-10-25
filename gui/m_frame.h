@@ -69,6 +69,8 @@ public: // Event handlers
   void OnClipboardTimer(wxTimerEvent& event);
   void OnIdleTimer(wxTimerEvent& event);
   void OnToggleShowPasswords(wxCommandEvent& event);
+  void OnResealTimer(wxTimerEvent& event);
+  void OnUpgrade(wxCommandEvent& event);
 #endif
   void OnPreferences(wxCommandEvent& event);
 
@@ -159,6 +161,7 @@ public: // 10/25/2026: Clipboard clearing and idle auto-lock
   void NoteUserActivity() { last_activity = time(0); }
   wxTimer *clipboard_timer;
   wxTimer *idle_timer;
+  wxTimer *reseal_timer; // 10/25/2026: Seals changed v2 databases
   wxString clipboard_value; // The value this program last copied
   time_t last_activity;
 

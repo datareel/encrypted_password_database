@@ -311,6 +311,7 @@ struct gxDatabaseParms
   char database_revision;        // Database revision letter
   gxString username;  // Username associated with this database
   MemoryBuffer crypt_key; // Key used to encrypt and decrypt database files
+  int v2_dirty; // 10/25/2026: A v2 database changed since its MAC was written
 };
 
 // Global data structures used to organize and store data file nodes addresses

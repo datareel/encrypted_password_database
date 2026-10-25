@@ -101,6 +101,8 @@ char filter_char = 0;
 char replace_char = 0;
 char replace_char_with = 0;
 int db_find_key = 0;
+int upgrade_db = 0; // 10/25/2026: Upgrade to database format v2
+int reseal_db = 0;  // 10/25/2026: Accept the current contents of a v2 database
 int db_find_all = 0;
 gxString db_find_key_name;
 
@@ -303,6 +305,7 @@ int main(int argc, char **argv)
 
   while(ptr) {
     fname = ptr->data;
+    MemoryBuffer file_key; // 10/25/2026: Key for this file, a v2 keyset or the v1 secret
     if(!check_if_file_exists(fname)) {
       // 10/25/2026: A missing file is an error, scripts must not see success
       cerr << "ERROR: Encrypted password database file " << fname.c_str() << " does not exist or cannot be read" << "\n" << flush;
@@ -344,7 +347,7 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      aes_file_decrypt_secret = DBStringConfig::crypt_key;
+      file_key = DBStringConfig::crypt_key;
       f->Close();
       delete f;
     }
@@ -368,16 +371,19 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      aes_file_decrypt_secret = DBStringConfig::crypt_key;
+      file_key = DBStringConfig::crypt_key;
       f->Close();
       delete f;
     }
  #endif // __ENABLE_SMART_CARD__
 
-    // 10/25/2026: Check the key against the database before listing or
-    // searching it. A wrong key decrypted every field to an empty string
-    // and the search matched every record.
-    if(db_list || db_find_key) {
+    // 10/25/2026: Check the key against the database before using it. A
+    // wrong key decrypted every field to an empty string and the search
+    // matched every record. For a v2 database the password or key is
+    // turned into the database keyset here, and the database MAC and
+    // index are checked.
+    int is_v2 = 0;
+    {
       gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
       if(!f) {
 	cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
@@ -385,7 +391,13 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      if(UnlockEPDB(f, aes_file_decrypt_secret, err_string) != 0) {
+      MemoryBuffer unlocked;
+      int aes_error = 0;
+      int uses_block = use_private_rsa_key;
+#ifdef __ENABLE_SMART_CARD__
+      if(use_smartcard) uses_block = 1;
+#endif
+      if(EPDBUnlock(f, uses_block ? file_key : aes_file_decrypt_secret, unlocked, err_string, aes_error) != 0) {
 	cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
 	ERROR_LEVEL++;
 	f->Close();
@@ -393,12 +405,78 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
+      file_key = unlocked;
+      unlocked.Clear(1);
+      DBStringConfig::crypt_key = file_key;
+      is_v2 = EPDBIsKeyset(file_key);
       f->Close();
       delete f;
     }
 
+    if(upgrade_db) {
+      num_operations++;
+      if(is_v2) {
+	cerr << "ERROR: " << fname.c_str() << " is already a v2 database" << "\n" << flush;
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+      cerr << "Upgrading " << fname.c_str() << " to database format v2..." << "\n" << flush;
+      gxString backup_file;
+      if(EPDBUpgrade(fname.c_str(), file_key, backup_file, err_string) != 0) {
+	cerr << "ERROR: Upgrade failed, the database was not changed: " << err_string.c_str() << "\n" << flush;
+	ERROR_LEVEL++;
+      }
+      else {
+	cerr << "Upgraded " << fname.c_str() << " to database format v2" << "\n" << flush;
+	cerr << "The v1 database was saved to " << backup_file.c_str() << " and "
+	     << ReplaceFileExtension(backup_file, ".ehx").c_str() << "\n" << flush;
+      }
+      ptr = ptr->next;
+      continue;
+    }
+
+    if(reseal_db) {
+      num_operations++;
+      if(!is_v2) {
+	cerr << "ERROR: --reseal-db only applies to v2 databases" << "\n" << flush;
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+      gxDatabase *f = OpenEPDB(fname.c_str(), err_string, gxDBASE_READWRITE);
+      if(!f || EPDBSeal(f, file_key, err_string) != 0) {
+	cerr << "ERROR: Cannot reseal " << fname.c_str() << " " << err_string.c_str() << "\n" << flush;
+	ERROR_LEVEL++;
+      }
+      else {
+	cerr << "WARNING: Resealed " << fname.c_str() << ". Its current contents, including any changes made "
+	     << "outside this program, are now accepted as valid." << "\n" << flush;
+      }
+      if(f) {
+	f->Close();
+	delete f;
+      }
+      ptr = ptr->next;
+      continue;
+    }
+
+    if(is_v2) {
+      POD *pod = OpenEPDB_POD(fname, err_string);
+      int rv = pod ? EPDBVerify(pod, file_key, err_string) : -1;
+      if(pod) delete pod;
+      if(rv != 0) {
+	cerr << "ERROR: " << fname.c_str() << ": " << err_string.c_str() << "\n" << flush;
+	cerr << "If you know why the file changed, for example this program stopped while writing, "
+	     << "--reseal-db accepts the current contents." << "\n" << flush;
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+    }
+
     if(display_db_config) {
-      if(PrintDBConfig(fname.c_str(), aes_file_decrypt_secret) != 0) ERROR_LEVEL++;
+      if(PrintDBConfig(fname.c_str(), file_key) != 0) ERROR_LEVEL++;
       ptr = ptr->next;
       continue; // Display the db config for all files and exit program 
     }
@@ -419,7 +497,7 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
-      if(db_auth.AddRSAKeyToStaticArea(aes_file_decrypt_secret, public_key, public_key_len, add_username) != 0) {
+      if(db_auth.AddRSAKeyToStaticArea(file_key, public_key, public_key_len, add_username) != 0) {
 	cerr << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n" << flush;
 	ERROR_LEVEL++;
 	f->Close();
@@ -450,7 +528,7 @@ int main(int argc, char **argv)
       }
       db_auth.f = f;
       
-      if(db_auth.AddSmartCardCertToStaticArea(&sc, use_smartcard_cert_file, aes_file_decrypt_secret, add_username) != 0){
+      if(db_auth.AddSmartCardCertToStaticArea(&sc, use_smartcard_cert_file, file_key, add_username) != 0){
 	cerr << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
 	ERROR_LEVEL++;
 	f->Close();
@@ -625,6 +703,10 @@ void HelpMessage()
   cout << "          --list-users (List the users with RSA key access and exit)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
   cout << "\n" << flush;
+  cout << "DB format functions:\n" << flush;
+  cout << "          --upgrade-db (Upgrade a v1 database to format v2, after a backup copy)" << "\n" << flush;
+  cout << "          --reseal-db (Accept the current contents of a v2 database that fails its integrity check)" << "\n" << flush;
+  cout << "\n" << flush;
   cout << "DB authenticated functions:\n" << flush;
   cout << "          --db-config (Display database config and exit)" << "\n" << flush;
   cout << "          --db-list (List database stdout, defaults to tab delimited output)" << "\n" << flush;
@@ -730,6 +812,16 @@ int ProcessDashDashArg(gxString &arg)
 
   if(arg == "db-config" ) {
     display_db_config = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "upgrade-db") {
+    upgrade_db = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "reseal-db") {
+    reseal_db = 1;
     has_valid_args = 1;
   }
 

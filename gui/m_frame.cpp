@@ -69,6 +69,8 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   EVT_TIMER(WXAPPFW_CLIPBOARD_TIMER, MainFrame::OnClipboardTimer)
   EVT_TIMER(WXAPPFW_IDLE_TIMER, MainFrame::OnIdleTimer)
   EVT_MENU(WXAPPFW_VIEW_SHOW_PASSWORDS, MainFrame::OnToggleShowPasswords)
+  EVT_TIMER(WXAPPFW_RESEAL_TIMER, MainFrame::OnResealTimer)
+  EVT_MENU(WXAPPFW_FILE_UPGRADE, MainFrame::OnUpgrade)
 
   // Database menu
   EVT_MENU(WXAPPFW_DATABASE_ADD, MainFrame::OnAddObject)
@@ -157,6 +159,8 @@ MainFrame::MainFrame(wxWindow *parent,
   idle_timer = new wxTimer(this, WXAPPFW_IDLE_TIMER);
   last_activity = time(0);
   if(progcfg->auto_lock_minutes > 0) idle_timer->Start(15000);
+  reseal_timer = new wxTimer(this, WXAPPFW_RESEAL_TIMER);
+  reseal_timer->Start(2000);
   
   // Make the menubar bars
   wxMenu *file_menu = new wxMenu;
@@ -184,6 +188,8 @@ MainFrame::MainFrame(wxWindow *parent,
 		   "Rebuild the current database");
   file_menu->Append(WXAPPFW_FILE_REBUILDCONFIG, "Rebuild Database Config",
 		   "Rebuild the current database config header");
+  file_menu->Append(WXAPPFW_FILE_UPGRADE, "Upgrade Database Format...",
+		   "Upgrade the current database to format v2 with stronger encryption");
   file_menu->AppendSeparator();
   file_menu->Append(WXAPPFW_FILE_PROPERTIES, "View Database Stats",
 		   "Display the current database statistics");
@@ -502,6 +508,11 @@ void MainFrame::OnCloseWindow(wxCloseEvent& event)
     idle_timer->Stop();
     delete idle_timer;
     idle_timer = 0;
+  }
+  if(reseal_timer) {
+    reseal_timer->Stop();
+    delete reseal_timer;
+    reseal_timer = 0;
   }
   ClearClipboardIfOurs();
   DBStringConfig::crypt_key.Clear(1);
@@ -856,6 +867,74 @@ void MainFrame::LockAllDatabases(const char *reason)
   progcfg->global_dbparms.crypt_key.Clear(1);
   if(statusWin) statusWin->Clear();
   if(reason && statusWin) *(statusWin) << reason << "\n";
+}
+
+void MainFrame::OnResealTimer(wxTimerEvent& WXUNUSED(event))
+// 10/25/2026: Seal the v2 databases this program changed
+{
+  gxListNode<CryptDBDocument *> *ptr = progcfg->child_frame_list.GetHead();
+  while(ptr) {
+    ResealDocument(ptr->data);
+    ptr = ptr->next;
+  }
+}
+
+void MainFrame::OnUpgrade(wxCommandEvent& WXUNUSED(event))
+// 10/25/2026: Upgrade the active database to format v2. The database is
+// closed, upgraded with a backup copy first, and must be opened again.
+{
+  if(!TestDatabase(1, 1, 1)) return;
+  CryptDBDocument *child_frame = ActiveChild();
+  if(!child_frame) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+  if(EPDBIsKeyset(child_frame->DBParms()->crypt_key)) {
+    ProgramError->Message("This database already uses database format v2");
+    return;
+  }
+  if(child_frame->DBParms()->admin_rights == 0) {
+    ProgramError->Message("The database is open read-only and cannot be upgraded");
+    return;
+  }
+  gxString data_file = child_frame->DBParms()->data_file;
+  gxString mbuf;
+  mbuf << clear << "Upgrade " << data_file.c_str() << " to database format v2?\n\n"
+       << "Format v2 uses a stronger password key derivation (PBKDF2-SHA256, 600000 iterations) "
+       << "and checks the whole database for changes made outside this program.\n\n"
+       << "A backup copy of the database is made first. The database is closed for the upgrade "
+       << "and must be opened again afterwards.\n\n"
+       << "Versions of this program from before 10/25/2026 cannot open a v2 database.";
+  if(wxMessageBox(mbuf.c_str(), "Upgrade Database Format",
+		  wxYES_NO | wxNO_DEFAULT | wxCENTRE | wxICON_QUESTION, this) != wxYES) {
+    return;
+  }
+
+  // The v1 key is the database secret
+  MemoryBuffer secret(child_frame->DBParms()->crypt_key);
+  ResealDocument(child_frame);
+  child_frame->GetPOD()->Close();
+  child_frame->Close(TRUE);
+
+  gxString backup_file, err;
+  ::wxBeginBusyCursor();
+  int rv = EPDBUpgrade(data_file.c_str(), secret, backup_file, err);
+  ::wxEndBusyCursor();
+  secret.Clear(1);
+  if(rv != 0) {
+    *(statusWin) << "Upgrade of " << data_file.c_str() << " failed: " << err.c_str() << "\n";
+    mbuf << clear << "The upgrade failed and the database was not changed.\n\n" << err.c_str();
+    ProgramError->Message(mbuf.c_str());
+    return;
+  }
+  gxString index_backup = ReplaceFileExtension(backup_file, ".ehx");
+  *(statusWin) << "Upgraded " << data_file.c_str() << " to database format v2" << "\n";
+  *(statusWin) << "The v1 database was saved to " << backup_file.c_str() << " and "
+	       << index_backup.c_str() << "\n";
+  mbuf << clear << "The database was upgraded to format v2.\n\n"
+       << "The original database was saved to:\n" << backup_file.c_str() << "\n" << index_backup.c_str()
+       << "\n\nOpen the database again to use it.";
+  ProgramError->Message(mbuf.c_str());
 }
 
 void MainFrame::OnToggleShowPasswords(wxCommandEvent& event)

@@ -782,25 +782,16 @@ int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gx
     return 1;
   }
   
+  // 10/25/2026: Check the key. For a v2 database the password or key is
+  // replaced by the database keyset.
+  MemoryBuffer keyset;
+  int aes_error = 0;
+  if(EPDBUnlock(f, key, keyset, err_string, aes_error) != 0) return 1;
+  key = keyset;
+  keyset.Clear(1);
   DBStringConfig::crypt_key = key;
   db_config.Clear();
   db_config.ReadConfig(f);
-  char *s = db_config.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    err_string << clear << "Error decrypting database hash " << AES_err_string(DBStringConfig::AES_error_level);
-    return 1;
-  }
-  if(!s) {
-    err_string << clear << "Database hash is a null value";
-    return 1;
-  }
-  // 10/25/2026: A database name that was never set made every key valid
-  if(s == DBStringNULLPtr::DBStringNUllStr) {
-    err_string << clear << "Database hash is not set, the database file is damaged";
-    return 1;
-  }
-  OPENSSL_cleanse(s, strlen(s));
-  delete[] s;
 
   return 0;
 }

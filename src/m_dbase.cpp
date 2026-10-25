@@ -1014,6 +1014,7 @@ unsigned gxDatabaseConfig::SizeOf()
 
 gxDatabaseParms::gxDatabaseParms()
 {
+  v2_dirty = 0;
   // Display status messages by default
   display_status = 1;
 

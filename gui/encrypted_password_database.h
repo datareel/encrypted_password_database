@@ -197,6 +197,8 @@ enum {
   WXAPPFW_CLIPBOARD_TIMER,     // Clears copied values from the clipboard
   WXAPPFW_IDLE_TIMER,          // Closes databases after the idle time
   WXAPPFW_VIEW_SHOW_PASSWORDS, // Show or mask the password columns
+  WXAPPFW_RESEAL_TIMER,        // Seals changed v2 databases
+  WXAPPFW_FILE_UPGRADE,        // Upgrade a database to format v2
 
   // Extended help function event handler IDs
   WXAPPFW_HELP_GUIVER,  // Display GUI library information
@@ -270,6 +272,9 @@ int CheckEnvVar(const char *var_name, gxString &var_value);
 int LoadCustomColors(wxColourData *data);
 int SaveCustomColors(wxColourData *retData);
 long PasswordFieldStyle(int member); // 10/25/2026: wxTE_PASSWORD for password fields
+void DatabaseWriteHook(void *data);  // 10/25/2026: Marks a v2 database changed
+class CryptDBDocument;
+int ResealDocument(CryptDBDocument *doc); // 10/25/2026: Seals a changed v2 database
 int IsPasswordField(int member);     // 10/25/2026: True for the password columns
 
 

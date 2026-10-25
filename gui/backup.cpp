@@ -250,6 +250,17 @@ void BackUp(wxWindow *parent)
     }
   }
 
+  // 10/25/2026: The backup of a v2 database needs its own database MAC,
+  // its records are at different addresses
+  if(EPDBIsKeyset(child_frame->DBParms()->crypt_key)) {
+    gxString seal_err;
+    newdb.Flush();
+    if(EPDBSeal(newdb.OpenDataFile(), child_frame->DBParms()->crypt_key, seal_err) != 0) {
+      ebuf << clear << "Error sealing the backup copy: " << seal_err.c_str();
+      ProgramError->Message(ebuf.c_str());
+    }
+  }
+
   *(frame->statusWin) << "Backed up " << items << " objects to "
 		      << datafile.c_str() << "\n";
 

@@ -65,10 +65,11 @@ static gxString TestValue(int r, int i)
   return s;
 }
 
-static int Create(const char *fname, const char *password, int num)
+static int Create(const char *fname, const char *password, int num, int v2)
 {
   DBStringConfig::crypt_key.Clear(1);
   DBStringConfig::crypt_key.Cat(password, strlen(password));
+  DBStringConfig::DBStringCaseCompare = 0; // As the GUI builds the index
 
   gxString data_file = ReplaceFileExtension(fname, ".ehd");
   gxString index_file = ReplaceFileExtension(fname, ".ehx");
@@ -98,6 +99,15 @@ static int Create(const char *fname, const char *password, int num)
     cerr << "ERROR: " << gxDatabaseExceptionMessage(err) << "\n";
     return 1;
   }
+  if(v2) { // Database format v2, as the GUI creates new databases
+    MemoryBuffer keyset;
+    gxString err;
+    if(EPDBInitV2(pod.OpenDataFile(), DBStringConfig::crypt_key, keyset, err) != 0) {
+      cerr << "ERROR: " << err.c_str() << "\n";
+      return 1;
+    }
+    DBStringConfig::crypt_key = keyset;
+  }
   gxDatabaseConfig db_config;
   db_config.SetDatabaseName("test_db");
   db_config.SetPrintDocName("test_db");
@@ -120,6 +130,13 @@ static int Create(const char *fname, const char *password, int num)
     }
   }
   pod.Flush();
+  if(v2) {
+    gxString err;
+    if(EPDBSeal(pod.OpenDataFile(), DBStringConfig::crypt_key, err) != 0) {
+      cerr << "ERROR: " << err.c_str() << "\n";
+      return 1;
+    }
+  }
   return 0;
 }
 
@@ -161,6 +178,11 @@ static int Dump(const char *fname, const char *password)
   POD *pod = OpenEPDB_POD(name, err_string);
   if(!pod) {
     cerr << "ERROR: " << err_string.c_str() << "\n";
+    return 1;
+  }
+  if(EPDBIsKeyset(DBStringConfig::crypt_key) && EPDBVerify(pod, DBStringConfig::crypt_key, err_string) != 0) {
+    cerr << "ERROR: " << err_string.c_str() << "\n";
+    delete pod;
     return 1;
   }
   int num = BuildVirtualEPDB(pod);
@@ -301,12 +323,16 @@ int main(int argc, char **argv)
     return SelfTest(argv[2]);
   }
   if(argc == 5 && strcmp(argv[1], "create") == 0) {
-    return Create(argv[2], argv[3], atoi(argv[4]));
+    return Create(argv[2], argv[3], atoi(argv[4]), 1);
+  }
+  if(argc == 5 && strcmp(argv[1], "create-v1") == 0) {
+    return Create(argv[2], argv[3], atoi(argv[4]), 0);
   }
   if(argc == 4 && strcmp(argv[1], "dump") == 0) {
     return Dump(argv[2], argv[3]);
   }
-  cerr << "Usage: " << argv[0] << " create dbfile.ehd password num_records" << "\n";
+  cerr << "Usage: " << argv[0] << " create dbfile.ehd password num_records (format v2)" << "\n";
+  cerr << "       " << argv[0] << " create-v1 dbfile.ehd password num_records" << "\n";
   cerr << "       " << argv[0] << " dump dbfile.ehd password" << "\n";
   cerr << "       " << argv[0] << " selftest dir" << "\n";
   cerr << "       " << argv[0] << " addrsa dbfile.ehd password public_key.pem username oaep|pkcs1" << "\n";

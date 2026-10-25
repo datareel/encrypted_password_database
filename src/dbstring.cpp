@@ -96,7 +96,20 @@ char *DBString::GetString(MemoryBuffer &key, int &error_level) const
   memmove(dup, (dup+sizeof(eh)), cryptLen);
   
   // Decrypt the compressed string
-  crypt_error = AES_Decrypt(dup, &cryptLen, (const unsigned char*)key.m_buf(), key.length());
+  if(EPDBIsKeyset(key)) { // 10/25/2026: v2 database field
+    unsigned char *plain = new unsigned char[DBStringLength];
+    unsigned plain_len = 0;
+    crypt_error = EPDBDecryptField(key, (const unsigned char *)dup, cryptLen, plain, DBStringLength, &plain_len);
+    if(crypt_error == AES_NO_ERROR) {
+      memmove(dup, plain, plain_len);
+      cryptLen = plain_len;
+    }
+    OPENSSL_cleanse(plain, DBStringLength);
+    delete[] plain;
+  }
+  else {
+    crypt_error = AES_Decrypt(dup, &cryptLen, (const unsigned char*)key.m_buf(), key.length());
+  }
   if(crypt_error != AES_NO_ERROR) {
     error_level = crypt_error; 
     OPENSSL_cleanse(dup, DBStringLength);
@@ -219,8 +232,19 @@ int DBString::SetString(MemoryBuffer &key, int &error_level, const char *s, unsi
   // Encrypt the string
   unsigned cryptLen = destLen+sizeof(ch);
   int crypt_error;
-  crypt_error = AES_Encrypt((char *)dest, &cryptLen,
-			    (const unsigned char*)key.m_buf(), key.length(), DBStringConfig::mode);
+  if(EPDBIsKeyset(key)) { // 10/25/2026: v2 database field
+    Bytef *field = new Bytef[DBStringLength];
+    unsigned field_len = 0;
+    crypt_error = EPDBEncryptField(key, dest, cryptLen, field, DBStringLength - sizeof(CryptoHeader), &field_len);
+    OPENSSL_cleanse(dest, cryptLen);
+    delete[] dest;
+    dest = field; // Encrypted field, written below
+    cryptLen = field_len;
+  }
+  else {
+    crypt_error = AES_Encrypt((char *)dest, &cryptLen,
+			      (const unsigned char*)key.m_buf(), key.length(), DBStringConfig::mode);
+  }
   if(crypt_error != AES_NO_ERROR) {
     error_level = crypt_error;
     if(dest) delete[] dest;

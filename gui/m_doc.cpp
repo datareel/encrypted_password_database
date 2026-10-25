@@ -80,8 +80,28 @@ CryptDBDocument::CryptDBDocument(wxMDIParentFrame *parent,
   SetSizeHints(100, 100);
 }
 
+int ResealDocument(CryptDBDocument *doc)
+// 10/25/2026: Writes a new database MAC for a v2 database this program
+// changed. Returns 0 if successful or nothing needed to be done.
+{
+  if(!doc) return 0;
+  gxDatabaseParms *parms = doc->DBParms();
+  if(!parms->v2_dirty || !parms->pod || !EPDBIsKeyset(parms->crypt_key)) return 0;
+  gxDatabase *f = parms->pod->OpenDataFile();
+  if(!f || !f->IsOpen()) return 0;
+  parms->pod->Flush();
+  gxString err;
+  int rv = EPDBSeal(f, parms->crypt_key, err);
+  parms->v2_dirty = 0; // The seal itself is a write
+  if(rv != 0 && frame) {
+    *(frame->statusWin) << "ERROR: Cannot update the database MAC: " << err.c_str() << "\n";
+  }
+  return rv;
+}
+
 CryptDBDocument::~CryptDBDocument()
 {
+  ResealDocument(this); // 10/25/2026: Seal the changes of a v2 database
   GetPOD()->Close(); // Close the open database
 
   // 10/25/2026: Wipe this database's key

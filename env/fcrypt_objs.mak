@@ -21,10 +21,20 @@ c_config$(OBJ_EXT):	$(FCRYPT_SRC_PATH)c_config.cpp $(C_CONFIG_DEP)
 c_thread$(OBJ_EXT):	$(FCRYPT_SRC_PATH)c_thread.cpp $(C_THREAD_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(FCRYPT_SRC_PATH)c_thread.cpp
 
+fcfips$(OBJ_EXT):	$(FCRYPT_SRC_PATH)fcfips.cpp $(FCFIPS_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(FCRYPT_SRC_PATH)fcfips.cpp
+
+fcfile$(OBJ_EXT):	$(FCRYPT_SRC_PATH)fcfile.cpp $(FCFILE_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(FCRYPT_SRC_PATH)fcfile.cpp
+
+# 10/25/2026: fcfile and fcfips have the PBKDF2, KBKDF and AES-256-CBC
+# functions the v2 database format uses
 FCRYPT_CRYPTO_OBJECTS = cryptdb$(OBJ_EXT) \
 	       aesdb$(OBJ_EXT) \
 	       rsadb$(OBJ_EXT) \
-	       smart_card$(OBJ_EXT)
+	       smart_card$(OBJ_EXT) \
+	       fcfips$(OBJ_EXT) \
+	       fcfile$(OBJ_EXT)
 
 FCRYPT_OBJECTS = globals$(OBJ_EXT) \
 	       c_config$(OBJ_EXT) \

@@ -344,29 +344,30 @@ int OpenDatabasePanel::AESKeyOpenDatabase()
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
 
-  DBStringConfig::crypt_key = key;
-  char *s = dbconfig.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    sbuf << clear << "Error decrypting database hash with key provided" << "\n" << AES_err_string(DBStringConfig::AES_error_level);
+  // 10/25/2026: Check the key. For a v2 database it is turned into the
+  // database keyset.
+  MemoryBuffer keyset;
+  gxString uerr;
+  int aes_error = 0;
+  int urv = 0;
+  if(f.Open(curr_fname.c_str(), gxDBASE_READONLY) != gxDBASE_NO_ERROR) {
+    uerr << clear << "Error opening database";
+    urv = -1;
+  }
+  else {
+    urv = EPDBUnlock(&f, key, keyset, uerr, aes_error);
+    f.Close();
+  }
+  if(urv != 0) {
+    sbuf << clear << "Error decrypting database hash with key provided" << "\n" << uerr.c_str();
     ProgramError->Message(sbuf.c_str());   
     is_ok = 0;
     return 0;
   }
-  if(!s) {
-    ProgramError->Message("Error decrypting database hash with key provided");   
-    is_ok = 0;
-    return 0;
-  }
-  // 10/25/2026: A database name that was never set made every key valid
-  if(s == DBStringNULLPtr::DBStringNUllStr) {
-    ProgramError->Message("The database hash is not set, the database file is damaged");   
-    is_ok = 0;
-    return 0;
-  }
-  OPENSSL_cleanse(s, strlen(s));
-  delete[] s;
+  DBStringConfig::crypt_key = keyset;
 
-  progcfg->global_dbparms.crypt_key = key;
+  progcfg->global_dbparms.crypt_key = keyset;
+  keyset.Clear(1);
   key.Clear(1);
   is_ok = 1;
   return 1;
@@ -411,29 +412,30 @@ int OpenDatabasePanel::PasswordOpenDatabase(gxString &pass_buf)
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
 
-  DBStringConfig::crypt_key.Clear();
-  DBStringConfig::crypt_key.Cat(pass_buf.c_str(), pass_buf.length());
-
-  char *s = dbconfig.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    sbuf << clear << "Error decrypting database hash with password provided" << "\n" << AES_err_string(DBStringConfig::AES_error_level);
+  // 10/25/2026: Check the password. For a v2 database it is turned into
+  // the database keyset.
+  MemoryBuffer secret, keyset;
+  secret.Cat(pass_buf.c_str(), pass_buf.length());
+  gxString uerr;
+  int aes_error = 0;
+  int urv = 0;
+  if(f.Open(curr_fname.c_str(), gxDBASE_READONLY) != gxDBASE_NO_ERROR) {
+    uerr << clear << "Error opening database";
+    urv = -1;
+  }
+  else {
+    urv = EPDBUnlock(&f, secret, keyset, uerr, aes_error);
+    f.Close();
+  }
+  secret.Clear(1);
+  if(urv != 0) {
+    sbuf << clear << "Error decrypting database hash with password provided" << "\n" << uerr.c_str();
     ProgramError->Message(sbuf.c_str());   
     is_ok = 0;
     return 0;
   }
-  if(!s) {
-    ProgramError->Message("Error decrypting database hash with password provided");   
-    is_ok = 0;
-    return 0;
-  }
-  // 10/25/2026: A database name that was never set made every password valid
-  if(s == DBStringNULLPtr::DBStringNUllStr) {
-    ProgramError->Message("The database hash is not set, the database file is damaged");   
-    is_ok = 0;
-    return 0;
-  }
-  OPENSSL_cleanse(s, strlen(s));
-  delete[] s;
+  DBStringConfig::crypt_key = keyset;
+  keyset.Clear(1);
 
   progcfg->global_dbparms.crypt_key = DBStringConfig::crypt_key;
   is_ok = 1;

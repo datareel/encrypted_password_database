@@ -16,6 +16,7 @@ NEW_DIR=$(cd $(dirname $0) && pwd)
 TOOL=${NEW_DIR}/epdb_auth_tool
 TESTDB=${NEW_DIR}/epdb_test_db
 OLD_DIR=$1
+OLD=${OLD_DIR}/epdb_auth_tool
 testDIR=${HOME}/tmp/epdb_cli_testing_$(date +%Y_%m_%d_%H%M%S)
 logFILE=${testDIR}/epdb_cli_testing.log
 PW='Known-Pass#2026'
@@ -53,7 +54,9 @@ check() { if [ "$1" -eq 0 ]; then pass "$2"; else fail "$2"; fi; }
 echo "Starting tests at $(date)" | tee -a ${logFILE}
 
 ${TESTDB} create known.ehd "${PW}" 12 >>${logFILE} 2>&1
-check $? "create the test database"
+check $? "create the test database (format v2)"
+${TESTDB} create-v1 known_v1.ehd "${PW}" 12 >>${logFILE} 2>&1
+check $? "create a format v1 test database"
 ${TESTDB} dump known.ehd "${PW}" > dump.txt 2>>${logFILE}
 [ $? -eq 0 ] && [ $(wc -l < dump.txt) -eq 12 ]
 check $? "dump the test database"
@@ -67,7 +70,7 @@ ${TOOL} --password="${PW}" --db-list known.ehd > list.txt 2>>${logFILE}
 check $? "list with the right password"
 ${TOOL} --password="${WRONG}" --db-list known.ehd > out.txt 2>err.txt
 rv=$?
-[ ${rv} -eq 1 ] && [ ! -s out.txt ] && grep -q "Error decrypting database hash" err.txt
+[ ${rv} -eq 1 ] && [ ! -s out.txt ] && grep -q -E "Error decrypting database hash|not correct" err.txt
 check $? "list with the wrong password fails with no output"
 ${TOOL} --password="${WRONG}" --db-find-key='Entry 003' known.ehd > out.txt 2>/dev/null
 [ $? -eq 1 ] && [ ! -s out.txt ]
@@ -192,11 +195,19 @@ ${TOOL} --list-users dup.ehd 2>/dev/null | grep -c "Username: tester" > count.tx
 ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list dup.ehd > out.txt 2>err.txt
 [ $? -eq 1 ] && [ "$(cat count.txt)" = "2" ] && grep -q "more than one RSA key block" err.txt
 check $? "a second RSA key block for the same user is rejected"
-cp known.ehd nohash.ehd; cp known.ehx nohash.ehx
+cp known_v1.ehd nohash.ehd; cp known_v1.ehx nohash.ehx
 python3 -I -c "d=bytearray(open('nohash.ehd','rb').read()); d[90]=0; open('nohash.ehd','wb').write(d)"
 ${TOOL} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
 [ $? -eq 1 ] && grep -q "not set" err.txt
 check $? "a database name that was never set does not accept any password"
+cp known.ehd nohash2.ehd; cp known.ehx nohash2.ehx
+python3 -I -c "d=bytearray(open('nohash2.ehd','rb').read()); d[90]=0; open('nohash2.ehd','wb').write(d)"
+${TOOL} --password-file=pw.txt --db-config nohash2.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "not set" err.txt
+check $? "a v2 database name that was never set is refused with the right password"
+${TOOL} --password-file=pw2.txt --db-config nohash2.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ]
+check $? "a v2 database name that was never set is refused with another password"
 
 # Group 6: OAEP blocks, key file permissions, usernames, file names
 cp known.ehd oaep.ehd; cp known.ehx oaep.ehx
@@ -241,10 +252,107 @@ timeout 30 ${TOOL} --password-file=pw.txt --db-find-key='Entry 003' loop.ehd > o
 rv=$?; [ ${rv} -eq 1 ]
 check $? "a search of a looping B-tree stops with an error (rc=${rv})"
 
+# Group 7: database format v2 and the upgrade
+cmp_dump() { ${TESTDB} dump $1 "$2" > d.txt 2>>${logFILE} && cmp -s d.txt $3; }
+${TESTDB} create-v1 up.ehd "${PW}" 12 >>${logFILE} 2>&1
+${TESTDB} dump up.ehd "${PW}" > up_before.txt 2>>${logFILE}
+cmp -s up_before.txt dump.txt
+check $? "a v1 database has the same records as a v2 database"
+cp up.ehd up_orig.ehd; cp up.ehx up_orig.ehx
+${TOOL} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=tester up.ehd >>${logFILE} 2>&1
+cp up.ehd up_rsa.ehd; cp up.ehx up_rsa.ehx
+${TOOL} --password-file=pw.txt --upgrade-db up.ehd > out.txt 2>err.txt
+rv=$?; backup=$(sed -n 's/^The v1 database was saved to \([^ ]*\) and .*/\1/p' err.txt)
+[ ${rv} -eq 0 ] && [ -n "${backup}" ] && [ -f "${backup}" ]
+check $? "--upgrade-db upgrades and reports the backup file"
+cmp -s "${backup}" up_rsa.ehd && cmp -s "${backup%.ehd}.ehx" up_rsa.ehx
+check $? "the backup files are identical to the database before the upgrade"
+[ "$(stat -c %a ${backup})" = "600" ] && [ "$(stat -c %a ${backup%.ehd}.ehx)" = "600" ]
+check $? "the backup files can only be read by the user"
+cmp_dump up.ehd "${PW}" up_before.txt
+check $? "every record is the same after the upgrade"
+! ls up.v2-upgrade.* >/dev/null 2>&1
+check $? "no temporary files are left after the upgrade"
+${TOOL} --password-file=pw.txt --db-list up.ehd > out.txt 2>>${logFILE}
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "epdb_auth_tool lists the upgraded database"
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list up.ehd > out.txt 2>>${logFILE}
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "an RSA user added before the upgrade opens the v2 database"
+openssl genrsa -out rsa2_priv.pem 2048 >/dev/null 2>&1; chmod 600 rsa2_priv.pem
+openssl rsa -in rsa2_priv.pem -pubout -out rsa2_pub.pem >/dev/null 2>&1
+${TOOL} --password-file=pw.txt --add-rsa-key=rsa2_pub.pem --add-username=newuser up.ehd >>${logFILE} 2>&1
+${TOOL} --rsa-key=rsa2_priv.pem --rsa-key-username=newuser --db-list up.ehd > out.txt 2>>${logFILE}
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "an RSA user added to the v2 database (OAEP) opens it"
+${TOOL} --password-file=pw.txt --upgrade-db up.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "already a v2" err.txt
+check $? "--upgrade-db refuses a v2 database"
+cp up_orig.ehd bad.ehd; cp up_orig.ehx bad.ehx
+python3 -I -c "
+import struct
+d=bytearray(open('bad.ehd','rb').read()); i=d.find(struct.pack('<II',8,355)); i=d.find(struct.pack('<II',8,355),i+1)
+struct.pack_into('<I',d,i+8+40,0x41414141); open('bad.ehd','wb').write(d)"
+cp bad.ehd bad_before.ehd
+${TOOL} --password-file=pw.txt --upgrade-db bad.ehd > out.txt 2>err.txt
+rv=$?
+[ ${rv} -eq 1 ] && cmp -s bad.ehd bad_before.ehd && ! ls bad.v1-backup-* bad.v2-upgrade.* >/dev/null 2>&1
+check $? "a failed upgrade leaves the database unchanged and no backup or temporary files"
+${TOOL} --password-file=pw2.txt --upgrade-db up_orig.ehd > out.txt 2>&1
+[ $? -eq 1 ] && ! ls up_orig.v1-backup-* >/dev/null 2>&1
+check $? "an upgrade with the wrong password changes nothing"
+# Tampering a v2 database is detected
+cp known.ehd t1.ehd; cp known.ehx t1.ehx
+python3 -I -c "
+import struct
+d=bytearray(open('t1.ehd','rb').read()); i=d.find(struct.pack('<II',8,355)); i=d.find(struct.pack('<I',355),i+8+355)
+d[i+4+200]^=1; open('t1.ehd','wb').write(d)"
+${TOOL} --password-file=pw.txt --db-list t1.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "integrity check failed" err.txt
+check $? "a changed byte in a v2 database is detected"
+cp known.ehd t2.ehd; cp known.ehx t2.ehx
+python3 -I -c "
+import struct
+d=bytearray(open('t2.ehd','rb').read()); a=d.find(struct.pack('<II',8,355)); b=d.find(struct.pack('<II',8,355),a+8)
+x=d[a+8:a+8+355]; y=d[b+8:b+8+355]; d[a+8:a+8+355]=y; d[b+8:b+8+355]=x; open('t2.ehd','wb').write(d)"
+${TOOL} --password-file=pw.txt --db-list t2.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "integrity check failed" err.txt
+check $? "swapping the key fields of two v2 records is detected"
+cp known.ehd t3.ehd; cp known.ehx t3.ehx
+python3 -I -c "
+import struct
+x=bytearray(open('t3.ehx','rb').read()); r=struct.unpack_from('<q',x,86+20)[0]
+lc=struct.unpack_from('<q',x,r+4)[0]
+n=struct.unpack_from('<i',x,lc)[0]; struct.pack_into('<i',x,lc,n-1); open('t3.ehx','wb').write(x)"
+${TOOL} --password-file=pw.txt --db-list t3.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "index file does not match" err.txt
+check $? "an entry removed from the v2 index is detected"
+${TOOL} --password-file=pw.txt --reseal-db t3.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && grep -q "WARNING: Resealed" err.txt
+check $? "--reseal-db re-seals with a warning"
+${TOOL} --password-file=pw.txt --db-list t3.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "index file does not match" err.txt
+check $? "re-sealing does not hide an entry removed from the index"
+${TOOL} --password-file=pw2.txt --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "not correct" err.txt
+check $? "the wrong password is refused for a v2 database"
+if [ "${OLD_DIR}" != "" ]; then
+    ${OLD} --password="${PW}" --db-config known.ehd > out.txt 2>&1
+    [ $? -ne 0 ]
+    check $? "the old build refuses --db-config on a v2 database"
+    ${OLD} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase=rsa-pass-2026 --db-list up.ehd > out.txt 2>err.txt
+    [ $? -ne 0 ] && grep -q "No authorized RSA users" err.txt
+    check $? "the old build refuses an RSA open of an upgraded v2 database"
+    ${OLD} --password="${PW}" --db-list up_orig.ehd > out.txt 2>>${logFILE}
+    rv=$?; sed 's/""/"/g' list.txt > list_old_quoting.txt
+    [ ${rv} -eq 0 ] && cmp -s out.txt list_old_quoting.txt
+    check $? "the old build still lists a v1 database made by this build"
+fi
+
 # Damaged and crafted files must fail cleanly, never crash
 cp known.ehd t.ehd; cp known.ehx t.ehx
-tamper() { # tamper name python_statement
-    cp known.ehd $1.ehd; cp known.ehx $1.ehx
+tamper() { # tamper name python_statement, on a v1 database to test the parsing
+    cp known_v1.ehd $1.ehd; cp known_v1.ehx $1.ehx
     python3 -I -c "import struct,sys
 d=bytearray(open('$1.ehd','rb').read()); x=bytearray(open('$1.ehx','rb').read())
 $2
@@ -278,8 +386,7 @@ rv=$?; [ ${rv} -eq 1 ] && grep -q "Cannot decrypt" err.txt
 check $? "record field that fails to decrypt stops the export (rc=${rv})"
 
 if [ "${OLD_DIR}" != "" ]; then
-    OLD=${OLD_DIR}/epdb_auth_tool
-    ${OLD} --password="${PW}" --db-list known.ehd > old_list.txt 2>>${logFILE}
+    ${OLD} --password="${PW}" --db-list known_v1.ehd > old_list.txt 2>>${logFILE}
     rv=$?
     # The old build does not double quotes inside quoted fields
     sed 's/""/"/g' list.txt > list_old_quoting.txt

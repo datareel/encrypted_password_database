@@ -552,6 +552,42 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
     }
   }
   
+  // 10/25/2026: Check the integrity of a v2 database before using it
+  if(pod->Exists() && EPDBIsKeyset(child_frame->DBParms()->crypt_key)) {
+    gxString v2_err;
+    if(EPDBVerify(pod, child_frame->DBParms()->crypt_key, v2_err) != 0) {
+      if(frame) {
+	*(frame->statusWin) << "WARNING: Integrity check failed for " << data_file.c_str()
+			    << ": " << v2_err.c_str() << "\n";
+      }
+      gxString mbuf;
+      mbuf << clear << v2_err.c_str() << "\n\n"
+	   << "The database may have been tampered with. Do not accept it unless you know "
+	   << "why it changed, for example this program stopped while saving a change.\n\n"
+	   << "Accept the current contents and re-seal the database?";
+      int yn = wxMessageBox(mbuf.c_str(), "Database Integrity Warning",
+			    wxYES_NO | wxNO_DEFAULT | wxCENTRE | wxICON_WARNING);
+      if(yn != wxYES || child_frame->DBParms()->admin_rights == 0) {
+	if(frame) *(frame->statusWin) << "The database was not opened" << "\n";
+	delete pod;
+	return 0;
+      }
+      if(EPDBSeal(pod->OpenDataFile(), child_frame->DBParms()->crypt_key, v2_err) != 0) {
+	ProgramError->Message(v2_err.c_str());
+	delete pod;
+	return 0;
+      }
+      if(frame) {
+	*(frame->statusWin) << "WARNING: The user accepted the current contents of " << data_file.c_str()
+			    << " after an integrity warning and the database was re-sealed" << "\n";
+      }
+    }
+  }
+
+  // 10/25/2026: Note changes this program makes, so a v2 database is
+  // re-sealed after them, see ResealDocument()
+  pod->OpenDataFile()->SetWriteHook(DatabaseWriteHook, child_frame->DBParms());
+
   if(!pod->Exists()) { // A new file was created
 
     unsigned char *static_data = new unsigned char[static_data_size];
@@ -570,6 +606,26 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
       return 0;
     }
     delete static_data;
+
+    // 10/25/2026: New databases use database format v2. The password or
+    // key becomes the database keyset.
+    MemoryBuffer keyset;
+    gxString v2_err;
+    if(EPDBInitV2(pod->OpenDataFile(), child_frame->DBParms()->crypt_key, keyset, v2_err) != 0) {
+      delete pod;
+      pod = 0;
+      if(display_errors) {
+	sbuf << clear << "Error creating the database" << "\n" << v2_err.c_str();
+	ProgramError->Message(sbuf.c_str());
+      }
+      futils_remove(data_file.c_str());
+      futils_remove(index_file.c_str());
+      return 0;
+    }
+    child_frame->DBParms()->crypt_key = keyset;
+    DBStringConfig::crypt_key = keyset;
+    progcfg->global_dbparms.crypt_key = keyset;
+    keyset.Clear(1);
     
     gxDatabaseParms *dbparms = child_frame->DBParms();
 
@@ -584,6 +640,10 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
     // Write the new config
     db_config.WriteConfig(pod->OpenDataFile());
+    if(EPDBSeal(pod->OpenDataFile(), child_frame->DBParms()->crypt_key, v2_err) != 0 && display_errors) {
+      sbuf << clear << "Error sealing the new database" << "\n" << v2_err.c_str();
+      ProgramError->Message(sbuf.c_str());
+    }
   }
   else { // Read and validate the database config values
     if(!db_config.ReadConfig(pod->OpenDataFile())) {
@@ -700,6 +760,12 @@ int CheckEnvVar(const char *var_name, gxString &var_value)
     return 1;
   }
   return 0;
+}
+
+void DatabaseWriteHook(void *data)
+// 10/25/2026: Called by gxDatabase after each write to a data file
+{
+  if(data) ((gxDatabaseParms *)data)->v2_dirty = 1;
 }
 
 int IsPasswordField(int member)
