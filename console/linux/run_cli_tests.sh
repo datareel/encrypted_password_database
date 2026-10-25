@@ -135,6 +135,35 @@ sleep 5
 if kill -0 ${tpid} 2>/dev/null; then kill ${tpid}; fail "an empty argument does not hang"; else pass "an empty argument does not hang"; fi
 wait ${tpid} 2>/dev/null
 
+# Output formats (M11)
+${TOOL} --password-file=pw.txt --db-find-key='Entry 004' known.ehd > out.txt 2>/dev/null
+rv=$?
+python3 -I -c "import csv,sys; r=list(csv.reader(open('out.txt',newline=''),delimiter='\t')); sys.exit(0 if len(r)==1 and len(r[0])==8 and r[0][2]=='P@ss\tw0rd,4\"q' else 1)"
+[ ${rv} -eq 0 ] && [ $? -eq 0 ]
+check $? "default output quotes a field with a tab and doubles its quotes"
+${TOOL} --password-file=pw.txt --csv --db-list known.ehd > out.csv 2>/dev/null
+rv=$?
+python3 -I - out.csv dump.txt <<'PYEOF'
+import csv,sys
+rows=list(csv.reader(open(sys.argv[1],newline='')))
+def unesc(f):
+    if f=='<none>': return ''
+    return f.encode('latin-1').decode('unicode_escape').replace('\\|','|')
+dump=[[unesc(x) for x in l.rstrip('\n').split('|')] for l in open(sys.argv[2])]
+sys.exit(0 if rows==dump else 1)
+PYEOF
+[ ${rv} -eq 0 ] && [ $? -eq 0 ]
+check $? "--csv output parses back to the stored values"
+${TOOL} --password-file=pw.txt --field=3 --db-find-key='Entry 004' known.ehd > out.txt 2>/dev/null
+[ $? -eq 0 ] && [ "$(cat out.txt)" = 'P@ss	w0rd,4"q' ]
+check $? "--field prints one value as stored"
+${TOOL} --password-file=pw.txt --field=5 --db-find-key='Entry 004' known.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "use --null" err.txt
+check $? "--field refuses a value with a newline without --null"
+${TOOL} --password-file=pw.txt --field=5 --null --db-find-key='Entry 004' known.ehd > out.txt 2>/dev/null
+[ $? -eq 0 ] && [ "$(tr '\0\n' '#~' < out.txt)" = 'Q1? "blue"~Q2? 42#' ]
+check $? "--field --null prints a value with a newline"
+
 # Damaged and crafted files must fail cleanly, never crash
 cp known.ehd t.ehd; cp known.ehx t.ehx
 tamper() { # tamper name python_statement
@@ -174,8 +203,11 @@ check $? "record field that fails to decrypt stops the export (rc=${rv})"
 if [ "${OLD_DIR}" != "" ]; then
     OLD=${OLD_DIR}/epdb_auth_tool
     ${OLD} --password="${PW}" --db-list known.ehd > old_list.txt 2>>${logFILE}
-    [ $? -eq 0 ] && cmp -s old_list.txt list.txt
-    check $? "old build lists the database the same"
+    rv=$?
+    # The old build does not double quotes inside quoted fields
+    sed 's/""/"/g' list.txt > list_old_quoting.txt
+    [ ${rv} -eq 0 ] && cmp -s old_list.txt list_old_quoting.txt
+    check $? "old build lists the database the same, apart from quote doubling"
 fi
 
 echo "" | tee -a ${logFILE}

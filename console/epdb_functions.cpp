@@ -446,6 +446,11 @@ void StoreObjectAddress(BtreeNode *n)
   }
 }
 
+// 10/25/2026: Output format for --db-list and --db-find-key
+int epdb_output_mode = EPDB_OUTPUT_DEFAULT;
+unsigned epdb_output_field = 0; // Field for EPDB_OUTPUT_FIELD, 0 is the key
+int epdb_output_null = 0;       // End single field values with NUL
+
 // 10/25/2026: Set when a B-tree node cannot be read during a walk, so a
 // damaged index file is reported instead of listing part of the database.
 int epdb_btree_errors = 0;
@@ -572,14 +577,69 @@ int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char repla
       dllistptr = dllistptr->next;
       continue;
     }
-    for(i = 0; i < (unsigned)NumDataMembers; i ++) {
-      if(is_set[i]) {
+    // 10/25/2026: Single field output, the value as stored with no
+    // quoting, ended by a newline or with --null by a NUL character
+    if(epdb_output_mode == EPDB_OUTPUT_FIELD) {
+      unsigned f = epdb_output_field;
+      if(is_set[f] && !epdb_output_null && fields[f].Find("\n") != -1) {
+	cerr << "ERROR: Field " << (f+1) << " of record " << fields[0].c_str()
+	     << " has a newline, use --null to separate values with NUL characters" << "\n" << flush;
+	for(unsigned j = 0; j < (unsigned)NumDataMembers; j++) fields[j].Clear(1);
+	return -1;
+      }
+      if(is_set[f]) cout.write(fields[f].c_str(), fields[f].length());
+      if(epdb_output_null) cout.put('\0'); else cout << "\n";
+      cout << flush;
+      for(unsigned j = 0; j < (unsigned)NumDataMembers; j++) fields[j].Clear(1);
+      exports++;
+      dllistptr = dllistptr->next;
+      continue;
+    }
+
+    // 10/25/2026: RFC 4180 CSV output. Fields with the delimiter, a quote,
+    // CR or LF are quoted with quotes doubled. Empty fields are empty.
+    if(epdb_output_mode == EPDB_OUTPUT_CSV) {
+      for(i = 0; i < (unsigned)NumDataMembers; i ++) {
+	if(i > 0) cout << delimiter;
+	if(!is_set[i]) continue;
 	dbuf << clear << fields[i];
-	if(dbuf.Find(delimiter_str) != -1) dbuf << clear << "\"" <<  fields[i] << "\"";
-	dbuf.FilterChar('\n');
 	if(filter_char != 0) dbuf.FilterChar(filter_char);
 	if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
-	cout << dbuf.c_str();
+	if((dbuf.Find(delimiter_str) != -1) || (dbuf.Find("\"") != -1) ||
+	   (dbuf.Find("\r") != -1) || (dbuf.Find("\n") != -1)) {
+	  dbuf.ReplaceString("\"", "\"\"");
+	  cout << "\"" << dbuf.c_str() << "\"";
+	}
+	else {
+	  cout << dbuf.c_str();
+	}
+	dbuf.Clear(1);
+	fields[i].Clear(1);
+      }
+      cout << "\r\n" << flush;
+      exports++;
+      dllistptr = dllistptr->next;
+      continue;
+    }
+
+    for(i = 0; i < (unsigned)NumDataMembers; i ++) {
+      if(is_set[i]) {
+	// 10/25/2026: Filter and replace characters before quoting, remove
+	// CR as well as LF, and double quotes inside a quoted field. The
+	// filter and replace used to run after quoting, which could add
+	// an unquoted delimiter.
+	dbuf << clear << fields[i];
+	dbuf.FilterChar('\n');
+	dbuf.FilterChar('\r');
+	if(filter_char != 0) dbuf.FilterChar(filter_char);
+	if(replace_char != 0 && replace_char_with != 0) dbuf.ReplaceChar(replace_char, replace_char_with);
+	if(dbuf.Find(delimiter_str) != -1) {
+	  dbuf.ReplaceString("\"", "\"\"");
+	  cout << "\"" << dbuf.c_str() << "\"";
+	}
+	else {
+	  cout << dbuf.c_str();
+	}
 	dbuf.Clear(1);
 	fields[i].Clear(1);
       }

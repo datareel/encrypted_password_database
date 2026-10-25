@@ -171,6 +171,10 @@ int main(int argc, char **argv)
     return ExitProgram(1);
   }
 
+  if(epdb_output_null && epdb_output_mode != EPDB_OUTPUT_FIELD) {
+    cerr << "ERROR: The --null arg requires --field" << "\n";
+    return ExitProgram(1);
+  }
   if(replace_char != 0 && replace_char_with == 0) {
     cerr << "ERROR: The --replace-char arg requires --replace-char-with" << "\n";
     return ExitProgram(1);
@@ -625,6 +629,9 @@ void HelpMessage()
   cout << "          --db-find-key=name (Search the database for a key name and list output to stdout)" << "\n" << flush;
   cout << "          --db-find-all-key=name (Search for all matching key names and list output to stdout)" << "\n" << flush;
   cout << "          --delimiter=\",\" (Set the list delimiter to comma or other value)" << "\n" << flush;
+  cout << "          --csv (List in RFC 4180 CSV format, comma delimited unless --delimiter is given)" << "\n" << flush;
+  cout << "          --field=n (List only field n of each record, 1 is the key name, values are not quoted)" << "\n" << flush;
+  cout << "          --null (With --field, end each value with a NUL character instead of a newline)" << "\n" << flush;
   cout << "          --filter-char (Set a character to filter from list output)" << "\n" << flush;
   cout << "          --replace-char (Set a character to replace in list output)" << "\n" << flush;
   cout << "          --replace-char-with (Set the replacement character to replace in list output)" << "\n" << flush;
@@ -736,6 +743,28 @@ int ProcessDashDashArg(gxString &arg)
     }
     delimiter = equal_arg[0];
     set_delimiter_arg(equal_arg, delimiter);
+    has_valid_args = 1;
+  }
+
+  // 10/25/2026: Output formats for scripts
+  if(arg == "csv") {
+    epdb_output_mode = EPDB_OUTPUT_CSV;
+    if(delimiter == '\t') delimiter = ',';
+    has_valid_args = 1;
+  }
+
+  if(arg == "field") {
+    if(equal_arg.is_null() || equal_arg.Atoi() < 1 || equal_arg.Atoi() > NumDataMembers) {
+      cerr << "ERROR: --field requires a field number from 1 to " << NumDataMembers << "\n" << flush;
+      return 0;
+    }
+    epdb_output_mode = EPDB_OUTPUT_FIELD;
+    epdb_output_field = (unsigned)(equal_arg.Atoi() - 1);
+    has_valid_args = 1;
+  }
+
+  if(arg == "null") {
+    epdb_output_null = 1;
     has_valid_args = 1;
   }
 
