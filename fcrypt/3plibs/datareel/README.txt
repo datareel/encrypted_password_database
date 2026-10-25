@@ -1,7 +1,7 @@
 DataReel 5.X Readme File
 DataReel Copyright (c) 2001-2026 DataReel Software Development
 
-https://github.com/datareel
+https://datareel.com
 
 CONTENTS
 --------
@@ -67,9 +67,11 @@ of choice for any programming task.
 
 Who Can Contribute?
 The DataReel project accepts bug fixes, enhancements, and additions
-from all developers. Project git repo:
+from all developers. Source code releases are on the DataReel
+website, and contributions are sent through the contact page:
 
-https://github.com/datareel/datareel
+https://datareel.com/downloads/datareel/
+https://datareel.com/contact.php
  
 FEATURES
 --------
@@ -244,6 +246,16 @@ DOCUMENTATION
 All documentation is included in the docs sub directory in an HTML
 format, viewable in any Web browser. 
 
+VERSION 6.1
+-----------
+DataReel 6.1, 10/25/2026, is a security fix release. gxBtree and
+InfoHog now check the lengths and counts they read from database and
+index files, so a damaged or crafted file is rejected instead of
+overflowing memory. The shared library is built as libdatareel.so.6.1.
+There are no interface changes from 6.0; recompile and relink. See
+RELEASE_NOTES_6.1.txt. Every change in the source is marked with a
+"10/25/2026" comment.
+
 VERSION 6.0
 -----------
 DataReel 6.0, 10/24/2026, is the first major release in many years.
@@ -298,7 +310,9 @@ Example install and build:
 
 > mkdir -pv ~/git
 > cd ~/git
-> git clone https://github.com/datareel/datareel
+> wget https://datareel.com/downloads/datareel/datareel-<version>.tar.gz
+> tar xzf datareel-<version>.tar.gz
+> mv datareel-<version> datareel
 > cd datareel
 > cd env
 

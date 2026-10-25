@@ -1,12 +1,12 @@
 File encryption and decryption utility
 
-Release 2026.102
+Release 2026.103
 
 Supports Window 10, Windows 11, and Windows 2025 server
-Supports Red Hat Enterprise Linux 6, 7, 8, 9, and 10 (RHEL 10 is the
-default Linux build)
+Supports Red Hat Enterprise Linux 8, 9, and 10 (RHEL 10 is the default
+Linux build). RHEL 6 and 7 are no longer supported.
 
-Built with the DataReel C++ library version 6.0, included under the
+Built with the DataReel C++ library version 6.1, included under the
 3plibs/datareel directory.
 
 This source code is used to build the fcrypt and fdecrypt utilities
@@ -37,6 +37,42 @@ FEATURES:
 	Multi user access to encrypted files using a smart card
 	Supports DOD CAC smart cards
 	
+SECURITY FIXES IN RELEASE 2026.103
+----------------------------------
+* The bundled DataReel library is updated to version 6.1. DataReel 6.1
+  checks the B-tree node key counts, B-tree header key size and node
+  order, and the object member counts and lengths that it reads from
+  database and index files. Damaged or crafted files are rejected
+  instead of overflowing memory. See 3plibs/datareel/RELEASE_NOTES_6.1.txt.
+
+* fcrypt, fdecrypt and fmigrate no longer loop forever at 100% CPU when
+  a password, passphrase or PIN prompt reaches the end of its input,
+  for example when stdin is /dev/null or a closed pipe in a script.
+  Input that ends without a newline is used as typed, and empty input
+  is an error.
+
+* The encrypted file format is unchanged. Files made by 2026.102 and
+  2026.103 are the same, and fdecrypt still decrypts files from every
+  earlier release.
+
+REMOVED RHEL 6 AND 7 SUPPORT
+----------------------------
+Release 2026.103:
+
+* RHEL 6 and RHEL 7 builds are no longer supported. makefile_rhel6 and
+  makefile_rhel7 are removed, along with the RHEL 6 and 7 cases in
+  linux.env, smart_card.cpp and run_build_tests.sh. Both releases are
+  past the end of Red Hat support and ship OpenSSL 1.0.x, which no
+  longer gets security fixes.
+
+* Supported Linux builds are RHEL 8, 9 and 10, with RHEL 10 the
+  default.
+
+* Backwards compatibility is unchanged: fdecrypt still decrypts files
+  encrypted by every earlier fcrypt release, including files made on
+  RHEL 6 and 7, and fmigrate still converts them to the 2026102 format.
+  Copy such files to a RHEL 8, 9 or 10 host to decrypt them.
+
 FIPS 140-3 MODE AND FILE FORMAT 2026102 IN RELEASE 2026.102
 ----------------------------------------------------------
 Release 2026.102 adds FIPS 140-3 mode and a new encrypted file format,
@@ -105,9 +141,8 @@ FIPS mode needs OpenSSL 3.0 or later with a FIPS provider:
 * RHEL 9 and 10: enable FIPS mode with "fips-mode-setup --enable" and
   reboot. The system OpenSSL FIPS provider is used.
 
-* RHEL 7 and 8: OpenSSL 1.0.2 and 1.1.1 have no FIPS provider. These
-  builds refuse --fips, and run outside FIPS mode on a host in FIPS
-  mode.
+* RHEL 8: OpenSSL 1.1.1 has no FIPS provider. RHEL 8 builds refuse
+  --fips, and run outside FIPS mode on a host in FIPS mode.
 
 * Windows: build the OpenSSL 3.5.x LTS FIPS provider, see FIPS MODE ON
   WINDOWS in README_windows_openssl.txt.
@@ -252,7 +287,9 @@ TO BUILD THE FCRYPT AND FDECRYPT PROGRAMS FOR LINUX
 ---------------------------------------------------
 $ mkdir -pv ${HOME}/git
 $ cd ${HOME}/git
-$ git clone https://github.com/datareel/fcrypt.git
+$ wget https://datareel.com/downloads/fcrypt/fcrypt-<version>.tar.gz
+$ tar xzf fcrypt-<version>.tar.gz
+$ mv fcrypt-<version> fcrypt
 $ cd fcrypt/console/linux
 $ make
 
@@ -260,7 +297,10 @@ The default Linux build is for RHEL 10 and uses the operating system's
 OpenSSL (sudo dnf install gcc-c++ make openssl-devel). For an older
 RHEL release use the makefile for that release:
 
-$ make -f makefile_rhel9     (also makefile_rhel8, makefile_rhel7 and makefile_rhel6)
+$ make -f makefile_rhel9     (or makefile_rhel8)
+
+RHEL 6 and 7 builds are no longer supported, see REMOVED RHEL 6 AND 7
+SUPPORT below.
 
 Run "make clean" first when you switch between RHEL builds.
 
@@ -497,7 +537,7 @@ load the smart card PKCS#11 module directly. The OpenSSL pkcs11 engine
 (libp11 or the openssl-pkcs11 package) is not used or needed. The
 OpenSSL ENGINE API is deprecated in OpenSSL 3 and is not built into
 RHEL 10 or the OpenSSL 3.5.x LTS builds used for Windows. Builds that
-use OpenSSL 1.x, such as RHEL 6, 7 and 8, still use the pkcs11 engine.
+use OpenSSL 1.x, such as RHEL 8, still use the pkcs11 engine.
 
 Files given smart card access by earlier fcrypt releases still decrypt
 with the same card. The smart card key data stored in the file has not
