@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/18/1997
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -113,8 +113,8 @@ public:
   ~POD();
   
 private:
-  POD(const POD &ob) { }            // Disallow copying
-  void operator=(const POD &ob) { } // Disallow assignment
+  POD(const POD &) { }            // Disallow copying
+  void operator=(const POD &) { } // Disallow assignment
 
 public: // POD database functions
   gxDatabaseError Open(const char *dfname, const char *ifname,

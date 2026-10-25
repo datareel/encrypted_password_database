@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/21/1997
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -48,7 +48,7 @@ the bytes in a string when a FString object is constructed.
 
 10/13/2002: Removed the following conversion function from the FString
 class due to excessive compiler warning under Linux: 
-operator const int () const { return sptr[0] != 0; }
+operator int () const { return sptr[0] != 0; }
 
 10/13/2002: Removed the following conversion function to avoid having
 FString objects being automatically converted to int types: 

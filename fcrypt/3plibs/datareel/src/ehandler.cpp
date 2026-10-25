@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 02/14/1996  
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -194,7 +194,7 @@ void EHandler::Message(const char *mesg1, const char *mesg2,
   strcat(comp, mesg2);
   strcat(comp, mesg3);
   MessageBox( NULL, comp, "Program Message", MB_OK ) ;
-  delete comp;
+  delete[] comp; // 10/14/2026: Was a scalar delete of new[]
 
 #else
 // Allow the library to be compiled without a display type

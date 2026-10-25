@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 03/09/1999 
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -279,10 +279,10 @@ public: // Table Functions
 		int border = 1, htmCOLORS bordercolor = htmBLACK); 
   void StartTableRow();
   void EndTableRow() { *(stream) << etr << "\n"; }
-  void TableHeader(char *valign="CENTER", int colspan = 1, int rowspan = 1,
+  void TableHeader(const char *valign="CENTER", int colspan = 1, int rowspan = 1,
 		   int width = 10);
   void EndTableHeader() { *(stream) << eth << "\n"; }
-  void TableData(char *valign="TOP", int colspan = 1, int rowspan = 1,
+  void TableData(const char *valign="TOP", int colspan = 1, int rowspan = 1,
 		 int width = 10);
   void EndTableData() { *(stream) << etd << "\n"; }
   void EndTable() { *(stream) << etable << "\n"; }

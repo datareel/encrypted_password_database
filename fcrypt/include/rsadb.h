@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 12/06/2023
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -95,6 +95,18 @@ char *RSA_get_last_openssl_error(int &error_level);
 int RSA_passphrase_callback(char *buf, int size, int rwflag, void *userdata);
 int RSA_gen_key_files(const char *private_key_fname, const char *public_key_fname, int keysize = RSA_keysize,
 		      char *passphrase = 0, int passphrase_len = 0);
+// 10/25/2026: Load PEM keys into an EVP_PKEY. Returns 0 for errors.
+// Free the key with EVP_PKEY_free().
+EVP_PKEY *RSA_load_public_key(const unsigned char key[], unsigned key_len, char *passphrase = 0);
+EVP_PKEY *RSA_load_private_key(const unsigned char key[], unsigned key_len, char *passphrase = 0);
+
+// 10/25/2026: RSA encrypt and decrypt with an already loaded EVP_PKEY (RSA_PKCS1_OAEP_PADDING uses SHA-256)
+int RSA_pkey_encrypt(EVP_PKEY *pkey, const unsigned char plaintext[], unsigned int plaintext_len,
+		     unsigned char ciphertext[], unsigned int ciphertext_len,
+		     unsigned *encrypted_data_len, int padding = RSA_padding);
+int RSA_pkey_decrypt(EVP_PKEY *pkey, const unsigned char ciphertext[], unsigned int ciphertext_len,
+		     unsigned char plaintext[], unsigned int plaintext_len,
+		     unsigned *unencrypted_data_len, int padding = RSA_padding);
 int RSA_read_key_file(const char *fname, char keybuf[], const unsigned keybuf_len, unsigned *keybuf_final_len, int *has_passphrase = 0);
 int RSA_public_key_encrypt(const unsigned char key[], unsigned key_len,
 			   const unsigned char plaintext[], unsigned int plaintext_len,

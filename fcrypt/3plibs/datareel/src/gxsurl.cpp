@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 01/25/2000
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -878,11 +878,11 @@ int gxsURL::ParseDynamicPage(gxsURLInfo &u,
 int gxsURL::ParseDynamicPage(gxsURLInfo &u, 
 			     const gxString &my_dynamic_file_types,
 			     const gxString &my_dynamic_dir_types,
-			     int &is_dynamic,
-			     gxString &query_string,
-			     gxString &file_extension,
-			     gxString &bin_dir,
-			     gxString &local_query_file)
+			     int & /* is_dynamic */,
+			     gxString & /* query_string */,
+			     gxString & /* file_extension */,
+			     gxString & /* bin_dir */,
+			     gxString & /* local_query_file */)
 {
   return ParseDynamicPage(u.url, 
 			  my_dynamic_file_types, 

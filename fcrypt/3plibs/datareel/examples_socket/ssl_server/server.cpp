@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, GCC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 10/17/2001
-// Date Last Modified: 06/17/2016
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -61,7 +61,11 @@ void *ConsoleThread::ThreadEntryRoutine(gxThread_t *thread)
   
   while(1) {
     for(int i = 0; i < cmd_len; i++) sbuf[i] = 0;
-    cin >> sbuf;
+    // 10/14/2026: Limit the read to the buffer size and stop at the end of
+    // input (the loop used to overflow sbuf on long input and spin forever
+    // when stdin was closed)
+    cin.width(cmd_len);
+    if(!(cin >> sbuf)) break;
     if(strcmp(sbuf, "quit") == 0) break;
     if(strcmp(sbuf, "exit") == 0) break;
     cout << "Invalid command" << "\n" << flush;

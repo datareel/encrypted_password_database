@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 05/25/2001  
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -82,6 +82,12 @@ library.
 #else // Use the old Standard C++ library by default  
 #define GXSTD
 #endif // __USE_ANSI_CPP__
+
+// 10/24/2026: Visual Studio 2026 (MSVC 14.50, _MSC_VER 1950) and
+// higher use the VS 2026 code paths without needing -D__VS2026__
+#if defined (_MSC_VER) && (_MSC_VER >= 1950) && !defined (__VS2026__)
+#define __VS2026__
+#endif
 
 // Windows CE macros
 #if defined(_WIN32_WCE)

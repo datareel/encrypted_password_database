@@ -1,5 +1,5 @@
 DataReel 5.X Readme File
-DataReel Copyright (c) 2001-2025 DataReel Software Development
+DataReel Copyright (c) 2001-2026 DataReel Software Development
 
 https://github.com/datareel
 
@@ -13,6 +13,7 @@ Supported Compilers
 Package Map 
 Example Programs 
 Documentation 
+Code Review and Fixes 
 Building
 
 OVERVIEW
@@ -151,7 +152,7 @@ General
 LICENSE
 -------
 The DataReel open source library is copyrighted by DataReel Software
-Development, Copyright (C) 2001-2025, all rights reserved. DataReel
+Development, Copyright (C) 2001-2026, all rights reserved. DataReel
 open source is available to non-profit, commercial, individual, and
 academic developers. The open-source archive is distributed under the
 GNU Lesser General Public License (LGPL) with provisions for use in
@@ -243,6 +244,54 @@ DOCUMENTATION
 All documentation is included in the docs sub directory in an HTML
 format, viewable in any Web browser. 
 
+VERSION 6.0
+-----------
+DataReel 6.0, 10/24/2026, is the first major release in many years.
+Version 5.10, tagged 5.10 in the repository, is the last version 5
+release. Version 6.0 fixes every item that the 10/14/2026 code review
+left as is: linked list array cleanup, gxConfig::Add(), stopping
+threads when a thread pool is cleared, database cache Bind() and
+ReleaseSegments(), RDBMS duplicate key lookups and BLOB fields in
+all-field keys, mixed text in the XML parser, the RSS <cloud> element,
+the glibc robust mutex problem, and all -Wall -Wextra compiler
+warnings. The shared library is built as libdatareel.so.6.0. Programs
+must be recompiled, and some interfaces changed. See
+RELEASE_NOTES_6.0.txt and docs/release_notes_6_0.html. Every change in
+the source is marked with a "10/24/2026" comment.
+
+CODE REVIEW AND FIXES
+---------------------
+On 10/14/2026 the DataReel code in this repository was reviewed and
+fixed by Claude Code, Anthropic's AI coding assistant
+(https://claude.ai/code). The review covered compiler warnings,
+AddressSanitizer and UndefinedBehaviorSanitizer runs of the example
+programs, and valgrind checks. Fixes include:
+
+ - Mismatched new[]/delete calls in UString, strutil, gxDatabase,
+   MemoryBuffer and other classes
+ - Undefined behavior in the gxINT16/32/64 byte packing, UString
+   Find/IFind, and gxConfig::ChangeConfigLine()
+ - Bounds checks in POD, gxRDBMS and gxsXML, and leaked buffers in
+   gxSocket
+ - Replaced the deprecated readdir_r() and _np robust mutex calls
+ - SSL updates for OpenSSL 3: a 2048-bit (RFC 7919 ffdhe2048) default
+   DH group, OpenSSL 3 DH parameter and RSA key interfaces, error
+   checking and cleanup on every path, and new ssl_server example
+   keys, certificate and DH parameters
+ - New gxSSL class documentation: docs/classes/socket/gxssl.htm
+ - New documentation pages for gxListB, the thread pool and thread
+   helpers, the XML parser, the RSS feed writer, the RDBMS layer, the
+   B-tree and database caches, the debug manager, ix_debug and the
+   example programs, and a modern style for all documentation pages
+ - Fixes for bugs found while writing the new pages: the RDBMS layer,
+   thread helpers and thread pool, XML parser and RSS writer, B-tree
+   and database caches, debug manager, B-tree Find() and gxDatabase
+
+These fixes were released as version 5.10. The full list of fixes, SSL
+updates and behavior changes is in
+CODE_REVIEW_FIXES.txt and docs/code_review_fixes.html. Every change
+in the source is marked with a "10/14/2026" comment.
+
 BUILDING UNIX SHARED AND STATIC LIBRARIES
 --------------------__-------------------
 Example install and build:
@@ -263,12 +312,19 @@ adjustments or modifications to the build
 > make install
 > make clean
 
-To build with OpenSSL:
+SSL is built into the libdatareel library with OpenSSL by default.
+There is no separate libdatareel_ssl library. The OpenSSL development
+files must be installed (the libssl-dev package on Debian and Ubuntu,
+openssl-devel on RHEL and Fedora).
 
-> export USE_OPEN_SSL=YES
-> make -f makefile_ssl
-> make -f makefile_ssl install
-> make -f makefile_ssl clean
+On a system without OpenSSL you can build libdatareel without SSL:
+
+> make USE_OPEN_SSL=NO
+> make USE_OPEN_SSL=NO install
+> make USE_OPEN_SSL=NO clean
+
+You can also export USE_OPEN_SSL=NO before running make. Programs
+that link to the library must be built with the same setting.
 
 To build example programs:
 
@@ -297,9 +353,14 @@ To setup a command line build open a Run dialog and enter cmd to open
 a command prompt.
 
 To setup the VS 2026 environment the msvc.bat file is provided in the
-env directory. 
+env directory. The default build is 64-bit x64. For 32-bit x86 builds
+of legacy code use env\msvc32_vs2026.bat instead of env\msvc.bat.
 
-To build the datareel static library without SSL enabled:
+SSL is built into the gxcode library. By default the gxSSL class uses
+the native Windows Schannel (SSPI) TLS API, so OpenSSL is not needed.
+OpenSSL is still available as an option for existing code, see below.
+
+To build the datareel static library:
 
 > cd %USERPROFILE%\datareel
 > env\msvc.bat
@@ -307,7 +368,8 @@ To build the datareel static library without SSL enabled:
 > nmake -f msvc.mak
 
 The utility programs and examples programs will link to the static
-library. 
+library. Programs link to secur32.lib, crypt32.lib, and ncrypt.lib
+for SSL, which are part of the Windows SDK.
 
 To build the example programs:
 
@@ -315,14 +377,18 @@ To build the example programs:
 > cd string_class
 > nmake -f msvc.mak
 
-To build the datareel library as a DLL without SSL enabled:
+> cd %USERPROFILE%\datareel\examples_socket
+> cd https_client
+> nmake -f msvc.mak
+
+To build the datareel library as a DLL:
 
 > cd %USERPROFILE%\datareel
 > env\msvc.bat
 > cd dll
 > nmake -f msvc.mak
 
-To build the datareel static library with SSL enabled:
+To build the datareel static library with OpenSSL instead of Schannel:
 
 > cd %USERPROFILE%\datareel
 > env\msvc.bat
@@ -333,29 +399,25 @@ In the openssl.env file set the path to your openssl installation directory.
 
 > nmake -f msvc_ssl.mak
 
-The utility programs and examples programs will link to the static
-library. Before you can build the utils or example programs with SSL
-enabled you must set the path to your openssl install in the following
-ENV file: 
+Programs that link to the OpenSSL build of the library must also be
+built with USESSL=1. Set the path to your openssl install in the
+following ENV file: 
 
 > cd %USERPROFILE%\datareel\env
 > notepad openssl_windows.env
 
-In the openssl_windows.env  set the path to your openssl installation
-directory.
-
-To build the example programs:
+Then build your program or an example program with USESSL=1:
 
 > cd %USERPROFILE%\datareel\examples_socket
 > cd https_client
-> nmake -f msvc.mak
+> nmake -f msvc.mak USESSL=1
 
 Before running the example program in you user environment add the
 openssl\bin dir to your PATH:
 
 > set PATH=%PATH%;e:\3plibs\openssl\bin
 
-To build the datareel library as a DLL with SSL enabled:
+To build the datareel library as a DLL with OpenSSL:
 
 > cd %USERPROFILE%\datareel
 > env\msvc.bat
@@ -364,6 +426,8 @@ To build the datareel library as a DLL with SSL enabled:
 
 In the openssl.env file set the path to your openssl installation directory.
 
-> nmake -f msvc.mak
+> nmake -f msvc_ssl.mak
 
-DataReel Copyright (c) 2001-2025 DataReel Software Development
+See README_windows_openssl.txt for building OpenSSL on Windows.
+
+DataReel Copyright (c) 2001-2026 DataReel Software Development

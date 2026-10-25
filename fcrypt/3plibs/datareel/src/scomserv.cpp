@@ -6,8 +6,8 @@
 // C++ Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/20/1999
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -103,7 +103,7 @@ int gxSerialCommServer::WriteBlock(const void *buf, gxBlockHeader &gx)
   if(Send((char *)buf, gx.block_length) < 0)
     return scomm_error;
 
-  if(bytes_moved != gx.block_length) 
+  if((gxUINT32)bytes_moved != gx.block_length) 
       return scomm_error = gxSerialComm::scomm_BLOCKSIZE_ERROR;
   
   return scomm_error = gxSerialComm::scomm_NO_ERROR;
@@ -132,7 +132,7 @@ int gxSerialCommServer::ReadBlock(void *buf, gxBlockHeader &gx)
 
   // If the bytes read do not equal the bytes received then
   // the transmitter and receiver are no longer synchronized.
-  if(bytes_read != gx.block_length) 
+  if((gxUINT32)bytes_read != gx.block_length) 
     return scomm_error = gxSerialComm::scomm_BLOCKSIZE_ERROR;
 
   return scomm_error = gxSerialComm::scomm_NO_ERROR;
@@ -182,7 +182,7 @@ void *gxSerialCommServer::RequestBlock(const void *request,
     return 0;
   }
   // Check the byte count to ensure that all blocks were received.
-  if(bytes_read != requested_block_header.block_length) {
+  if((gxUINT32)bytes_read != requested_block_header.block_length) {
     delete[] buf;
     return 0; 
   }

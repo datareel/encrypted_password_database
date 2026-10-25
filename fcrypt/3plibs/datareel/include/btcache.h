@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 08/09/2001
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -175,7 +175,7 @@ private: // Internal processing functions
 public: // Overloaded operators
   int operator!() const { return buckets == 0; }
   int operator!() { return buckets == 0; }
-  operator const int () const { return buckets != 0; }
+  operator int () const { return buckets != 0; }
   operator int () { return buckets != 0; }
 
 private:

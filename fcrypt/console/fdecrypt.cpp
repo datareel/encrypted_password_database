@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 07/21/2003
-// Date Last Modified: 01/10/2024
-// Copyright (c) 2001-2024 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2003-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -58,6 +58,9 @@ gxString output_dir_name;
 int list_file_names = 0;
 int recurse = 0;
 int use_abs_path = 0;
+int restore_path_mode = CRYPT_PATH_RELATIVE;
+int overwrite = 0;
+int allow_unencrypted = 0;
 int use_password = 0;
 int use_key_file = 0;
 gxString input_arg_key_file;
@@ -78,6 +81,7 @@ gxString rsa_key_passphrase;
 int has_passphrase = 0;
 gxString rsa_key_username;
 int list_users = 0;
+int fips_request = FC_FIPS_AUTO;
 #ifdef __ENABLE_SMART_CARD__
 SmartCardOB sc;
 gxString smartcard_cert_username;
@@ -91,6 +95,9 @@ int ProcessDashDashArg(gxString &arg);
 int ProcessArgs(char *arg);
 int DEBUG_m(char *message, int level = 1, int rv = 0);
 int ExitProgram(int rv = 0, char *exit_message = 0);
+int CheckFileFormat(const char *fname, int &fmt);
+int ListNewFormatUsers(const char *fname);
+int DecryptNewFormatFile(const char *fname);
 
 void DisplayVersion()
 {
@@ -106,7 +113,15 @@ void DisplayVersion()
   cout << "\n" << flush;
   cout << "Encryption engine: Openssl" << "\n" << flush;
   cout << "Version string: " << OPENSSL_VERSION_TEXT << "\n" << flush;
-  cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n" << flush;
+  cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << dec << "\n" << flush;
+  cout << "Encrypted file formats: " << FC_FILE_VERSION << ", and 2023103 and 2023102 outside FIPS mode" << "\n" << flush;
+  gxString fips_err;
+  if(FC_crypto_init(fips_request, fips_err)) {
+    cout << FC_crypto_status().c_str() << "\n" << flush;
+  }
+  else {
+    cout << fips_err.c_str() << "\n" << flush;
+  }
 #ifdef __ENABLE_SMART_CARD__
   cout << "\n" << flush;
   cout << "Smart card enabled for " << SC_get_default_engine_ID() << "\n" << flush;
@@ -125,20 +140,26 @@ void HelpMessage()
   cout << "          -d  Enable debugging output" << "\n" << flush;
   cout << "          -h  Display this help message and exit." << "\n" << flush;
   cout << "          -l  List output file name(s) in enc file(s)" << "\n" << flush;
+  cout << "          -o  Overwrite existing output files" << "\n" << flush;
   cout << "          -r  Remove encrypted source file" << "\n" << flush;
   cout << "          -R  Decrypt DIR including all files and subdirectories" << "\n" << flush;
   cout << "          -v  Enable verbose messages to the console" << "\n" << flush;
   cout << "\n" << flush;
+  cout << "          --absolute-path (Restore to the exact path stored in the enc file)" << "\n" << flush;
+  cout << "          --allow-unencrypted (Allow decrypting mode 0 test files that are not encrypted)" << "\n" << flush;
   cout << "          --cache=size (Set the cache size)" << "\n" << flush;
   cout << "          --debug (Turn on debugging and set optional level)" << "\n" << flush;
+  cout << "          --fips (Use only the OpenSSL FIPS provider, see README.txt)" << "\n" << flush;
   cout << "          --help (Display this help message and exit." << "\n" << flush;
-  cout << "          --iter=num (To set the number of derived key iterations)" << "\n" << flush;
+  cout << "          --iter=num (Key iterations for old format files, new files store their own)" << "\n" << flush;
   cout << "          --key=aes_key (Use a key file for symmetric file decryption)" << "\n" << flush;
 #ifdef __ENABLE_SMART_CARD__
   cout << "          --list-users (List the users with RSA key of Smart Card cert access and exit)" << "\n" << flush;
 #else
   cout << "          --list-users (List the users with RSA key access and exit)" << "\n" << flush;
 #endif
+  cout << "          --no-fips (Do not use FIPS mode, needed for old format files on a FIPS system)" << "\n" << flush;
+  cout << "          --no-path (Restore only the file name, without the stored path)" << "\n" << flush;
   cout << "          --outfile=fname (Write decrypted output to specified file name)" << "\n" << flush;
   cout << "          --outdir=dir (Write decrypted output to this directory)" << "\n" << flush;
   cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
@@ -155,7 +176,7 @@ void HelpMessage()
   cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
   cout << "          --smartcard-username=name (Username assigned to the smart card cert)" << "\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
-  cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
+  if(SC_uses_engine()) cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
 
@@ -352,8 +373,28 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
+  if(arg == "absolute-path") {
+    restore_path_mode = CRYPT_PATH_ABSOLUTE;
+    has_valid_args = 1;
+  }
+  if(arg == "no-path") {
+    restore_path_mode = CRYPT_PATH_NONE;
+    has_valid_args = 1;
+  }
+  if(arg == "allow-unencrypted") {
+    allow_unencrypted = 1;
+    has_valid_args = 1;
+  }
   if(arg == "stdout") {
     write_to_stdout = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "fips") {
+    fips_request = FC_FIPS_ON;
+    has_valid_args = 1;
+  }
+  if(arg == "no-fips") {
+    fips_request = FC_FIPS_OFF;
     has_valid_args = 1;
   }
 
@@ -378,6 +419,10 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: --smartcard-cert-id missing ID: --smartcard-cert-id=01" << "\n" << flush;
       return 0;
     }
+    if(equal_arg.length() >= SC_max_cert_id_size) {
+      cerr << "ERROR: --smartcard-cert-id is longer than " << (SC_max_cert_id_size-1) << " characters" << "\n" << flush;
+      return 0;
+    }
     sc.SetCertID(equal_arg.c_str());
     has_valid_args = 1;
   }
@@ -388,7 +433,10 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     sc.SetEnginePath(equal_arg.c_str());
-    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+    if(!SC_uses_engine()) {
+      cerr << "NOTE: --smartcard-engine is ignored, this build loads the PKCS#11 provider module directly" << "\n" << flush;
+    }
+    if(SC_uses_engine() && (!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath))) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -450,6 +498,10 @@ int ProcessArgs(char *arg)
       list_file_names = 1;
       break;
 
+    case 'o': case 'O':
+      overwrite = 1;
+      break;
+
     case 'r' :
       remove_src_file = 1;
       break;
@@ -507,10 +559,147 @@ int ExitProgram(int rv, char *exit_message)
     cerr << "Openssl " << err << "\n" << flush;
   }
 
-  if(!exit_message) {
+  if(exit_message) {
     cerr << exit_message << "\n" << flush;
   }
+  FC_crypto_cleanup();
   return rv;
+}
+
+// 10/25/2026: Helpers for 2026102 format files
+int CheckFileFormat(const char *fname, int &fmt)
+// Returns false if the file cannot be decrypted in this mode
+{
+  fmt = FC_file_format(fname);
+  if(fmt == FC_FORMAT_OPEN_ERROR) {
+    cerr << "ERROR: Cannot open " << fname << "\n" << flush;
+    return 0;
+  }
+  if(fmt == FC_FORMAT_LEGACY) {
+    if(FC_fips_mode()) {
+      cerr << "ERROR: " << fname << " uses the old file format, which FIPS mode does not allow" << "\n" << flush;
+      cerr << "ERROR: Rerun with --no-fips, or convert the file with fmigrate --no-fips" << "\n" << flush;
+      return 0;
+    }
+    if(fips_request == FC_FIPS_OFF && FC_system_fips_requested()) {
+      cerr << "NOTICE: Decrypting old format file " << fname << " outside FIPS mode" << "\n" << flush;
+    }
+  }
+  return 1;
+}
+
+int ListNewFormatUsers(const char *fname)
+{
+  FCryptFile fc;
+  if(!fc.LoadHeader(fname)) {
+    cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
+    return 0;
+  }
+  // The key slots are not authenticated until the file is unlocked
+  int n = 0;
+  gxListNode<FCKeySlot> *list_ptr = fc.slots.GetHead();
+  while(list_ptr) {
+    if(list_ptr->data.type != FC_SLOT_SECRET) {
+      if(n++ == 0) cout << "Encrypted file username inventory " << "\n" << flush;
+      cout << "Username: " << list_ptr->data.username.c_str() << " Access: "
+	   << FC_slot_type_name(list_ptr->data.type) << "\n" << flush;
+    }
+    list_ptr = list_ptr->next;
+  }
+  if(n == 0) {
+    cerr << "ERROR: No authorized RSA users found in encrypted file " << fname << "\n" << flush;
+  }
+  return 1;
+}
+
+int DecryptNewFormatFile(const char *fname)
+{
+  FCryptFile fc;
+  fc.path_mode = restore_path_mode;
+  fc.overwrite = overwrite;
+  if(!output_dir_name.is_null()) fc.output_dir_name = output_dir_name;
+  if(!fc.LoadHeader(fname)) {
+    cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
+    return 0;
+  }
+
+  int ok = 0;
+  if(use_private_rsa_key) {
+    char *passphrase = 0;
+    if(!rsa_key_passphrase.is_null()) passphrase = (char *)rsa_key_passphrase.GetSPtr();
+    ok = fc.UnlockWithRSAKey(rsa_key_username.c_str(), private_key, private_key_len, passphrase);
+    if(!ok) {
+      cerr << "ERROR: The private RSA key provided for user " << rsa_key_username.c_str() << " does not have access to decrypt file " << fname << "\n" << flush;
+    }
+  }
+#ifdef __ENABLE_SMART_CARD__
+  else if(use_smartcard_cert) {
+    FCKeySlot *slot = fc.FindSlot(FC_SLOT_SMARTCARD, smartcard_cert_username.c_str());
+    if(!slot) {
+      fc.err << clear << "No smart card slot for user " << smartcard_cert_username;
+    }
+    else {
+      unsigned char file_key[FC_MAX_WRAPPED_LEN];
+      unsigned file_key_len = 0;
+      int rv = SC_private_key_decrypt(&sc, slot->wrapped.m_buf(), slot->wrapped.length(),
+				      file_key, sizeof(file_key), &file_key_len, RSA_PKCS1_OAEP_PADDING);
+      if(rv != 0) {
+	fc.err << clear << "Smart card private key decrypt failed for cert ID " << sc.cert_id << ": " << sc.err_string;
+      }
+      else if(file_key_len != FC_KEY_LEN) {
+	fc.err << clear << "Bad length for decrypted key";
+      }
+      else {
+	ok = fc.UnlockWithFileKey(file_key);
+      }
+      OPENSSL_cleanse(file_key, sizeof(file_key));
+    }
+    if(!ok) {
+      cerr << "ERROR: Smart card for user " << smartcard_cert_username.c_str() << " does not have access to decrypt file " << fname << "\n" << flush;
+    }
+  }
+#endif
+  else {
+    ok = fc.UnlockWithSecret(aes_file_decrypt_secret);
+  }
+  if(!ok) {
+    cerr << "ERROR: File decrypt failed " << fname << "\n" << flush;
+    cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
+    return 0;
+  }
+
+  if(list_file_names) {
+    gxString sbuf;
+    if(!fc.DecryptStoredName(sbuf)) {
+      cerr << "ERROR: File decrypt failed " << fname << "\n" << flush;
+      cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
+      return 0;
+    }
+    if(clientcfg->verbose_mode) cerr << "File decrypt successful" << "\n" << flush;
+    cout << "Decrypted name: " << sbuf.c_str() << "\n" << flush;
+    return 1;
+  }
+
+  if(write_to_stdout) ok = fc.DecryptFile("stdout");
+  else if(use_ouput_file) ok = fc.DecryptFile(user_defined_output_file.c_str());
+  else ok = fc.DecryptFile();
+  if(!ok) {
+    cerr << "ERROR: File decrypt failed " << fname << "\n" << flush;
+    cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
+    return 0;
+  }
+  if(clientcfg->verbose_mode) {
+    gxString sbuf;
+    sbuf << clear << wn << fc.bytes_wrote;
+    cerr << "File decrypt successful" << "\n" << flush;
+    cerr << "Wrote " << sbuf.c_str() << " bytes to " << fc.ofname.c_str() << "\n" << flush;
+  }
+  if(remove_src_file) {
+    if(futils_remove(fname) != 0) {
+      cerr << "ERROR: Error removing " << fname << " source file" << "\n" << flush;
+    }
+  }
+  return 1;
 }
 
 int main(int argc, char **argv)
@@ -536,7 +725,7 @@ int main(int argc, char **argv)
   if(selectRetVal > 0) {
     if(FD_ISSET(fileno(stdin), &readfds)) {
       while(read(0, buf, sizeof(buf)) > 0) {
-	if(bytes_read > sizeof(private_key)) {
+	if(bytes_read >= sizeof(private_key)) {
 	  cerr << "ERROR: Private key size has exceeded " <<  sizeof(private_key) << " bytes" << "\n" << flush;
 	  return 1;
 	}
@@ -628,7 +817,19 @@ int main(int argc, char **argv)
     cerr << "No file name specified" << "\n";
     return ExitProgram(1);
   }
+
+  if(restore_path_mode == CRYPT_PATH_ABSOLUTE && !output_dir_name.is_null()) {
+    cerr << "ERROR: --absolute-path cannot be used with --outdir" << "\n" << flush;
+    return ExitProgram(1);
+  }
   
+  gxString fips_err;
+  if(!FC_crypto_init(fips_request, fips_err)) {
+    cerr << "ERROR: " << fips_err.c_str() << "\n" << flush;
+    return ExitProgram(1);
+  }
+  if(clientcfg->verbose_mode) cerr << FC_crypto_status().c_str() << "\n" << flush;
+
   if(use_key_file) {
     if(clientcfg->verbose_mode) cerr << "Using key file for decryption" << "\n" << flush;
     aes_file_decrypt_secret.Clear(1);
@@ -660,13 +861,15 @@ int main(int argc, char **argv)
     if(clientcfg->verbose_mode) cerr << "Using smart card cert for decryption" << "\n" << flush;
 
     if(clientcfg->verbose_mode) {
-      cerr << "Smart card engine ID = " << sc.engine_ID << "\n" << flush;
-      cerr << "Smart card engine path = " << sc.enginePath << "\n" << flush;
+      if(SC_uses_engine()) {
+        cerr << "Smart card engine ID = " << sc.engine_ID << "\n" << flush;
+        cerr << "Smart card engine path = " << sc.enginePath << "\n" << flush;
+      }
       cerr << "Smart card module path = " << sc.modulePath << "\n" << flush;
       cerr << "Smart card cert ID = " << sc.cert_id << "\n"  << flush;
     }
 
-    if(!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath)) {
+    if(SC_uses_engine() && (!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath))) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return ExitProgram(1);
     }
@@ -728,6 +931,12 @@ int main(int argc, char **argv)
   if(list_users) { // List user names found and exit program
     while(ptr) {
       cout << "Listing usernames with RSA key access to encrypted file " << ptr->data.c_str() << "\n" << flush;
+      int fmt = FC_file_format(ptr->data.c_str());
+      if(fmt == FC_FORMAT_2026102) {
+	if(!ListNewFormatUsers(ptr->data.c_str())) err = 1;
+	ptr = ptr->next;
+	continue;
+      }
       FCryptCache fc(num_buckets);
       if(!fc.LoadStaticDataBlocks(ptr->data.c_str())) {
 	cerr << "ERROR: " << fc.err.c_str() << "\n" << flush; ;
@@ -757,9 +966,26 @@ int main(int argc, char **argv)
   
   while(ptr) { // Decrypt file and exit program
     if(clientcfg->verbose_mode) cerr << "Decrypting: " << ptr->data.c_str() << "\n" << flush;
+
+    int fmt;
+    if(!CheckFileFormat(ptr->data.c_str(), fmt)) {
+      err = 1;
+      ptr = ptr->next;
+      continue;
+    }
+    if(fmt == FC_FORMAT_2026102) {
+      if(!DecryptNewFormatFile(ptr->data.c_str())) err = 1;
+      ptr = ptr->next;
+      continue;
+    }
+
+    // Files from releases before 2026.102
     
     FCryptCache fc(num_buckets);
     fc.key_iterations = key_iterations;
+    fc.SetPathMode(restore_path_mode);
+    fc.SetOverWrite(overwrite);
+    fc.SetAllowUnencrypted(allow_unencrypted);
     if(!output_dir_name.is_null()) {
       fc.SetDir(output_dir_name.c_str());
     }
@@ -815,6 +1041,14 @@ int main(int argc, char **argv)
 	  }
 	  found_key = 1;
 	  if(clientcfg->verbose_mode) cerr << "RSA key decryption authorized for user " << list_ptr->data.username.c_str() << "\n" << flush; 
+	  // 10/24/2026: Check the length before subtracting the salt length
+	  if(decrypted_data_len < (AES_MAX_SALT_LEN + AES_MIN_SECRET_LEN) ||
+	     decrypted_data_len > sizeof(rsa_decrypted_message)) {
+	    cerr << "ERROR: Bad length for decrypted key" << "\n" << flush;
+	    found_key = 0;
+	    err = 1;
+	    break;
+	  }
 	  memmove(SALT, rsa_decrypted_message, AES_MAX_SALT_LEN);
 	  aes_file_decrypt_secret.Clear(1);
 	  aes_file_decrypt_secret.Cat(rsa_decrypted_message+AES_MAX_SALT_LEN, (decrypted_data_len-AES_MAX_SALT_LEN));
@@ -857,7 +1091,8 @@ int main(int argc, char **argv)
 	    err = 1;
 	    break;
 	  }
-	  if(memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
+	  if(list_ptr->data.hmac.length() != sizeof(hash) ||
+	     CRYPTO_memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
 	    cerr << "ERROR: Message authentication failed bad HMAC for RSA ciphertext" << "\n" << flush;
 	    found_key = 0;
 	    err = 1;
@@ -916,6 +1151,14 @@ int main(int argc, char **argv)
 	  }
 	  found_key = 1;
 	  if(clientcfg->verbose_mode) cerr << "Smart card prviate key decryption authorized for user " << list_ptr->data.username.c_str() << "\n" << flush; 
+	  // 10/24/2026: Check the length before subtracting the salt length
+	  if(decrypted_data_len < (AES_MAX_SALT_LEN + AES_MIN_SECRET_LEN) ||
+	     decrypted_data_len > sizeof(rsa_decrypted_message)) {
+	    cerr << "ERROR: Bad length for decrypted key" << "\n" << flush;
+	    found_key = 0;
+	    err = 1;
+	    break;
+	  }
 	  memmove(SALT, rsa_decrypted_message, AES_MAX_SALT_LEN);
 	  aes_file_decrypt_secret.Clear(1);
 	  aes_file_decrypt_secret.Cat(rsa_decrypted_message+AES_MAX_SALT_LEN, (decrypted_data_len-AES_MAX_SALT_LEN));
@@ -958,7 +1201,8 @@ int main(int argc, char **argv)
 	    err = 1;
 	    break;
 	  }
-	  if(memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
+	  if(list_ptr->data.hmac.length() != sizeof(hash) ||
+	     CRYPTO_memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
 	    cerr << "ERROR: Message authentication failed bad HMAC for smart card ciphertext" << "\n" << flush;
 	    found_key = 0;
 	    err = 1;
@@ -969,7 +1213,7 @@ int main(int argc, char **argv)
 	list_ptr = list_ptr->next;
       }
       if(!found_key) {
-	cerr << "ERROR: Smart card for user " << rsa_key_username.c_str() << " does not have access to decrypt file " << ptr->data.c_str() << "\n" << flush;
+	cerr << "ERROR: Smart card for user " << smartcard_cert_username.c_str() << " does not have access to decrypt file " << ptr->data.c_str() << "\n" << flush;
 	err = 1;
 	ptr = ptr->next;
 	continue;
@@ -996,15 +1240,15 @@ int main(int argc, char **argv)
     }
     
     if(!rv) {
-      cerr << "ERROR: File decrypt failed" << "\n" << flush;
-      DEBUG_m(fc.err.c_str());
+      cerr << "ERROR: File decrypt failed " << ptr->data.c_str() << "\n" << flush;
+      if(!fc.err.is_null()) cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
       err = 1;
       ptr = ptr->next;
       continue;
     }
     if(fc.ERROR_LEVEL != 0) { // Check the ERROR level from the file caching ops
-      cerr << "ERROR: File decrypt failed" << "\n" << flush;
-      DEBUG_m(fc.err.c_str());
+      cerr << "ERROR: File decrypt failed " << ptr->data.c_str() << "\n" << flush;
+      if(!fc.err.is_null()) cerr << "ERROR: " << fc.err.c_str() << "\n" << flush;
       err = 1;
       ptr = ptr->next;
       continue;

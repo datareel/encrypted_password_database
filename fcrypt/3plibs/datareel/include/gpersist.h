@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 09/18/1997
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -81,8 +81,8 @@ public:
   gxPersistent() { pod = 0; } 
 
 private:
-  gxPersistent(const gxPersistent &ob) { }   // Disallow coping
-  void operator=(const gxPersistent &ob) { } // Disallow assignment
+  gxPersistent(const gxPersistent &) { }   // Disallow coping
+  void operator=(const gxPersistent &) { } // Disallow assignment
   
 protected: // Derived class interface
   virtual gxDatabaseError Read(FAU object_address) = 0;

@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 11/07/1996
-// Date Last Modified: 10/30/2025
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ---------- Include File Description and Details  ---------- // 
 // ----------------------------------------------------------- // 
@@ -77,8 +77,8 @@ public:
   ~gxBStree() { DeleteTree(root); }
 
 private: // Disallow copying and assignment
-  gxBStree(const gxBStree<TYPE> &ob) {  }
-  void operator=(const gxBStree<TYPE> &ob) { }
+  gxBStree(const gxBStree<TYPE> &) {  }
+  void operator=(const gxBStree<TYPE> &) { }
   
 public:
   int Insert(TYPE &X, int *exists = 0);
@@ -167,13 +167,12 @@ int gxBStree<TYPE>::Find(TYPE &X)
 // if the entry was found or false if the entry does not
 // exist.
 {
-  gxBStreeNode<TYPE> *parent = 0;
+  // 10/24/2026: Removed an unused parent pointer (-Wunused-but-set-variable)
   gxBStreeNode<TYPE> *node = root;
   
   while(node) {
     if(X == node->data) break; // Found the a matching node
 
-    parent = node;
     if(X < node->data) { // Search the left sub-tree
       node = node->GetLeft();
     }

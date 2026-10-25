@@ -6,8 +6,8 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 04/05/1996
-// Date Last Modified: 06/17/2016
-// Copyright (c) 2001-2025 DataReel Software Development
+// Date Last Modified: 10/24/2026
+// Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -201,6 +201,7 @@ int main()
     if(!dlist.Add(sbuf))  {
       cout << "Memory allocation error at " << (count1+count2) << " bytes"
 	   << "\n";
+      delete[] sbuf; // Not in the list, so free it here
       break;
     }
   }
@@ -208,9 +209,10 @@ int main()
   PausePrg();
 
   cout << "Releasing memory allocated back to the heap..." << "\n";
-  // NOTE: A gxList::DestroyList() call will free the memory allocated for
-  // both the node and its data.
-  dlist.DestroyList();
+  // 10/24/2026: The strings were allocated with new[], so free them with
+  // DestroyArrayList(). DestroyList() uses a scalar delete and is only
+  // for data allocated with a single-object new.
+  dlist.DestroyArrayList();
 
   PausePrg();
   
