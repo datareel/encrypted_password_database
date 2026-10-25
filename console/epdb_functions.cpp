@@ -779,6 +779,13 @@ int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gx
     err_string << clear << "Database hash is a null value";
     return 1;
   }
+  // 10/25/2026: A database name that was never set made every key valid
+  if(s == DBStringNULLPtr::DBStringNUllStr) {
+    err_string << clear << "Database hash is not set, the database file is damaged";
+    return 1;
+  }
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
 
   return 0;
 }

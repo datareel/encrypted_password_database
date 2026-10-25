@@ -329,6 +329,14 @@ int OpenDatabasePanel::AESKeyOpenDatabase()
     is_ok = 0;
     return 0;
   }
+  // 10/25/2026: A database name that was never set made every key valid
+  if(s == DBStringNULLPtr::DBStringNUllStr) {
+    ProgramError->Message("The database hash is not set, the database file is damaged");   
+    is_ok = 0;
+    return 0;
+  }
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
 
   progcfg->global_dbparms.crypt_key = key;
   key.Clear(1);
@@ -385,6 +393,14 @@ int OpenDatabasePanel::PasswordOpenDatabase()
     is_ok = 0;
     return 0;
   }
+  // 10/25/2026: A database name that was never set made every password valid
+  if(s == DBStringNULLPtr::DBStringNUllStr) {
+    ProgramError->Message("The database hash is not set, the database file is damaged");   
+    is_ok = 0;
+    return 0;
+  }
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
 
   progcfg->global_dbparms.crypt_key = DBStringConfig::crypt_key;
   is_ok = 1;

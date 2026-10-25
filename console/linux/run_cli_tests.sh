@@ -164,6 +164,37 @@ ${TOOL} --password-file=pw.txt --field=5 --null --db-find-key='Entry 004' known.
 [ $? -eq 0 ] && [ "$(tr '\0\n' '#~' < out.txt)" = 'Q1? "blue"~Q2? 42#' ]
 check $? "--field --null prints a value with a newline"
 
+# Key verification for RSA and unset database names (M1, M2)
+${TESTDB} create other.ehd "${WRONG}" 2 >>${logFILE} 2>&1
+printf '%s\n' "${WRONG}" > pw2.txt
+${TOOL} --password-file=pw2.txt --add-rsa-key=rsa_pub.pem --add-username=tester other.ehd >>${logFILE} 2>&1
+check $? "add the same RSA user to a second database"
+# Copy the second database's auth area, which wraps its key, over the first
+cp rsa.ehd swap.ehd; cp rsa.ehx swap.ehx
+python3 -I -c "
+a=bytearray(open('swap.ehd','rb').read()); b=open('other.ehd','rb').read()
+o=86+65536; a[o:o+65536]=b[o:o+65536]; open('swap.ehd','wb').write(a)"
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list swap.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "does not hold this database's key" err.txt
+check $? "RSA key block holding another database's key is rejected"
+# Add the other database's block as a second block for the same user
+cp rsa.ehd dup.ehd; cp rsa.ehx dup.ehx
+python3 -I -c "
+import struct
+a=bytearray(open('dup.ehd','rb').read()); b=open('other.ehd','rb').read(); o=86+65536
+def blen(d):
+    v=struct.unpack_from('<7I',d,o); return 60+v[5]+32+v[6]
+la=blen(a); lb=blen(b); a[o+la:o+la+lb]=b[o:o+lb]; open('dup.ehd','wb').write(a)"
+${TOOL} --list-users dup.ehd 2>/dev/null | grep -c "Username: tester" > count.txt
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list dup.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ "$(cat count.txt)" = "2" ] && grep -q "more than one RSA key block" err.txt
+check $? "a second RSA key block for the same user is rejected"
+cp known.ehd nohash.ehd; cp known.ehx nohash.ehx
+python3 -I -c "d=bytearray(open('nohash.ehd','rb').read()); d[90]=0; open('nohash.ehd','wb').write(d)"
+${TOOL} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "not set" err.txt
+check $? "a database name that was never set does not accept any password"
+
 # Damaged and crafted files must fail cleanly, never crash
 cp known.ehd t.ehd; cp known.ehx t.ehx
 tamper() { # tamper name python_statement

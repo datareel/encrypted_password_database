@@ -35,6 +35,44 @@ Encrypted database auth functions
 #include "m_globals.h"
 #include "db_auth.h"
 
+int VerifyDatabaseKey(gxDatabase *f, const MemoryBuffer &key, gxString &err, int &aes_error)
+// 10/25/2026: Check a key against the database by decrypting the stored
+// database name, which is authenticated with an HMAC. A database name
+// that was never set (first byte 0) is rejected: it used to make every
+// key look valid. Returns 0 if the key is good.
+{
+  aes_error = AES_NO_ERROR;
+  if(!f) {
+    err << clear << "Error database pointer is null";
+    return -1;
+  }
+  gxDatabaseConfig db_config;
+  if(!db_config.ReadConfig(f)) {
+    err << clear << "Error reading database config";
+    return -1;
+  }
+  MemoryBuffer k(key);
+  int error_level = 0;
+  char *s = db_config.database_name.GetString(k, error_level);
+  k.Clear(1);
+  if(error_level != AES_NO_ERROR) {
+    aes_error = error_level;
+    err << clear << "Error decrypting database hash " << AES_err_string(error_level);
+    return -1;
+  }
+  if(!s) {
+    err << clear << "Database hash is a null value";
+    return -1;
+  }
+  if(s == DBStringNULLPtr::DBStringNUllStr) {
+    err << clear << "Database hash is not set, the database file is damaged";
+    return -1;
+  }
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
+  return 0;
+}
+
 DatabaseUserAuth::DatabaseUserAuth()
 {
     f = 0;
@@ -225,19 +263,10 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
     return ERROR_LEVEL;
   }
   
-  gxDatabaseConfig db_config;
   DBStringConfig::crypt_key = secret;
-  db_config.ReadConfig(f);
-
-  char *s = db_config.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    ERROR_LEVEL = DBStringConfig::AES_error_level;
-    err << clear << "Error decrypting database hash " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
-    return ERROR_LEVEL;
-  }
-  if(!s) {
-    ERROR_LEVEL = -1;
-      err << clear << "Database hash is a null value";
+  int aes_error = 0;
+  if(VerifyDatabaseKey(f, secret, err, aes_error) != 0) {
+    ERROR_LEVEL = aes_error ? aes_error : -1;
     return ERROR_LEVEL;
   }
 
@@ -343,19 +372,10 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
     return ERROR_LEVEL;
   }
   
-  gxDatabaseConfig db_config;
   DBStringConfig::crypt_key = secret;
-  db_config.ReadConfig(f);
-
-  char *s = db_config.database_name.GetString();
-  if(DBStringConfig::AES_error_level != AES_NO_ERROR) {
-    ERROR_LEVEL = DBStringConfig::AES_error_level;
-    err << clear << "Error decrypting database hash " << AES_err_string(DBStringConfig::AES_error_level) << "\n";
-    return ERROR_LEVEL;
-  }
-  if(!s) {
-    ERROR_LEVEL = -1;
-      err << clear << "Database hash is a null value";
+  int aes_error = 0;
+  if(VerifyDatabaseKey(f, secret, err, aes_error) != 0) {
+    ERROR_LEVEL = aes_error ? aes_error : -1;
     return ERROR_LEVEL;
   }
 
@@ -480,6 +500,14 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     list_ptr = list_ptr->next;
   }
 
+  // 10/25/2026: Blocks are added one per user, so a second block for the
+  // same user was inserted into the file. Refuse to pick one.
+  if(found_key && CountUserBlocks(rsa_key_username, 1) > 1) {
+    ERROR_LEVEL = -1;
+    err << clear << "The database has more than one RSA key block for user " << rsa_key_username;
+    return ERROR_LEVEL;
+  }
+
   if(!found_key) {
     ERROR_LEVEL = -1;
     err << clear << "The private RSA key provided for user " << rsa_key_username << " does not have access to decrypt the database";
@@ -544,6 +572,17 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     return ERROR_LEVEL;
   }
 
+  // 10/25/2026: Check the recovered key decrypts the database. The block
+  // HMAC is keyed from the key in the block, so it does not show the
+  // block was made by someone who knew the database key.
+  int aes_error = 0;
+  if(VerifyDatabaseKey(f, aes_file_decrypt_secret, err, aes_error) != 0) {
+    ERROR_LEVEL = -1;
+    aes_file_decrypt_secret.Clear(1);
+    err << " (the RSA key block for user " << rsa_key_username << " does not hold this database's key)";
+    return ERROR_LEVEL;
+  }
+
   DBStringConfig::crypt_key = aes_file_decrypt_secret;
   aes_file_decrypt_secret.Clear(1);
   
@@ -583,6 +622,13 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
       break;
     }
     list_ptr = list_ptr->next;
+  }
+
+  // 10/25/2026: Refuse a second block for the same user
+  if(found_key && CountUserBlocks(smartcard_cert_username, 2) > 1) {
+    ERROR_LEVEL = -1;
+    err << clear << "The database has more than one smart card block for user " << smartcard_cert_username;
+    return ERROR_LEVEL;
   }
 
   if(!found_key) {
@@ -645,12 +691,33 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     return ERROR_LEVEL;
   }
   
+  // 10/25/2026: Check the recovered key decrypts the database
+  int aes_error = 0;
+  if(VerifyDatabaseKey(f, aes_file_decrypt_secret, err, aes_error) != 0) {
+    ERROR_LEVEL = -1;
+    aes_file_decrypt_secret.Clear(1);
+    err << " (the smart card block for user " << smartcard_cert_username << " does not hold this database's key)";
+    return ERROR_LEVEL;
+  }
+
   DBStringConfig::crypt_key = aes_file_decrypt_secret;
 
   aes_file_decrypt_secret.Clear(1);
   return ERROR_LEVEL;
 }
 #endif // __ENABLE_SMART_CARD__
+
+int DatabaseUserAuth::CountUserBlocks(const gxString &username, gxUINT32 block_type)
+// 10/25/2026: Number of loaded static area blocks for a user and type
+{
+  int count = 0;
+  gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
+  while(ptr) {
+    if((ptr->data.username == username) && (ptr->data.block_header.block_type == block_type)) count++;
+    ptr = ptr->next;
+  }
+  return count;
+}
 
 // ----------------------------------------------------------- // 
 // ------------------------------- //

@@ -43,6 +43,7 @@ public:
 
 public:
   int LoadStaticDataBlocks();  
+  int CountUserBlocks(const gxString &username, gxUINT32 block_type);
   int UpdateStaticData();
   int WriteStaticDataArea();
   int AddRSAKeyToStaticArea(const MemoryBuffer &secret,
@@ -67,6 +68,9 @@ public:
   unsigned static_data_bytes_used;
   unsigned num_static_data_blocks;
 };
+
+// 10/25/2026: Returns 0 if the key decrypts the database name
+int VerifyDatabaseKey(gxDatabase *f, const MemoryBuffer &key, gxString &err, int &aes_error);
 
 #endif // __DB_AUTH_HPP__
 // ----------------------------------------------------------- // 
