@@ -75,37 +75,62 @@ char *DBString::GetString(MemoryBuffer &key, int &error_level) const
   // Get the length of the encrytpted buffer
   memmove(&eh, dup, sizeof(eh));
   unsigned cryptLen = eh.crypt_len;
+
+  // 10/25/2026: The length is read from the file before it is
+  // authenticated, so it must fit in the fixed size string.
+  if(cryptLen > (DBStringLength - sizeof(eh))) {
+    error_level = AES_ERROR_BAD_BUFFER_LEN;
+    delete[] dup;
+    return 0;
+  }
   
   // Realign the encrypted buffer
   memmove(dup, (dup+sizeof(eh)), cryptLen);
   
   // Decrypt the compressed string
-  crypt_error = AES_Decrypt(dup, &cryptLen, (const unsigned char*)key.m_buf(), DBStringConfig::crypt_key.length());
+  crypt_error = AES_Decrypt(dup, &cryptLen, (const unsigned char*)key.m_buf(), key.length());
   if(crypt_error != AES_NO_ERROR) {
     error_level = crypt_error; 
+    OPENSSL_cleanse(dup, DBStringLength);
     delete[] dup;
     dup = 0;
     return 0;
   }
     
-  Bytef *dest = 0;;
-  uLong destLen;  
-  
   // Retrieve the compression header
   CompressHeader ch;
+  if(cryptLen < sizeof(ch)) {
+    error_level = AES_ERROR_BAD_BUFFER_LEN;
+    OPENSSL_cleanse(dup, DBStringLength);
+    delete[] dup;
+    return 0;
+  }
   memmove(&ch, dup, sizeof(ch));
+  if((uLong)ch.compress_len > (uLong)(cryptLen - sizeof(ch))) {
+    error_level = AES_ERROR_BAD_BUFFER_LEN;
+    OPENSSL_cleanse(dup, DBStringLength);
+    delete[] dup;
+    return 0;
+  }
 
-  // Uncompress the string
-  dest = UnCompressString(dest, 
-			  &destLen, 
-			  (const Bytef *)(dup+sizeof(ch)), 
-			  (uLong)ch.compress_len);
+  // 10/25/2026: Uncompress into a buffer that holds at most
+  // DBStringLength-1 characters plus the null terminator. Callers copy
+  // the string into DBStringLength buffers. A longer value is truncated,
+  // zlib fills the buffer and sets destLen to the bytes written.
+  uLong destLen = DBStringLength - 1;
+  Bytef *dest = new Bytef[DBStringLength];
+  int zrv = uncompress(dest, &destLen, (const Bytef *)(dup+sizeof(ch)), (uLong)ch.compress_len);
 
   // Free the duplicate sptr string
+  OPENSSL_cleanse(dup, DBStringLength);
   delete[] dup;
   dup = 0;
 
-  if(!dest) return 0;
+  if(((zrv != Z_OK) && (zrv != Z_BUF_ERROR)) || (destLen > (DBStringLength - 1))) {
+    OPENSSL_cleanse(dest, DBStringLength);
+    delete[] dest;
+    return 0;
+  }
   
   // Null terminate the string
   dest[destLen] = 0;
@@ -138,6 +163,13 @@ int DBString::SetString(MemoryBuffer &key, int &error_level, const char *s, unsi
   // Calculate the length of this string if no bytes size is specified
   if(bytes == 0) bytes = strlen(s);
   int truncate = 0;  
+
+  // 10/25/2026: GetString() returns at most DBStringLength-1 characters,
+  // so longer strings are truncated here instead of being stored whole.
+  if(bytes > (DBStringLength - 1)) {
+    bytes = DBStringLength - 1;
+    truncate = 1;
+  }
 
   Clear(); // Reset the current string in case compression or encryption fails
   Bytef *dest = 0;

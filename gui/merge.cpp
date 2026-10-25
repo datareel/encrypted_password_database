@@ -106,6 +106,16 @@ Exiting the merge operation");
   // Get the length of the encrytpted buffer
   memmove(&eh, dup, sizeof(eh));
   unsigned cryptLen = eh.crypt_len;
+
+  // 10/25/2026: The length is read from the file before it is
+  // authenticated, so it must fit in the fixed size string.
+  if(cryptLen > (DBStringLength - sizeof(eh))) {
+    delete[] dup;
+    dup = 0;
+    ProgramError->Message("Error decrypting password hash in the merge database!\n \
+Exiting the merge operation");   
+    return;
+  }
     
   // Realign the encrypted buffer
   memmove(dup, (dup+sizeof(eh)), cryptLen);

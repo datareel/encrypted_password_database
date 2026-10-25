@@ -47,7 +47,7 @@ DatabaseUserAuth::DatabaseUserAuth()
   
 DatabaseUserAuth::~DatabaseUserAuth()
 {
-  if(static_data) delete static_data;
+  if(static_data) delete[] static_data;
 }
 
 int DatabaseUserAuth::LoadStaticDataBlocks()
@@ -71,75 +71,79 @@ int DatabaseUserAuth::LoadStaticDataBlocks()
     return ERROR_LEVEL;
   }
 
+  // 10/25/2026: The static auth area is not authenticated, so every length
+  // read from it is checked against the space left in the area and the
+  // size of the buffer it is copied to. Older versions copied username_len
+  // bytes into a 1024 byte stack buffer and read ciphertext_len bytes past
+  // the end of the area. Same checks as FCryptCache::LoadStaticDataBlocks().
   StaticDataBlockHdr static_data_block_header;
   StaticDataBlock static_data_block;
+  const unsigned hdr_len = sizeof(static_data_block_header);
+  const unsigned max_ciphertext_len = 8192;
   unsigned block_offset = 0;
   unsigned offset = 0;
-  int found_block = 0;
-  int end_of_static_data = 0;
-  int read_static_area = 1;
   char username_buf[1024];
   char username[1024];
-
   
   num_static_data_blocks = 0;
   static_data_bytes_used = 0;
   static_block_list.Clear();
 
-  while(read_static_area) {
-    if((static_data_size < sizeof(static_data_block_header)) || (offset >= (static_data_size-sizeof(static_data_block_header)))) {
-      end_of_static_data = 1;
-      read_static_area = 0;
-      break;
-    }
-    
-    found_block = 0;
-    block_offset = offset;
-    while(!found_block) {
-      if(block_offset >= (static_data_size-sizeof(static_data_block_header))) {
-	end_of_static_data = 1;
-	read_static_area = 0;
-	break;
-      }
-      
+  for(;;) {
+    // Find the next block header
+    int found_block = 0;
+    for(block_offset = offset; (static_data_size >= hdr_len) && (block_offset <= (static_data_size - hdr_len)); block_offset += hdr_len) {
       static_data_block_header.WipeHeader(); // Clear all existing header data before read
-      memmove(&static_data_block_header, static_data+block_offset, sizeof(static_data_block_header));
-      block_offset+=sizeof(static_data_block_header);
+      memmove(&static_data_block_header, static_data+block_offset, hdr_len);
       if((static_data_block_header.version == STATIC_DATA_BLOCK_VERSION) && (static_data_block_header.checkword == 0xFEFE)) {
-	// Found a valid block
 	found_block = 1;
-	num_static_data_blocks++;
 	break;
       }
     }
-    if(end_of_static_data) {
-      read_static_area = 0;
-      break;
+    if(!found_block) break;
+
+    unsigned pos = block_offset + hdr_len;
+    unsigned remaining = static_data_size - pos;
+    unsigned ciphertext_len = static_data_block_header.ciphertext_len;
+    unsigned username_len = static_data_block_header.username_len;
+    if((ciphertext_len > max_ciphertext_len) || (ciphertext_len > remaining) ||
+       (AES_MAX_HMAC_LEN > (remaining - ciphertext_len)) ||
+       (username_len >= sizeof(username_buf)) ||
+       (username_len > (remaining - ciphertext_len - AES_MAX_HMAC_LEN))) {
+      ERROR_LEVEL = -1;
+      err << clear << "Invalid block in static auth area of DB file";
+      static_block_list.Clear();
+      num_static_data_blocks = 0;
+      OPENSSL_cleanse(username_buf, sizeof(username_buf));
+      OPENSSL_cleanse(username, sizeof(username));
+      return ERROR_LEVEL;
     }
-    if(found_block) {
-      static_data_block.Wipe();
-      static_data_block.block_header = static_data_block_header;
-      
-      offset+=sizeof(static_data_block_header);
-      static_data_block.rsa_ciphertext.Cat(static_data+offset, static_data_block_header.ciphertext_len);
-      offset+=static_data_block_header.ciphertext_len;
-      static_data_block.hmac.Cat(static_data+offset, AES_MAX_HMAC_LEN);
-      offset+=AES_MAX_HMAC_LEN;
-      memset(username_buf, 0, sizeof(username_buf));
-      memset(username, 0, sizeof(username));
-      
-      if(static_data_block_header.username_len > 0) {
-	memmove(username_buf, static_data+offset, static_data_block_header.username_len);
-	static_data_block.username_encoded = username_buf;
-	gxsBase64Decode(username_buf, username);
-	static_data_block.username = username;
-      }
-      offset+=static_data_block_header.username_len;
-      static_block_list.Add(static_data_block);
+
+    num_static_data_blocks++;
+    static_data_block.Wipe();
+    static_data_block.block_header = static_data_block_header;
+    static_data_block.rsa_ciphertext.Cat(static_data+pos, ciphertext_len);
+    pos += ciphertext_len;
+    static_data_block.hmac.Cat(static_data+pos, AES_MAX_HMAC_LEN);
+    pos += AES_MAX_HMAC_LEN;
+    memset(username_buf, 0, sizeof(username_buf));
+    memset(username, 0, sizeof(username));
+    if(username_len > 0) {
+      memmove(username_buf, static_data+pos, username_len);
+      static_data_block.username_encoded = username_buf;
+      // The decoded name is never longer than the encoded name
+      gxsBase64Decode(username_buf, username);
+      username[sizeof(username)-1] = 0;
+      static_data_block.username = username;
     }
+    pos += username_len;
+    static_block_list.Add(static_data_block);
+    offset = pos;
   }
-  if(num_static_data_blocks == 0) offset = 0;
-  static_data_bytes_used = offset;
+
+  static_data_bytes_used = (num_static_data_blocks == 0) ? 0 : offset;
+  OPENSSL_cleanse(username_buf, sizeof(username_buf));
+  OPENSSL_cleanse(username, sizeof(username));
     
   return ERROR_LEVEL;
 }
@@ -504,6 +508,15 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     return ERROR_LEVEL;
   }
 
+  // 10/25/2026: The plaintext must hold the salt and a secret. A shorter
+  // plaintext made the length below wrap to about 4 GB.
+  if((decrypted_data_len < (AES_MAX_SALT_LEN + AES_MIN_SECRET_LEN)) ||
+     (decrypted_data_len > sizeof(rsa_decrypted_message))) {
+    OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+    ERROR_LEVEL = -1;
+    err << clear << "Invalid decrypted key length for user " << rsa_key_username;
+    return ERROR_LEVEL;
+  }
   memmove(SALT, rsa_decrypted_message, AES_MAX_SALT_LEN);
   aes_file_decrypt_secret.Clear(1);
   aes_file_decrypt_secret.Cat(rsa_decrypted_message+AES_MAX_SALT_LEN, (decrypted_data_len-AES_MAX_SALT_LEN));
@@ -596,6 +609,15 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     return ERROR_LEVEL;
   }
   
+  // 10/25/2026: The plaintext must hold the salt and a secret. A shorter
+  // plaintext made the length below wrap to about 4 GB.
+  if((decrypted_data_len < (AES_MAX_SALT_LEN + AES_MIN_SECRET_LEN)) ||
+     (decrypted_data_len > sizeof(rsa_decrypted_message))) {
+    OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+    ERROR_LEVEL = -1;
+    err << clear << "Invalid decrypted key length for user " << smartcard_cert_username;
+    return ERROR_LEVEL;
+  }
   memmove(SALT, rsa_decrypted_message, AES_MAX_SALT_LEN);
   aes_file_decrypt_secret.Clear(1);
   aes_file_decrypt_secret.Cat(rsa_decrypted_message+AES_MAX_SALT_LEN, (decrypted_data_len-AES_MAX_SALT_LEN));

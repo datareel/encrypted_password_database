@@ -512,7 +512,13 @@ int ExportListObjectsEPDB(POD *pod, char delimiter, char filter_char, char repla
   dllistptr = dllist->GetHead();
   while(dllistptr) {
     INFOHOG infohog(pod);
-    infohog.ReadObject(dllistptr->data);
+    // 10/25/2026: Skip records that cannot be read or have a bad key member
+    if(!infohog.ReadObject(dllistptr->data) ||
+       (infohog.GetMemberLen(0) != sizeof(INFOHOG_t))) {
+      cerr << "ERROR: Cannot read database record, skipping" << "\n" << flush;
+      dllistptr = dllistptr->next;
+      continue;
+    }
     dbstring = (DBString *)infohog.GetMember(0);
     INFOHOG_t ob(dbstring->c_str(dest));
     dbuf << clear << ob.c_str(dest);

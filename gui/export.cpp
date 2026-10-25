@@ -139,7 +139,12 @@ void ExportToASCII(wxWindow *parent)
 
   while(dllistptr) {
     INFOHOG infohog(child_frame->GetPOD());
-    infohog.ReadObject(dllistptr->data);
+    // 10/25/2026: Skip records that cannot be read or have a bad key member
+    if(!infohog.ReadObject(dllistptr->data) ||
+       (infohog.GetMemberLen(0) != sizeof(INFOHOG_t))) {
+      dllistptr = dllistptr->next;
+      continue;
+    }
     
     ::wxYield();
 
