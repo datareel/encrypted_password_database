@@ -85,6 +85,56 @@ timeout 20 ${TOOL} --db-list known.ehd < /dev/null > out.txt 2>/dev/null
 [ $? -eq 1 ]
 check $? "password prompt at end of input exits 1"
 
+# Secrets from files and file descriptors (M9)
+umask 077
+printf '%s\n' "${PW}" > pw.txt
+${TOOL} --password-file=pw.txt --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "--password-file reads the password"
+chmod 644 pw.txt
+${TOOL} --password-file=pw.txt --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "chmod 600" err.txt
+check $? "--password-file refuses a file other users can read"
+chmod 600 pw.txt; ln -sf pw.txt pw_link.txt
+${TOOL} --password-file=pw_link.txt --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ]
+check $? "--password-file refuses a symbolic link"
+${TOOL} --password-fd=3 --db-list known.ehd 3<pw.txt > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "--password-fd reads the password"
+${TOOL} --password="${PW}" --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt && grep -q "WARNING: --password=value" err.txt
+check $? "--password=value still works and warns"
+openssl genrsa -aes256 -passout pass:rsa-pass-2026 -out rsa_priv.pem 2048 >/dev/null 2>&1
+openssl rsa -in rsa_priv.pem -passin pass:rsa-pass-2026 -pubout -out rsa_pub.pem >/dev/null 2>&1
+cp known.ehd rsa.ehd; cp known.ehx rsa.ehx
+${TOOL} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=tester rsa.ehd >>${logFILE} 2>&1
+check $? "add an RSA user"
+printf 'rsa-pass-2026\n' > pp.txt
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list rsa.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "--rsa-key-passphrase-file opens with the RSA key"
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-fd=4 --db-list rsa.ehd 4<pp.txt > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "--rsa-key-passphrase-fd opens with the RSA key"
+# The tool waits at the RSA passphrase prompt while its arguments are checked
+(sleep 3; echo wrong) | ${TOOL} --password=SECRETVALUE123 --rsa-key=rsa_priv.pem --rsa-key-username=tester --db-list rsa.ehd >/dev/null 2>&1 &
+tpid=$!
+sleep 1
+if [ -r /proc/${tpid}/cmdline ]; then
+    tr '\0' ' ' < /proc/${tpid}/cmdline > cmdline.txt
+    ! grep -q SECRETVALUE123 cmdline.txt && grep -q -- "--password=xxxx" cmdline.txt
+    check $? "--password=value is removed from the process arguments"
+else
+    fail "--password=value is removed from the process arguments (process ended early)"
+fi
+wait ${tpid} 2>/dev/null
+${TOOL} "" --password-file=pw.txt --db-list known.ehd > out.txt 2>/dev/null &
+tpid=$!
+sleep 5
+if kill -0 ${tpid} 2>/dev/null; then kill ${tpid}; fail "an empty argument does not hang"; else pass "an empty argument does not hang"; fi
+wait ${tpid} 2>/dev/null
+
 # Damaged and crafted files must fail cleanly, never crash
 cp known.ehd t.ehd; cp known.ehx t.ehx
 tamper() { # tamper name python_statement

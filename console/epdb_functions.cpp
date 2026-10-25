@@ -41,6 +41,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 #include "epdb_functions.h"
 
+#if defined (__UNIX__)
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#endif
+
 int PrintDBConfig(gxDatabaseConfig &db_config)
 {
   cout << "Printing database configurtaion" << "\n";
@@ -824,3 +830,103 @@ void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod,
 // ------------------------------- //
 // --------- End of File --------- //
 // ------------------------------- //
+
+// 10/25/2026: Read a password, passphrase or PIN from a file or an open
+// file descriptor, so scripts do not have to put it on the command line
+// where other users can see it with ps. The secret is the first line,
+// without the line ending. Returns 0 if successful or 1 with err set.
+static int ReadSecretLine(int fd, gxString &secret, gxString &err, const char *name)
+{
+  const unsigned max_len = 4096;
+  char buf[max_len+1];
+  unsigned len = 0;
+  int rv = 0;
+  while(len < max_len) {
+#if defined (__UNIX__)
+    ssize_t n = read(fd, buf+len, 1);
+#else
+    int n = _read(fd, buf+len, 1);
+#endif
+    if(n < 0) {
+      err << clear << "Cannot read " << name;
+      rv = 1;
+      break;
+    }
+    if(n == 0) break; // End of file
+    if(buf[len] == '\n') break;
+    len++;
+  }
+  if(rv == 0 && len >= max_len) {
+    err << clear << name << " is too long";
+    rv = 1;
+  }
+  if(rv == 0 && len > 0 && buf[len-1] == '\r') len--;
+  if(rv == 0 && len == 0) {
+    err << clear << name << " is empty";
+    rv = 1;
+  }
+  if(rv == 0) {
+    secret.Clear(1);
+    secret.SetString(buf, len);
+  }
+  OPENSSL_cleanse(buf, sizeof(buf));
+  return rv;
+}
+
+int ReadSecretFile(const char *fname, gxString &secret, gxString &err)
+{
+  err.Clear();
+#if defined (__UNIX__)
+  int fd = open(fname, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+  if(fd < 0) {
+    err << clear << "Cannot open secret file " << fname << " (it must exist and not be a symbolic link)";
+    return 1;
+  }
+  struct stat st;
+  if(fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+    err << clear << "Secret file " << fname << " is not a regular file";
+    close(fd);
+    return 1;
+  }
+  if(st.st_uid != geteuid()) {
+    err << clear << "Secret file " << fname << " is not owned by the current user";
+    close(fd);
+    return 1;
+  }
+  if(st.st_mode & (S_IRWXG|S_IRWXO)) {
+    err << clear << "Secret file " << fname << " can be read or written by other users, use chmod 600";
+    close(fd);
+    return 1;
+  }
+  int rv = ReadSecretLine(fd, secret, err, fname);
+  close(fd);
+  return rv;
+#else
+  int fd = _open(fname, _O_RDONLY|_O_BINARY);
+  if(fd < 0) {
+    err << clear << "Cannot open secret file " << fname;
+    return 1;
+  }
+  int rv = ReadSecretLine(fd, secret, err, fname);
+  _close(fd);
+  return rv;
+#endif
+}
+
+int ReadSecretFD(const char *fd_str, gxString &secret, gxString &err)
+{
+  err.Clear();
+  if(!fd_str || !*fd_str || strlen(fd_str) > 6) {
+    err << clear << "Invalid file descriptor " << (fd_str ? fd_str : "");
+    return 1;
+  }
+  for(const char *p = fd_str; *p; p++) {
+    if(*p < '0' || *p > '9') {
+      err << clear << "Invalid file descriptor " << fd_str;
+      return 1;
+    }
+  }
+  gxString name;
+  name << clear << "file descriptor " << fd_str;
+  return ReadSecretLine(atoi(fd_str), secret, err, name.c_str());
+}

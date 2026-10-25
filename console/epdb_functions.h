@@ -45,6 +45,8 @@ POD *OpenEPDB_POD(gxString &fname, gxString &err_string, gxDatabaseAccessMode mo
 POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char database_revision, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
 int BuildVirtualEPDB(POD *pod);
 extern int epdb_btree_errors;
+int ReadSecretFile(const char *fname, gxString &secret, gxString &err);
+int ReadSecretFD(const char *fd_str, gxString &secret, gxString &err);
 int ExportEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0, int *read_errors = 0);
 int ExportListObjectsEPDB(POD *pod, char delimiter = 0, char filter_char = 0, char replace_char = 0, char replace_char_with = 0, int *read_errors = 0);
 unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all = 0);

@@ -109,6 +109,9 @@ void DisplayVersion();
 void HelpMessage();
 int ProcessDashDashArg(gxString &arg);
 int ProcessArgs(char *arg);
+void WarnSecretOnCommandLine(const char *option, const char *alternatives);
+int ReadSecretArg(const gxString &arg, gxString &value, gxString &secret);
+void WipeSecretArg(char *arg);
 int DEBUG_m(char *message, int level = 1, int rv = 0);
 int ExitProgram(int rv = 0, char *exit_message = 0);
 int check_if_file_exists(gxString &fname);
@@ -136,9 +139,15 @@ int main(int argc, char **argv)
   
   if(argc >= 2) {
     while (narg < argc) {
+      if (arg[0] == '\0') { // 10/25/2026: An empty argument looped forever
+	arg = argv[++narg];
+	continue;
+      }
       if (arg[0] != '\0') {
 	if (arg[0] == '-') { // Look for command line arguments
-	  if(!ProcessArgs(arg)) return ExitProgram(1); // Exit if argument is not valid
+	  int arg_ok = ProcessArgs(arg);
+	  WipeSecretArg(argv[narg]); // Remove secrets from the process arguments
+	  if(!arg_ok) return ExitProgram(1); // Exit if argument is not valid
 	}
 	else { 
 	  fn = arg;
@@ -569,14 +578,20 @@ void HelpMessage()
   cout << "\n" << flush;
   cout << "DB authentication methods:\n" << flush;
   cout << "          --key=aes_key (Use a key file for symmetric file decryption)" << "\n" << flush;
-  cout << "          --password (Use a password for symmetric file decryption)" << "\n" << flush;
+  cout << "          --password (Use a password for symmetric file decryption, prompts for the password)" << "\n" << flush;
+  cout << "          --password-file=file (Read the password from the first line of a file only you can read)" << "\n" << flush;
+  cout << "          --password-fd=n (Read the password from the first line of open file descriptor n)" << "\n" << flush;
   cout << "          --rsa-key (Use a private RSA key file for decryption)" << "\n" << flush;
-  cout << "          --rsa-key-passphrase (Passphrase for private RSA key)" << "\n" << flush;
+  cout << "          --rsa-key-passphrase=pass (Passphrase for private RSA key, visible to other users, not recommended)" << "\n" << flush;
+  cout << "          --rsa-key-passphrase-file=file (Read the private RSA key passphrase from a file only you can read)" << "\n" << flush;
+  cout << "          --rsa-key-passphrase-fd=n (Read the private RSA key passphrase from open file descriptor n)" << "\n" << flush;
   cout << "          --rsa-key-username=name (Username that owns the private RSA key, defaults to current user)" << "\n" << flush;
 
 #ifdef __ENABLE_SMART_CARD__
   cout << "          --smartcard (Use a smart card for decryption)" << "\n" << flush;
-  cout << "          --smartcard-pin=pin (Supply smart card PIN on the command line for scripting, use with caution)" << "\n" << flush;
+  cout << "          --smartcard-pin=pin (Smart card PIN, visible to other users, not recommended)" << "\n" << flush;
+  cout << "          --smartcard-pin-file=file (Read the smart card PIN from a file only you can read)" << "\n" << flush;
+  cout << "          --smartcard-pin-fd=n (Read the smart card PIN from open file descriptor n)" << "\n" << flush;
   cout << "          --smartcard-username=name (Username assigned to the smart card cert, defaults to current user)" << "\n" << flush;
   cout << "\n" << flush;
   cout << "Smart card settings:\n" << flush;
@@ -616,17 +631,44 @@ void HelpMessage()
   cout << "\n" << flush; // End of list
 }
 
+void WarnSecretOnCommandLine(const char *option, const char *alternatives)
+// 10/25/2026: Secrets on the command line can be read by other users
+// with ps and end up in shell history.
+{
+  cerr << "WARNING: " << option << "=value puts the secret on the command line, where other users can read it. "
+       << "Use " << alternatives << " instead." << "\n" << flush;
+}
+
+int ReadSecretArg(const gxString &arg, gxString &value, gxString &secret)
+// Read a secret for a --xxx-file or --xxx-fd argument. Returns 0 if
+// successful or 1 after printing an error.
+{
+  gxString err;
+  int rv;
+  if(arg.Find("-fd") != -1) {
+    rv = ReadSecretFD(value.c_str(), secret, err);
+  }
+  else {
+    check_if_file_exists(value); // Expand ${HOME} and ~/
+    rv = ReadSecretFile(value.c_str(), secret, err);
+  }
+  if(rv != 0) cerr << "ERROR: " << err.c_str() << "\n" << flush;
+  return rv;
+}
+
 int ProcessDashDashArg(gxString &arg)
 {
   gxString sbuf, equal_arg, ebuf;
   int has_valid_args = 0;
   int rv = 0;
   
+  gxString raw_equal_arg; // 10/25/2026: Untrimmed value for secrets
   if(arg.Find("=") != -1) {
     // Look for equal arguments
     // --log-file="/var/log/my_service.log"
     equal_arg = arg;
     equal_arg.DeleteBeforeIncluding("=");
+    raw_equal_arg = equal_arg;
     arg.DeleteAfterIncluding("=");
     equal_arg.TrimLeading(' '); equal_arg.TrimTrailing(' ');
     equal_arg.TrimLeading('\"'); equal_arg.TrimTrailing('\"');
@@ -749,18 +791,40 @@ int ProcessDashDashArg(gxString &arg)
   }
 
   if(arg == "rsa-key-passphrase") {
-    if(equal_arg.is_null()) {
+    if(raw_equal_arg.is_null()) {
       cerr << "ERROR: --rsa-key-passphrase requires an input argument" << "\n" << flush;
       return 0;
     }
-    rsa_key_passphrase = equal_arg;
+    WarnSecretOnCommandLine("--rsa-key-passphrase", "--rsa-key-passphrase-file or --rsa-key-passphrase-fd");
+    rsa_key_passphrase = raw_equal_arg;
+    has_valid_args = 1;
+  }
+
+  // 10/25/2026: Read secrets from a file or file descriptor
+  if((arg == "rsa-key-passphrase-file") || (arg == "rsa-key-passphrase-fd")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    if(ReadSecretArg(arg, equal_arg, rsa_key_passphrase) != 0) return 0;
     has_valid_args = 1;
   }
 
   if(arg == "password") {
-    if(!equal_arg.is_null()) {
-      password = equal_arg;
+    if(!raw_equal_arg.is_null()) {
+      WarnSecretOnCommandLine("--password", "--password-file or --password-fd");
+      password = raw_equal_arg;
     }
+    use_password  = 1;
+    has_valid_args = 1;
+  }
+
+  if((arg == "password-file") || (arg == "password-fd")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    if(ReadSecretArg(arg, equal_arg, password) != 0) return 0;
     use_password  = 1;
     has_valid_args = 1;
   }
@@ -868,7 +932,20 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: --smartcard-pin missing pin number: --smartcard-pin=12345" << "\n" << flush;
       return 0;
     }
+    WarnSecretOnCommandLine("--smartcard-pin", "--smartcard-pin-file or --smartcard-pin-fd");
     sc.SetPin(equal_arg.c_str());
+    has_valid_args = 1;
+  }
+
+  if((arg == "smartcard-pin-file") || (arg == "smartcard-pin-fd")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    gxString pin_buf;
+    if(ReadSecretArg(arg, equal_arg, pin_buf) != 0) return 0;
+    sc.SetPin(pin_buf.c_str());
+    pin_buf.Clear(1);
     has_valid_args = 1;
   }
 #endif // __ENABLE_SMART_CARD__
@@ -964,9 +1041,27 @@ int ProcessArgs(char *arg)
       cerr << "Exiting..." << "\n" << flush;
       return 0;
   }
-  arg[0] = '\0';
-
   return 1; // All command line arguments were valid
+}
+
+void WipeSecretArg(char *arg)
+// 10/25/2026: Overwrite the value of --password=, --rsa-key-passphrase=
+// and --smartcard-pin= in argv, so it is no longer shown by ps or in
+// /proc/<pid>/cmdline after the arguments are read. It is still visible
+// until then, use the -file or -fd arguments for secrets.
+{
+  if(!arg) return;
+  const char *secret_args[] = { "password=", "rsa-key-passphrase=", "smartcard-pin=", 0 };
+  char *p = arg;
+  while(*p == '-') p++;
+  for(int i = 0; secret_args[i]; i++) {
+    unsigned len = strlen(secret_args[i]);
+    if(CaseICmp(gxString(p, len), secret_args[i]) == 0) {
+      char *v = p + len;
+      memset(v, 'x', strlen(v));
+      return;
+    }
+  }
 }
 
 int DEBUG_m(char *message, int level, int rv)
