@@ -209,6 +209,54 @@ int WritePrivateFile(const char *fname, const char *data, unsigned len, gxString
   return 0;
 }
 
+int CheckPrivateKeyFile(const char *fname, gxString &err)
+// 10/25/2026: A private RSA key or AES key file must be a regular file
+// owned by the user that other users cannot read or write, like ssh
+// requires for private keys. A symbolic link is checked by its target.
+// Returns 0 if the file is good, or 1 with err set.
+{
+  err.Clear();
+#if defined (__UNIX__)
+  struct stat st;
+  if(stat(fname, &st) != 0) {
+    err << clear << "Cannot read key file " << fname;
+    return 1;
+  }
+  if(!S_ISREG(st.st_mode)) {
+    err << clear << "Key file " << fname << " is not a regular file";
+    return 1;
+  }
+  if(st.st_uid != geteuid()) {
+    err << clear << "Key file " << fname << " is not owned by the current user";
+    return 1;
+  }
+  if(st.st_mode & (S_IRWXG|S_IRWXO)) {
+    err << clear << "Key file " << fname << " can be read or written by other users, run chmod 600 " << fname;
+    return 1;
+  }
+#endif
+  return 0;
+}
+
+gxString ReplaceFileExtension(const gxString &fname, const char *ext)
+// 10/25/2026: Replace the extension of the file name part of a path.
+// Paths used to be cut at the last "." anywhere, so "dir.d/mydb" opened
+// "dir.ehd" instead of "dir.d/mydb.ehd".
+{
+  gxString path(fname);
+  int sep = -1;
+  for(unsigned i = 0; i < path.length(); i++) {
+    if(path[i] == '/' || path[i] == '\\') sep = (int)i;
+  }
+  int dot = -1;
+  for(unsigned i = (unsigned)(sep+1); i < path.length(); i++) {
+    if(path[i] == '.') dot = (int)i;
+  }
+  if(dot > sep + 1) path.DeleteAt((unsigned)dot, path.length() - (unsigned)dot);
+  path << ext;
+  return path;
+}
+
 // ----------------------------------------------------------- // 
 // ------------------------------- //
 // --------- End of File --------- //

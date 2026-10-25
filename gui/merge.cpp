@@ -77,10 +77,9 @@ void Merge(wxWindow *parent)
   }
 
   gxString datafile((const char *)dialog.GetPath().c_str());
-  datafile.DeleteAfterLastIncluding(".");
-  gxString indexfile(datafile);
-  datafile += child_frame->DBParms()->data_file_extension;
-  indexfile += child_frame->DBParms()->index_file_extension;
+  // 10/25/2026: Replace only the extension of the file name
+  gxString indexfile = ReplaceFileExtension(datafile, child_frame->DBParms()->index_file_extension.c_str());
+  datafile = ReplaceFileExtension(datafile, child_frame->DBParms()->data_file_extension.c_str());
     
 
   gxDatabase f;

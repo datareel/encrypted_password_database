@@ -463,6 +463,12 @@ int NewDatabasePanel::TestInput()
     
     gxString ebuf;
     MemoryBuffer key;
+    // 10/25/2026: Refuse a key file other users can read
+    if(CheckPrivateKeyFile(key_input->GetValue().c_str(), ebuf) != 0) {
+      ProgramError->Message(ebuf.c_str());
+      is_ok = 0;
+      return 0;
+    }
     if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
       ProgramError->Message(ebuf.c_str());   
       is_ok = 0;

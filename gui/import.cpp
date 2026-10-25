@@ -32,6 +32,36 @@ Database import functions
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
 
+// 10/25/2026: Lines longer than this are skipped with a message. They
+// were split into two lines at 1024 bytes and imported as two records.
+const unsigned ImportMaxLine = 65536;
+
+struct ImportLineBuffer { // Frees the line buffer on every return path
+  ImportLineBuffer(unsigned n) { p = new char[n]; p[0] = 0; }
+  ~ImportLineBuffer() { delete[] p; }
+  char *p;
+};
+
+static int ReadImportLine(DiskFileB &stream, char *buf, unsigned buf_len, int &bad_line)
+// 10/25/2026: Read one line into buf. Sets bad_line if the line is too
+// long or has a NUL character, which used to cut the line short. The
+// rest of a long line is read and dropped. Returns 0 at end of file.
+{
+  unsigned len = 0;
+  char c;
+  int got = 0;
+  bad_line = 0;
+  while(stream.df_Read(&c, 1) == DiskFileB::df_NO_ERROR) {
+    got = 1;
+    if(c == '\n') break;
+    if(c == 0) bad_line = 1;
+    if(len < buf_len - 1) buf[len++] = c;
+    else bad_line = 1;
+  }
+  buf[len] = 0;
+  return got;
+}
+
 int has_grid_labels(const char *line, CryptDBDocument *child_frame) 
 {
   char dest[DBStringLength]; 
@@ -40,7 +70,9 @@ int has_grid_labels(const char *line, CryptDBDocument *child_frame)
   char words[MAXWORDS][MAXWORDLENGTH];
   int has_label = 0;
 
-  if(parse(line, words, &num, dchar) == 1) return 1;
+  // 10/25/2026: A line parse() cannot split is not the label line. It
+  // returned 1 and the line was skipped without a message.
+  if(parse(line, words, &num, dchar) == 1) return 0;
     
   for(int i = 0; i < NumDataMembers; i++) {
     if(*words[i] != 0) {
@@ -58,8 +90,10 @@ int has_grid_labels(const char *line, CryptDBDocument *child_frame)
 int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame) 
 {
   int num_object_lines = 0;
-  const int MaxLine = 1024;
-  char LineBuffer[MaxLine];
+  const unsigned MaxLine = ImportMaxLine;
+  ImportLineBuffer line_buf(MaxLine);
+  char *LineBuffer = line_buf.p;
+  int bad_line = 0;
   wxString sbuf;
   const char dchar = ',';
   int num;
@@ -67,7 +101,8 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
   while(!stream.df_EOF()) { // Read in file line by line
     ::wxYield(); // Allow the GUI to update the display
 
-    stream.df_GetLine(LineBuffer, MaxLine, '\n');
+    if(!ReadImportLine(stream, LineBuffer, MaxLine, bad_line)) break;
+    if(bad_line) continue;
     
     // Copy contents of the array to temporary holding buffer
     sbuf = LineBuffer;
@@ -83,9 +118,15 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
     if(sbuf != "") {
       // Ensure that the template does not get added
       if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
-      char words[MAXWORDS][MAXWORDLENGTH];
-      if(parse((const char *)sbuf.c_str(), words, &num, dchar) == 1) continue;
-      if(*words[0] != 0) num_object_lines++; 
+      // 10/25/2026: Count the lines the import reads, ParseCVSLine() has
+      // no word limits
+      gxString gxbuf = (const char *)sbuf.c_str();
+      unsigned n = 0;
+      gxString *fields = ParseCVSLine(gxbuf, n);
+      if(fields) {
+	if(n > 0 && !fields[0].is_null()) num_object_lines++;
+	delete[] fields;
+      }
     }
   }
   stream.df_Rewind();
@@ -106,8 +147,10 @@ void ImportFromASCII(wxWindow *parent)
   gxString *csv_array = 0;
   int i;
   unsigned num;
-  const int MaxLine = 1024;
-  char LineBuffer[MaxLine];
+  const unsigned MaxLine = ImportMaxLine;
+  ImportLineBuffer line_buf(MaxLine);
+  char *LineBuffer = line_buf.p;
+  int bad_line = 0;
   wxString sbuf;
   const char dchar = ',';
   int linecount = 0;
@@ -221,8 +264,13 @@ Exiting the import operation");
       }
     }
 
-    stream.df_GetLine(LineBuffer, MaxLine, '\n');
+    if(!ReadImportLine(stream, LineBuffer, MaxLine, bad_line)) break;
     linecount++;
+    if(bad_line) {
+      *(frame->statusWin) << "Skipped line " << (int)linecount
+			  << ": longer than " << (int)(MaxLine-1) << " characters or has a NUL character" << "\n";
+      continue;
+    }
     
     // Copy contents of the array to temporary holding buffer
     sbuf = LineBuffer;

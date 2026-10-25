@@ -38,7 +38,12 @@ int RebuildIndexFile(gxString &index_file, POD *pod, int echo_results,
   INFOHOG infohog(pod);
   INFOHOGKEY key_type;
   gxDatabaseError err;
-  const char *tempfile = "tempfile.idx";
+  // 10/25/2026: Build the new index next to the old one, not in the
+  // current directory under a fixed name
+  gxString tempfile_name = index_file;
+  tempfile_name << ".rebuild";
+  futils_remove(tempfile_name.c_str());
+  const char *tempfile = tempfile_name.c_str();
   wxString sbuf;
 
   if(echo_results) {

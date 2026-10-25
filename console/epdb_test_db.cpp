@@ -70,12 +70,8 @@ static int Create(const char *fname, const char *password, int num)
   DBStringConfig::crypt_key.Clear(1);
   DBStringConfig::crypt_key.Cat(password, strlen(password));
 
-  gxString data_file = fname;
-  gxString index_file = fname;
-  data_file.DeleteAfterLastIncluding(".");
-  data_file += ".ehd";
-  index_file.DeleteAfterLastIncluding(".");
-  index_file += ".ehx";
+  gxString data_file = ReplaceFileExtension(fname, ".ehd");
+  gxString index_file = ReplaceFileExtension(fname, ".ehx");
   if(futils_exists(data_file.c_str()) || futils_exists(index_file.c_str())) {
     cerr << "ERROR: " << data_file.c_str() << " or " << index_file.c_str() << " already exists" << "\n";
     return 1;
@@ -268,9 +264,39 @@ static int SelfTest(const char *dir)
   return fails ? 1 : 0;
 }
 
+static int AddRSA(const char *fname, const char *password, const char *pubkey_file,
+		  const char *username, int use_oaep)
+// Adds an RSA user block with PKCS#1 v1.5 or OAEP padding
+{
+  char public_key[RSA_max_keybuf_len];
+  unsigned public_key_len = 0;
+  if(RSA_read_key_file(pubkey_file, public_key, sizeof(public_key), &public_key_len) != RSA_NO_ERROR) {
+    cerr << "ERROR: Cannot read " << pubkey_file << "\n";
+    return 1;
+  }
+  gxString err_string;
+  gxDatabase *f = OpenEPDB(fname, err_string, gxDBASE_READWRITE);
+  if(!f) {
+    cerr << "ERROR: " << err_string.c_str() << "\n";
+    return 1;
+  }
+  MemoryBuffer secret;
+  secret.Cat(password, strlen(password));
+  DatabaseUserAuth db_auth;
+  db_auth.f = f;
+  int rv = db_auth.AddRSAKeyToStaticArea(secret, public_key, public_key_len, gxString(username), 0, use_oaep);
+  if(rv != 0) cerr << "ERROR: " << db_auth.err.c_str() << "\n";
+  f->Close();
+  delete f;
+  return rv != 0;
+}
+
 int main(int argc, char **argv)
 {
   AES_openssl_init();
+  if(argc == 7 && strcmp(argv[1], "addrsa") == 0) {
+    return AddRSA(argv[2], argv[3], argv[4], argv[5], strcmp(argv[6], "oaep") == 0);
+  }
   if(argc == 3 && strcmp(argv[1], "selftest") == 0) {
     return SelfTest(argv[2]);
   }
@@ -283,6 +309,7 @@ int main(int argc, char **argv)
   cerr << "Usage: " << argv[0] << " create dbfile.ehd password num_records" << "\n";
   cerr << "       " << argv[0] << " dump dbfile.ehd password" << "\n";
   cerr << "       " << argv[0] << " selftest dir" << "\n";
+  cerr << "       " << argv[0] << " addrsa dbfile.ehd password public_key.pem username oaep|pkcs1" << "\n";
   return 1;
 }
 // ----------------------------------------------------------- //

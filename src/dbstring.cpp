@@ -57,6 +57,14 @@ void DBString::Clear()
   sptr[0] = 0;
 }
 
+// 10/25/2026: Wipe and free a string returned by GetString()
+static void FreeDBStringBuffer(char *s)
+{
+  if(!s || s == DBStringNULLPtr::DBStringNUllStr) return;
+  OPENSSL_cleanse(s, strlen(s));
+  delete[] s;
+}
+
 char *DBString::GetString(MemoryBuffer &key, int &error_level) const
 // Returns a null terminated C string or a null pointer.
 {
@@ -247,16 +255,12 @@ void DBString::Copy(const DBString &s)
   Clear();
   char *dest = (char *)s.GetString();
   if(!dest) return;
-  if(dest[0] == 0) return;
+  if(dest[0] == 0) {
+    FreeDBStringBuffer(dest); // 10/25/2026: Was leaked
+    return;
+  }
   SetString(dest);
-  delete dest;
-}
-
-static void FreeDBStringBuffer(char *s)
-{
-  if(!s || s == DBStringNULLPtr::DBStringNUllStr) return;
-  OPENSSL_cleanse(s, strlen(s));
-  delete[] s;
+  FreeDBStringBuffer(dest); // 10/25/2026: Was delete, the buffer is new[]
 }
 
 GXDLCODE_API int Compare(const DBString &a, const DBString &b)
@@ -309,7 +313,7 @@ unsigned DBString::length()
   if(!dest) return 0;
   if(dest[0] == 0) return 0;
   int len = strlen(dest);
-  delete[] dest;
+  FreeDBStringBuffer(dest);
   return len;
 }
 
@@ -333,7 +337,7 @@ char *DBString::c_str(char *sbuf)
     return sbuf;
   }
   strcpy(sbuf, dest);
-  delete[] dest;
+  FreeDBStringBuffer(dest);
 
   return sbuf; 
 }
@@ -342,7 +346,9 @@ int DBString::is_null()
 { 
   char *dest = GetString();
   if(!dest) return 1;
-  return dest[0] == 0; 
+  int rv = (dest[0] == 0);
+  FreeDBStringBuffer(dest); // 10/25/2026: The decrypted string was leaked
+  return rv; 
 } 
 
 int DBString::is_not_null() 

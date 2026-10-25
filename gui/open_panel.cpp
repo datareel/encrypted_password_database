@@ -240,6 +240,12 @@ int OpenDatabasePanel::RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxS
     return 0;
   }
    
+  // 10/25/2026: Refuse a private key file other users can read
+  if(CheckPrivateKeyFile(rsa_key_input->GetValue().c_str(), sbuf) != 0) {
+    ProgramError->Message(sbuf.c_str());
+    is_ok = 0;
+    return 0;
+  }
   rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), private_key, RSA_max_keybuf_len, &private_key_len, &has_passphrase);
   if(rv != RSA_NO_ERROR) {
     sbuf << clear << "Error reading private key file " << RSA_err_string(rv);
@@ -303,6 +309,12 @@ int OpenDatabasePanel::AESKeyOpenDatabase()
   
   gxString sbuf, ebuf;
   MemoryBuffer key;
+  // 10/25/2026: Refuse a key file other users can read
+  if(CheckPrivateKeyFile(key_input->GetValue().c_str(), ebuf) != 0) {
+    ProgramError->Message(ebuf.c_str());
+    is_ok = 0;
+    return 0;
+  }
   if(read_key_file(key_input->GetValue().c_str(), key, ebuf) != 0) {
     ProgramError->Message(ebuf.c_str());   
     is_ok = 0;

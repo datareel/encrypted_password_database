@@ -246,7 +246,8 @@ int DatabaseUserAuth::WriteStaticDataArea()
 
 int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
 					    char public_key[], unsigned public_key_len,
-					    const gxString &rsa_key_username, char *passphrase)
+					    const gxString &rsa_key_username, char *passphrase,
+					    int use_oaep)
 {
   gxString sbuf;
   gxUINT32 version;
@@ -277,7 +278,11 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   unsigned char SALT[AES_MAX_SALT_LEN];
   unsigned char IV[AES_MAX_IV_LEN];
   unsigned char KEY[AES_MAX_KEY_LEN];
-  AES_init_salt(SALT, sizeof(SALT));
+  if(AES_init_salt(SALT, sizeof(SALT)) != AES_NO_ERROR) { // 10/25/2026: Check the result
+    ERROR_LEVEL = -1;
+    err << clear << "Cannot generate a random salt";
+    return ERROR_LEVEL;
+  }
   
   rv = AES_derive_key((const unsigned char*)secret.m_buf(), secret.length(), SALT, sizeof(SALT), KEY, sizeof(KEY), IV, sizeof(IV), 1000);
   if(rv != AES_NO_ERROR) {
@@ -289,10 +294,12 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   p_secret.Cat(SALT, AES_MAX_SALT_LEN);
   p_secret.Cat(secret.m_buf(), secret.length());
   
+  // 10/25/2026: Use OAEP with SHA-256 when asked. Older versions can
+  // only read PKCS#1 v1.5 blocks, see DB_AUTH_BLOCK_STATUS_OAEP.
   rv = RSA_public_key_encrypt((const unsigned char *)public_key, public_key_len,
 			      p_secret.m_buf(), p_secret.length(),
 			      rsa_ciphertext, sizeof(rsa_ciphertext), &rsa_ciphertext_len,
-			      RSA_padding, passphrase);
+			      use_oaep ? RSA_PKCS1_OAEP_PADDING : RSA_padding, passphrase);
   if(rv != RSA_NO_ERROR) {
     ERROR_LEVEL = rv;
     err << clear << "RSA encrypt public key error " << RSA_err_string(rv);
@@ -320,12 +327,18 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   
   static_data_block_header.block_len = 0;
   static_data_block_header.block_type = 1;
-  static_data_block_header.block_status = 1;
+  static_data_block_header.block_status = use_oaep ? DB_AUTH_BLOCK_STATUS_OAEP : DB_AUTH_BLOCK_STATUS_PKCS1;
   
   static_data_block_header.ciphertext_len = rsa_ciphertext_len;
   static_data_block_header.block_len += rsa_ciphertext_len;
   static_data_block_header.block_len += sizeof(hash);
 
+  // 10/25/2026: The encoded name must fit in username_buf
+  if(rsa_key_username.is_null() || rsa_key_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
+    ERROR_LEVEL = -1;
+    err << clear << "The username must be 1 to " << DB_AUTH_MAX_USERNAME_LEN << " characters";
+    return ERROR_LEVEL;
+  }
   gxsBase64Encode(rsa_key_username.c_str(), username_buf, rsa_key_username.length());
   username_buf_len = strlen(username_buf);
   static_data_block_header.username_len = username_buf_len;
@@ -355,7 +368,8 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
 
 #ifdef __ENABLE_SMART_CARD__
 int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
-						   const MemoryBuffer &secret, const gxString &smartcard_cert_username)
+						   const MemoryBuffer &secret, const gxString &smartcard_cert_username,
+						   int use_oaep)
 {
   gxString sbuf;
   gxUINT32 version;
@@ -385,7 +399,11 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   unsigned char SALT[AES_MAX_SALT_LEN];
   unsigned char IV[AES_MAX_IV_LEN];
   unsigned char KEY[AES_MAX_KEY_LEN];
-  AES_init_salt(SALT, sizeof(SALT));
+  if(AES_init_salt(SALT, sizeof(SALT)) != AES_NO_ERROR) { // 10/25/2026: Check the result
+    ERROR_LEVEL = -1;
+    err << clear << "Cannot generate a random salt";
+    return ERROR_LEVEL;
+  }
   
   rv = AES_derive_key((const unsigned char*)secret.m_buf(), secret.length(), SALT, sizeof(SALT), KEY, sizeof(KEY), IV, sizeof(IV), 1000);
   if(rv != AES_NO_ERROR) {
@@ -398,10 +416,12 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   p_secret.Cat(secret.m_buf(), secret.length());
 
   if(use_cert_file) {
-    rv =  SC_cert_file_public_key_encrypt(sc, p_secret.m_buf(), p_secret.length(), ciphertext, sizeof(ciphertext), &ciphertext_len);
+    rv =  SC_cert_file_public_key_encrypt(sc, p_secret.m_buf(), p_secret.length(), ciphertext, sizeof(ciphertext), &ciphertext_len,
+					  use_oaep ? RSA_PKCS1_OAEP_PADDING : SC_RSA_padding);
   }
   else {
-    rv =  SC_public_key_encrypt(sc, p_secret.m_buf(), p_secret.length(), ciphertext, sizeof(ciphertext), &ciphertext_len);
+    rv =  SC_public_key_encrypt(sc, p_secret.m_buf(), p_secret.length(), ciphertext, sizeof(ciphertext), &ciphertext_len,
+				use_oaep ? RSA_PKCS1_OAEP_PADDING : SC_RSA_padding);
   }
   
   if(rv != 0) {
@@ -431,12 +451,18 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   
   static_data_block_header.block_len = 0;
   static_data_block_header.block_type = 2;
-  static_data_block_header.block_status = 1;
+  static_data_block_header.block_status = use_oaep ? DB_AUTH_BLOCK_STATUS_OAEP : DB_AUTH_BLOCK_STATUS_PKCS1;
   
   static_data_block_header.ciphertext_len = ciphertext_len;
   static_data_block_header.block_len += ciphertext_len;
   static_data_block_header.block_len += sizeof(hash);
 
+  // 10/25/2026: The encoded name must fit in username_buf
+  if(smartcard_cert_username.is_null() || smartcard_cert_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
+    ERROR_LEVEL = -1;
+    err << clear << "The username must be 1 to " << DB_AUTH_MAX_USERNAME_LEN << " characters";
+    return ERROR_LEVEL;
+  }
   gxsBase64Encode(smartcard_cert_username.c_str(), username_buf, smartcard_cert_username.length());
   username_buf_len = strlen(username_buf);
   static_data_block_header.username_len = username_buf_len;
@@ -529,7 +555,8 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
   rv = RSA_private_key_decrypt((const unsigned char *)private_key, private_key_len,
 			       list_ptr->data.rsa_ciphertext.m_buf(), list_ptr->data.rsa_ciphertext.length(),
 			       rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
-			       RSA_padding, passphrase);
+			       (list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_OAEP) ?
+			       RSA_PKCS1_OAEP_PADDING : RSA_padding, passphrase);
   if(rv != RSA_NO_ERROR) {
     ERROR_LEVEL = rv;
     err << clear << "RSA private key decrypt failed " << RSA_err_string(rv);
@@ -565,7 +592,7 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     err << clear << "Failed to generate HMAC for RSA ciphertext " << AES_err_string(rv);
     return ERROR_LEVEL;
   }
-  if(memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
+  if(CRYPTO_memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) { // 10/25/2026: Constant time
     ERROR_LEVEL = -1;
     aes_file_decrypt_secret.Clear(1);
     err << clear << "Message authentication failed bad HMAC for RSA ciphertext";
@@ -645,10 +672,13 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     else {
       err << clear << "User " << list_ptr->data.username << " access type is not smart card";
     }
+    return ERROR_LEVEL; // 10/25/2026: Was missing
   }
   
   rv = SC_private_key_decrypt(sc, list_ptr->data.rsa_ciphertext.m_buf(), list_ptr->data.rsa_ciphertext.length(),
-			      rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len);
+			      rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
+			      (list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_OAEP) ?
+			      RSA_PKCS1_OAEP_PADDING : SC_RSA_padding);
   if(rv != 0) {
     ERROR_LEVEL = rv;
     err << clear << "Smart card private key decrypt failed for cert ID " << sc->cert_id << " " << sc->err_string;
@@ -684,7 +714,7 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     err << clear << "Failed to generate HMAC for smart card ciphertext " << AES_err_string(rv);
     return ERROR_LEVEL;
   }
-  if(memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) {
+  if(CRYPTO_memcmp(hash, list_ptr->data.hmac.m_buf(), sizeof(hash)) != 0) { // 10/25/2026: Constant time
     ERROR_LEVEL = -1;
     aes_file_decrypt_secret.Clear(1);
     err << clear << "Message authentication failed bad HMAC for smart card ciphertext";

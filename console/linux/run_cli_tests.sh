@@ -198,6 +198,49 @@ ${TOOL} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
 [ $? -eq 1 ] && grep -q "not set" err.txt
 check $? "a database name that was never set does not accept any password"
 
+# Group 6: OAEP blocks, key file permissions, usernames, file names
+cp known.ehd oaep.ehd; cp known.ehx oaep.ehx
+${TESTDB} addrsa oaep.ehd "${PW}" rsa_pub.pem oaepuser oaep >>${logFILE} 2>&1
+check $? "add an RSA user block with OAEP padding"
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=oaepuser --rsa-key-passphrase-file=pp.txt --db-list oaep.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "open with an OAEP RSA user block"
+${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list rsa.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "PKCS#1 v1.5 RSA user blocks still open"
+cp rsa_priv.pem loose_priv.pem; chmod 644 loose_priv.pem
+${TOOL} --rsa-key=loose_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list rsa.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "chmod 600" err.txt
+check $? "a private RSA key file other users can read is refused"
+head -c 64 /dev/urandom > aes.key; chmod 644 aes.key
+${TOOL} --key=aes.key --db-list known.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "chmod 600" err.txt
+check $? "an AES key file other users can read is refused"
+LONGNAME=$(head -c 400 /dev/zero | tr '\0' 'u')
+cp known.ehd longname.ehd; cp known.ehx longname.ehx
+${TOOL} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=${LONGNAME} longname.ehd > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "username must be" err.txt
+check $? "an add-user name that is too long is refused"
+mkdir -p dir.d; cp known.ehd dir.d/mydb.ehd; cp known.ehx dir.d/mydb.ehx
+cp known.ehd dir.d/mydb; cp known.ehd dir.ehd; cp known.ehx dir.ehx
+${TOOL} --password-file=pw.txt --db-list dir.d/mydb.ehd > out.txt 2>err.txt
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "a path with a dot in a directory name opens the right file"
+${TOOL} --password-file=pw.txt --db-list dir.d/mydb > out.txt 2>err.txt
+[ $? -eq 1 ] && grep -q "does not end in .ehd" err.txt
+check $? "a database name without .ehd is refused, not changed to dir.ehd"
+cp known.ehd loop.ehd; cp known.ehx loop.ehx
+python3 -I -c "
+import struct
+x=bytearray(open('loop.ehx','rb').read()); r=struct.unpack_from('<q',x,86+20)[0]
+struct.pack_into('<q',x,r+4,r); open('loop.ehx','wb').write(x)"
+timeout 30 ${TOOL} --password-file=pw.txt --db-list loop.ehd > out.txt 2>err.txt
+rv=$?; [ ${rv} -eq 1 ]
+check $? "a B-tree node that points to itself is an error, not a loop (rc=${rv})"
+timeout 30 ${TOOL} --password-file=pw.txt --db-find-key='Entry 003' loop.ehd > out.txt 2>err.txt
+rv=$?; [ ${rv} -eq 1 ]
+check $? "a search of a looping B-tree stops with an error (rc=${rv})"
+
 # Damaged and crafted files must fail cleanly, never crash
 cp known.ehd t.ehd; cp known.ehx t.ehx
 tamper() { # tamper name python_statement

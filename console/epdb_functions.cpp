@@ -454,6 +454,7 @@ int epdb_output_null = 0;       // End single field values with NUL
 // 10/25/2026: Set when a B-tree node cannot be read during a walk, so a
 // damaged index file is reported instead of listing part of the database.
 int epdb_btree_errors = 0;
+const unsigned gxBtreeMaxDepthWalk = 64; // Deeper than any valid tree
 
 void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
 // Recursive function used to walk through the B-tree node by node.
@@ -471,8 +472,14 @@ void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
 
   BtreeNode n(tree->KeySize(), tree->NodeOrder());
   
+  // 10/25/2026: A node that points back up the tree recursed forever
+  static unsigned depth = 0;
   if(t != (FAU_t)0) {
     if(epdb_btree_errors) return;
+    if(depth >= gxBtreeMaxDepthWalk) {
+      epdb_btree_errors++;
+      return;
+    }
     if(tree->ReadNode(n, t) != gxDBASE_NO_ERROR) {
       epdb_btree_errors++;
       return;
@@ -482,10 +489,12 @@ void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree)
     BtreeKeyCount_t nc = n.key_count;
     FAU_t p;
 
+    depth++;
     for(i = (BtreeKeyCount_t)-1; i < nc; i++) {
       p = n.GetBranch(i);
       gxBtreeWalk(p, Visit, tree);  
     }
+    depth--;
   }
 }
 
@@ -674,10 +683,16 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
   gxString sbuf;
   
   
-  database_file.DeleteAfterLastIncluding(".");
-  database_file += data_ext;
-  index_file.DeleteAfterLastIncluding(".");
-  index_file += index_ext;
+  // 10/25/2026: The name must end in the data file extension, so the
+  // file checked with the key is the file listed. Replace only the
+  // extension of the file name for the index file.
+  if(fname.length() <= data_ext.length() ||
+     CaseICmp(gxString(fname.c_str() + (fname.length() - data_ext.length())), data_ext) != 0) {
+    err_string << clear << "Database file name " << fname.c_str() << " does not end in " << data_ext.c_str();
+    return 0;
+  }
+  database_file = ReplaceFileExtension(fname, data_ext.c_str());
+  index_file = ReplaceFileExtension(fname, index_ext.c_str());
 
   if(!futils_exists(database_file.c_str()) || !futils_isfile(database_file.c_str())) {
     err_string << clear << "Database file " << database_file.c_str() << " does not exist or cannot be read";

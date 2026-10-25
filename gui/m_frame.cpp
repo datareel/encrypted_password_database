@@ -615,7 +615,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 	 ProgramError->Message(sbuf.c_str());
 	 return;
        }
-       sbuf << clear << "Added smart card access for user " << add_user_panel->rsa_key_username;
+       sbuf << clear << "Added smart card access for user " << add_user_panel->smartcard_username; // 10/25/2026: Was rsa_key_username
       ProgramError->Message(sbuf.c_str());
     }
 #endif // __ENABLE_SMART_CARD__
@@ -1096,8 +1096,7 @@ void MainFrame::OnOpen(wxCommandEvent& event)
   if(dialog.ShowModal() == wxID_OK) {
     // Set the config file name of the programs main database
     gxString database_file((const char *)dialog.GetPath().c_str());
-    database_file.DeleteAfterLastIncluding(".");
-    database_file << def_parms.data_file_extension;
+    database_file = ReplaceFileExtension(database_file, def_parms.data_file_extension.c_str()); // 10/25/2026
 
     if(DatabaseIsOpen(database_file)) {
       ProgramError->Message("The database is already open");
@@ -1222,9 +1221,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
     
     gxString dbname = (const char *)new_db_panel->name_input->GetValue().c_str();
     
-    gxString data_file = dbname;
-    data_file.DeleteAfterLastIncluding(".");
-    data_file += progcfg->global_dbparms.data_file_extension;
+    gxString data_file = ReplaceFileExtension(dbname, progcfg->global_dbparms.data_file_extension.c_str()); // 10/25/2026
     if(futils_exists(data_file.c_str())) {
       ProgramError->Message("A database with this name already exists \
 \nCannot use an existing datbase name");

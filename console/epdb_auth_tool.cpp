@@ -870,6 +870,10 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: Key file " << input_arg_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
+    if(CheckPrivateKeyFile(input_arg_key_file.c_str(), ebuf) != 0) { // 10/25/2026
+      cerr << "ERROR: " << ebuf.c_str() << "\n" << flush;
+      return 0;
+    }
     DEBUG_m("Reading symmetric key file");
     if(read_key_file(input_arg_key_file.c_str(), key, ebuf) != 0) {
       cerr << "ERROR: " << ebuf.c_str() << "\n" << flush;
@@ -887,6 +891,10 @@ int ProcessDashDashArg(gxString &arg)
     private_rsa_key_file = equal_arg;
     if(!check_if_file_exists(private_rsa_key_file.c_str())) {
       cerr << "ERROR: Private RSA key file " << private_rsa_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
+      return 0;
+    }
+    if(CheckPrivateKeyFile(private_rsa_key_file.c_str(), ebuf) != 0) { // 10/25/2026
+      cerr << "ERROR: " << ebuf.c_str() << "\n" << flush;
       return 0;
     }
     DEBUG_m("Reading RSA key file");
@@ -993,7 +1001,9 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: Public RSA key file " << public_rsa_key_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
-    rv = RSA_read_key_file(public_rsa_key_file.c_str(), public_key, sizeof(public_key), &public_key_len, &has_passphrase);
+    // 10/25/2026: Do not overwrite has_passphrase, which belongs to --rsa-key
+    int public_key_has_passphrase = 0;
+    rv = RSA_read_key_file(public_rsa_key_file.c_str(), public_key, sizeof(public_key), &public_key_len, &public_key_has_passphrase);
     if(rv != RSA_NO_ERROR) {
       std::cerr << "ERROR: " << RSA_err_string(rv) << "\n" << std::flush;
       return 0;

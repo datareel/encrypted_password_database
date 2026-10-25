@@ -48,13 +48,15 @@ public:
   int WriteStaticDataArea();
   int AddRSAKeyToStaticArea(const MemoryBuffer &secret,
 			    char public_key[], unsigned public_key_len,
-			    const gxString &rsa_key_username, char *passphrase = 0);
+			    const gxString &rsa_key_username, char *passphrase = 0,
+			    int use_oaep = 0);
   int DecryptWithRSAKey(char private_key[], unsigned private_key_len,
 			const gxString &rsa_key_username, char *passphrase = 0);
 
 #ifdef __ENABLE_SMART_CARD__
   int AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert_file,
-				   const MemoryBuffer &secret, const gxString &smartcard_cert_username);
+				   const MemoryBuffer &secret, const gxString &smartcard_cert_username,
+				   int use_oaep = 0);
   int DecryptWithSmartcard(SmartCardOB *sc, const gxString &smartcard_cert_username);
 #endif // __ENABLE_SMART_CARD__
 
@@ -68,6 +70,13 @@ public:
   unsigned static_data_bytes_used;
   unsigned num_static_data_blocks;
 };
+
+// 10/25/2026: Static area block_status values. PKCS#1 v1.5 blocks can
+// be read by every version, OAEP (SHA-256) blocks only by 10/25/2026
+// and later versions.
+const gxUINT32 DB_AUTH_BLOCK_STATUS_PKCS1 = 1;
+const gxUINT32 DB_AUTH_BLOCK_STATUS_OAEP = 2;
+const unsigned DB_AUTH_MAX_USERNAME_LEN = 255;
 
 // 10/25/2026: Returns 0 if the key decrypts the database name
 int VerifyDatabaseKey(gxDatabase *f, const MemoryBuffer &key, gxString &err, int &aes_error);

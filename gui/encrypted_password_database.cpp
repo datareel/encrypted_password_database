@@ -462,23 +462,19 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
   child_frame->DBParms()->data_file = dbname;
   child_frame->DBParms()->index_file = dbname;
 
-  child_frame->DBParms()->data_file.DeleteAfterLastIncluding(".");
-  child_frame->DBParms()->data_file += data_ext;
-  child_frame->DBParms()->index_file.DeleteAfterLastIncluding(".");
-  child_frame->DBParms()->index_file += index_ext;
+  // 10/25/2026: Replace only the extension of the file name
+  child_frame->DBParms()->data_file = ReplaceFileExtension(fname, data_ext.c_str());
+  child_frame->DBParms()->index_file = ReplaceFileExtension(fname, index_ext.c_str());
 
-  dbname.DeleteAfterLastIncluding(".");
 #if defined (__UNIX__)
   dbname.DeleteBeforeLastIncluding("/");
 #else 
   dbname.DeleteBeforeLastIncluding("\\");
 #endif
+  dbname = ReplaceFileExtension(dbname, "");
 
-  data_file.DeleteAfterLastIncluding(".");
-  data_file += data_ext;
-  gxString index_file = fname;
-  index_file.DeleteAfterLastIncluding(".");
-  index_file += index_ext;
+  data_file = ReplaceFileExtension(fname, data_ext.c_str());
+  gxString index_file = ReplaceFileExtension(fname, index_ext.c_str());
   int i;
 
   // Close the current database
@@ -647,11 +643,18 @@ int BuildVirtualDB(CryptDBDocument *child_frame)
     dllist->Add(object_id);
     num_entries++;
   }
+  // 10/25/2026: Stop if the walk returns more keys than the index holds,
+  // a damaged index file could return keys forever
+  long max_entries = (long)btx->NumKeys() + 1024;
   while(btx->FindNext(key, compare_key, 0)) {
     ::wxYield();
     object_id = key.ObjectID();
     dllist->Add(object_id);
     num_entries++;
+    if(num_entries > max_entries) {
+      ProgramError->Message("The database index file is damaged, use File/Rebuild index");
+      break;
+    }
   }
 
   return num_entries;
