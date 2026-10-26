@@ -41,6 +41,8 @@ Encrypted database auth functions
 #include <time.h>
 #if defined (__UNIX__)
 #include <sys/stat.h>
+#else
+#include <windows.h>
 #endif
 
 int VerifyDatabaseKey(gxDatabase *f, const MemoryBuffer &key, gxString &err, int &aes_error)
@@ -357,7 +359,7 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   
   static_data_block_header.ciphertext_len = rsa_ciphertext_len;
   static_data_block_header.block_len += rsa_ciphertext_len;
-  static_data_block_header.block_len += sizeof(hash);
+  static_data_block_header.block_len += (__ULWORD__)sizeof(hash);
 
   // 10/25/2026: The encoded name must fit in username_buf
   if(rsa_key_username.is_null() || rsa_key_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
@@ -502,7 +504,7 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   
   static_data_block_header.ciphertext_len = ciphertext_len;
   static_data_block_header.block_len += ciphertext_len;
-  static_data_block_header.block_len += sizeof(hash);
+  static_data_block_header.block_len += (__ULWORD__)sizeof(hash);
 
   // 10/25/2026: The encoded name must fit in username_buf
   if(smartcard_cert_username.is_null() || smartcard_cert_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
@@ -1652,6 +1654,17 @@ static int epdb_upgrade_copy(POD *old_pod, POD *new_pod, MemoryBuffer &secret, M
   return EPDBSeal(nf, keyset, err);
 }
 
+static int epdb_replace_file(const char *from, const char *to)
+// 10/26/2026: Rename from to to, replacing an existing file. On Windows
+// rename() fails when the target exists. Returns 0 if successful.
+{
+#if defined (__UNIX__)
+  return rename(from, to);
+#else
+  return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH) ? 0 : -1;
+#endif
+}
+
 int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
 		gxString &backup_data_file, gxString &err)
 // Upgrades a v1 database to v2. secret is the v1 database secret. The
@@ -1784,7 +1797,7 @@ int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
 
   // Replace the original files
   if(rv == 0) {
-    if(rename(tifile.c_str(), ifile.c_str()) != 0 || rename(tdfile.c_str(), dfile.c_str()) != 0) {
+    if(epdb_replace_file(tifile.c_str(), ifile.c_str()) != 0 || epdb_replace_file(tdfile.c_str(), dfile.c_str()) != 0) {
       err << clear << "Cannot replace the database files. The original database is in the backup files "
 	  << bdfile.c_str() << " and " << bifile.c_str();
       backup_data_file = bdfile;
