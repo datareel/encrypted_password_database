@@ -2,8 +2,8 @@ Encrypted Password Database
 
 Release 2026.101
 
-Supports Window 10, Windows 11, and Windows 2025 server
-Supports Red Hat Enterprise Linux 6, 7, 8, 9, and 10 
+Supports Windows 11 and Windows Server 2022 or later (64-bit)
+Supports Red Hat Enterprise Linux 8, 9, and 10
 
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
@@ -64,6 +64,14 @@ Changes in behaviour:
   the RSA passphrase and smart card PIN. --password=value still works
   but prints a warning. New output options: --csv, --field=n, --null.
 
+Platforms and builds:
+* Binaries are released for RHEL 8, 9 and 10 and for 64-bit Windows 11
+  and Windows Server 2022 or later. RHEL 6 and 7 and 32-bit Windows
+  binaries are no longer released.
+* Smart card support is not in the RHEL 10 binaries yet.
+* Built with fcrypt 2026.104 and DataReel 6.1. Windows builds use
+  OpenSSL 3.5.x LTS, Linux builds use the OpenSSL from the OS.
+
 FEATURES
 --------
     AES CBC 256 bit symmetric encryption
@@ -84,20 +92,33 @@ https://datareel.com/encrypted_password_database/help/
 
 INSTALLING ON WINDOWS
 ---------------------
-The "encrypted_password_database.exe"  is a standalone EXE file that
-can be run on any Windows system with no installer needed.
+Download and unzip the 64-bit Windows binaries:
+
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_101_windows_binaries.zip
+
+The "encrypted_password_database.exe" and "epdb_auth_tool.exe" are
+standalone EXE files that can be run with no installer needed. They
+need the Microsoft Visual C++ Redistributable (x64), which most
+Windows systems already have:
+
+https://aka.ms/vs/17/release/vc_redist.x64.exe
 
 INSTALLING ON LINUX
 ------------------
-The Binaries for RHEL distribution includes and installer that can
-install to your user account without root access. To install from the
-command line: 
+The binaries for RHEL 8, 9 and 10 include an installer that installs
+to your user account without root access. To install from the command
+line:
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2023_109_rhel_7_8_9_binaries.tar.gz
-tar xvfz encrypted_password_database_2023_109_rhel_7_8_9_binaries.tar.gz
-cd encrypted_password_database_2023_109_rhel_7_8_9_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_101_rhel_8_9_10_binaries.tar.gz
+tar xvfz encrypted_password_database_2026_101_rhel_8_9_10_binaries.tar.gz
+cd encrypted_password_database_2026_101_rhel_8_9_10_binaries
 ./rh_install.sh
+
+The installer lists any system libraries that are missing. The GUI
+needs the GTK 3 desktop libraries and pcre2-utf32:
+
+sudo dnf install gtk3 pcre2-utf32
 
 To run the Encrypted Password Database GUI from the command line:
 
@@ -126,13 +147,14 @@ The Windows build requires the OpenSSL library.
 For instructions on how to build OpenSSL for Windows please see the
 following readme file: README_windows_openssl.txt 
 
-The Windows build requires wxWidgets version 3.2.3 or higher.
+The Windows build requires wxWidgets version 3.2.4 or higher, built
+for x64 in release mode (BUILD=release TARGET_CPU=X64).
 
 For instructions on how to build wxWidgets for Windows please see the
 following readme file: README_windows_wxwidgets.txt
 
-For instructions on how to build Windows 11 or 2025 server development
-VM please see the following readme file: README_windows_setup.txt 
+For instructions on how to build Windows 11 or Windows Server
+development VM please see the following readme file: README_windows_setup.txt 
 
 To build the Windows executables download the latest release or clone
 the GIT repo. In the Windows build example below this document will
@@ -144,24 +166,30 @@ encrypted_password_database build subdirectory:
 > E:
 > cd E:\git\encrypted_password_database
 
-Setup your Visual Studio environment:
+Setup your Visual Studio environment for a 64-bit x64 build:
 
 > cd  E:\git\encrypted_password_database\env
-> msvc.bat
+> msvc64_vs2026.bat
 
-Edit the msvc.env file to setup the path to your OpenSSL, ZLIB, and
-wxWidgets builds: 
+Edit the msvc64.env file to setup the path to your 64-bit OpenSSL,
+ZLIB, and wxWidgets builds (console\msvc\msvc64.env has the same
+OpenSSL and ZLIB settings for the console program):
 
-> notepad msvc.env
+> notepad msvc64.env
 
 # Setup path to ZLIB
-ZCODE_DIR = ../../../../3plibs/zlib32-1.3.1
+ZCODE_DIR = ../../../../3plibs/zlib64-1.3.1
 
 # Setup path to OPENSSL library
-OPENSSL_DIR = ../../../../3plibs/openssl32
+OPENSSL_DIR = ../../../../3plibs/openssl64
 
 # Set path to wxWidgets library here
-WXDIR = ../../../../3plibs/wxWidgets32-3.2.4
+WXDIR = ../../../../3plibs/wxWidgets64-3.2.4
+
+The makefiles use msvc64.env when the Visual Studio environment
+targets x64. For a 32-bit x86 build for legacy systems run
+msvc32_vs2026.bat instead, and the makefiles use msvc.env with the
+32-bit OpenSSL, ZLIB and wxWidgets builds.
 
 To build the Windows GUI:
 
@@ -175,8 +203,8 @@ To run the Windows program:
 
 > encrypted_password_database.exe
 
-This is a standalone EXE file that can be ran on any Windows system   
-with no installer needed.
+This is a standalone EXE file that can be run with no installer
+needed (it needs the Visual C++ Redistributable).
 
 To build the Windows console program:
 
@@ -190,7 +218,7 @@ Run nmake to build the executable:
 SOURCE CODE BUILD ON LINUX
 --------------------------
 Building the binaries from the source code repository will require you
-to build wxWidgets version 3.2.3 or higher. To download and build the
+to build wxWidgets version 3.2.4 or higher. To download and build the
 wxWidgets source code please visit the wxWidgets home page and follow
 the latest download and build instructions for Linux wxGTK:
 
@@ -208,41 +236,48 @@ To build the latest release of the Encrypted Password Database:
 Set up the build environment for the GUI build:
 
 > cd ${HOME}/git/encrypted_password_database/env
-> vi linux.mak
+> vi linux.env
 
-WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.3
+WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.4
 
 Change the WXSRCDIR to your wxWidget build installation path. 
 
 > cd ${HOME}/git/encrypted_password_database/gui/linux
-> vi makefile
+There is a makefile for each RHEL release: makefile_rhel8,
+makefile_rhel9 and makefile_rhel10. For RHEL 10:
 
-        make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=8 -f ../../env/linux.mak
+> cat makefile_rhel10
+
+all:
+        make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=10 LIBRARIES="-lXxf86vm -lSM -lICE" -f ../../env/linux.mak
 
 install:
         ./install.sh
 
 clean:
-        make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=8 -f ../../env/linux.mak clean
+        make PROJECT=encrypted_password_database FINAL=1 64BITCFG=1 RHEL=10 -f ../../env/linux.mak clean
 
-Change the RHEL version to match your major RHEL release version from
-/etc/redhat-release
+The extra LIBRARIES are needed when the wxWidgets build was made on
+RHEL 8. You can also set the wxWidgets path on the command line, for
+example: make WXSRCDIR=$HOME/3plibs/wxWidgets-3.2.4_rhel9 -f makefile_rhel9
 
 Run the make to build the GUI
 
-> make
+> make -f makefile_rhel10
 
 Set up the build environment for the command line utility build:
 
 > cd ${HOME}/git/encrypted_password_database/console/linux
-> vi makefile
+Use the makefile for your RHEL release. Smart card support is turned
+on in makefile_rhel8 and makefile_rhel9 and off in makefile_rhel10:
 
 SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL8__
 
-Change the RHEL version to match your major RHEL release version from
-/etc/redhat-release 
-
 Run the make to build the command line utility programs:
 
-> make
+> make -f makefile_rhel10
+
+To run the command line tests:
+
+> ./run_cli_tests.sh
 
