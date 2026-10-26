@@ -333,8 +333,9 @@ void AdduserPanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 
 AdduserPanel *InitAdduserPanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=450; int height=650;
-  int button_ypos = 550;
+  // 10/26/2026: Two columns so the dialog fits small screens
+  int xpos=50; int ypos=50; int width=780; int height=400;
+  int button_ypos = 320;
 
   AdduserPanel *panel = new AdduserPanel(parent, ADDUSER_PANEL_ID,
 					 (char *)"Add User For Database Access",
@@ -354,21 +355,21 @@ AdduserPanel *InitAdduserPanel(wxWindow *parent)
 				   wxPoint(15, 173), wxSize(75, 25));
 
 #ifdef __ENABLE_SMART_CARD__
-  panel->sc_box = new wxStaticBox(panel, -1, "Add Users Smart Card Cert", wxPoint(9, 245), wxSize(370,285));
-  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 271));
+  panel->sc_box = new wxStaticBox(panel, -1, "Add Users Smart Card Cert", wxPoint(390, 13), wxSize(370,285));
+  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(396, 39));
   panel->sc_username_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
-					    "", wxPoint(15, 297), wxSize(250,25));
-  panel->sc_cert_label = new wxStaticText(panel, -1, "Exported Smart Card Cert File", wxPoint(15, 333));
+					    "", wxPoint(396, 65), wxSize(250,25));
+  panel->sc_cert_label = new wxStaticText(panel, -1, "Exported Smart Card Cert File", wxPoint(396, 101));
   panel->sc_cert_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_CERT, 
-					"", wxPoint(15, 360), wxSize(350, 25));
-  panel->sc_browse =  new wxButton(panel, ID_ADDUSER_SC_CERT_BROWSE, "Browse", wxPoint(15, 401), wxSize(75, 25));
+					"", wxPoint(396, 128), wxSize(350, 25));
+  panel->sc_browse =  new wxButton(panel, ID_ADDUSER_SC_CERT_BROWSE, "Browse", wxPoint(396, 169), wxSize(75, 25));
   // 10/26/2026: Or read the cert from the smart card in the reader
   panel->sc_use_card_checkbox = new wxCheckBox(panel, -1, "Or read the cert from the smart card in the reader",
-					       wxPoint(15, 437), wxSize(350, 25));
+					       wxPoint(396, 205), wxSize(350, 25));
   panel->sc_use_card_checkbox->SetValue(false);
-  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 467));
+  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(396, 235));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_CERT_ID,
-					 progcfg->SC_cert_id.c_str(), wxPoint(15, 490), wxSize(350, 25));
+					 progcfg->SC_cert_id.c_str(), wxPoint(396, 258), wxSize(350, 25));
 #endif // __ENABLE_SMART_CARD__
   
   panel->ok_btn = new wxButton(panel, ID_ADDUSER_OK, "OK",

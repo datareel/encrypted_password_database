@@ -538,8 +538,10 @@ void NewDatabasePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
 
 NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=350; int height=1000;
-  int button_ypos = 900;
+  // 10/26/2026: Two columns so the dialog fits small screens (958 pixel
+  // RDP displays), it was 1000 pixels tall
+  int xpos=50; int ypos=50; int width=580; int height=570;
+  int button_ypos = 485;
 
   NewDatabasePanel *panel = new NewDatabasePanel(parent,
 						 NEWDATABASE_PANEL_ID,
@@ -559,33 +561,33 @@ NewDatabasePanel *InitNewDatabasePanel(wxWindow *parent)
   panel->confirm_password_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_CONFIRM_PASSWORD,
 						 "", wxPoint(15, 205), wxSize(250, 25), wxTE_PROCESS_ENTER|wxTE_PASSWORD);
   
-  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(9, 270), wxSize(270,135));
-  panel->key_label = new wxStaticText(panel, -1, "File Name", wxPoint(15, 296));
+  panel->key_box = new wxStaticBox(panel, -1, "Use Symmetric Encryption Key", wxPoint(290, 290), wxSize(270,135));
+  panel->key_label = new wxStaticText(panel, -1, "File Name", wxPoint(296, 316));
   panel->key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_KEY_FILE,
-				    "", wxPoint(15, 322), wxSize(250, 25));
+				    "", wxPoint(296, 342), wxSize(250, 25));
   panel->browse =  new wxButton(panel, ID_NEWDATABASE_KEY_BROWSE, "Browse",
-				wxPoint(15, 360), wxSize(75, 25));
+				wxPoint(296, 380), wxSize(75, 25));
   
-  panel->rsa_key_box = new wxStaticBox(panel, -1, "Use Public RSA Key", wxPoint(9, 440), wxSize(270,200));
-  panel->rsa_username_label = new wxStaticText(panel, -1, "RSA Key Username", wxPoint(15, 470));
+  panel->rsa_key_box = new wxStaticBox(panel, -1, "Use Public RSA Key", wxPoint(9, 260), wxSize(270,200));
+  panel->rsa_username_label = new wxStaticText(panel, -1, "RSA Key Username", wxPoint(15, 290));
   panel->rsa_username_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME, 
-					     progcfg->USERNAME.c_str(), wxPoint(15, 492), wxSize(250, 25));
-  panel->rsa_key_label = new wxStaticText(panel, -1, "Public Key File Name", wxPoint(15, 528));
+					     progcfg->USERNAME.c_str(), wxPoint(15, 312), wxSize(250, 25));
+  panel->rsa_key_label = new wxStaticText(panel, -1, "Public Key File Name", wxPoint(15, 348));
   panel->rsa_key_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_RSA_KEY, 
-					"", wxPoint(15, 554), wxSize(250, 25));
+					"", wxPoint(15, 374), wxSize(250, 25));
   panel->rsa_browse = new wxButton(panel, ID_NEWDATABASE_RSA_KEY_BROWSE, "Browse",
-				   wxPoint(15, 600), wxSize(75, 25));
+				   wxPoint(15, 420), wxSize(75, 25));
 
 #ifdef __ENABLE_SMART_CARD__
-  panel->sc_box = new wxStaticBox(panel, -1, "Smart Card", wxPoint(9, 672), wxSize(270,180));
-  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 698));
+  panel->sc_box = new wxStaticBox(panel, -1, "Smart Card", wxPoint(290, 93), wxSize(270,180));
+  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(296, 119));
   panel->sc_username_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
-					    progcfg->USERNAME.c_str(), wxPoint(15, 724), wxSize(250,25));
+					    progcfg->USERNAME.c_str(), wxPoint(296, 145), wxSize(250,25));
   
-  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 755));
+  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(296, 176));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID, 
-					 progcfg->SC_cert_id.c_str(), wxPoint(15, 776), wxSize(250, 25));
-  panel->sc_use_checkbox = new wxCheckBox(panel, -1, "Use Smart Card", wxPoint(15, 812), wxSize(250, 25));
+					 progcfg->SC_cert_id.c_str(), wxPoint(296, 197), wxSize(250, 25));
+  panel->sc_use_checkbox = new wxCheckBox(panel, -1, "Use Smart Card", wxPoint(296, 233), wxSize(250, 25));
   panel->sc_use_checkbox->SetValue(false);
 #endif // __ENABLE_SMART_CARD__
 

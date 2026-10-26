@@ -710,8 +710,10 @@ void OpenDatabasePanel::OnRSAKeyBrowse(wxCommandEvent &event)
 
 OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
 {
-  int xpos=50; int ypos=50; int width=350; int height=950;
-  int button_ypos = 845;
+  // 10/26/2026: Two columns so the dialog fits small screens (958 pixel
+  // RDP displays)
+  int xpos=50; int ypos=50; int width=580; int height=650;
+  int button_ypos = 570;
 
   OpenDatabasePanel *panel = new OpenDatabasePanel(parent,
 						   OPENDATABASE_PANEL_ID,
@@ -761,22 +763,22 @@ OpenDatabasePanel *InitOpenDatabasePanel(wxWindow *parent)
 					      wxTE_PROCESS_ENTER|wxTE_PASSWORD);
 
 #ifdef __ENABLE_SMART_CARD__  
-  panel->sc_box = new wxStaticBox(panel, -1, "Use Smart Card", wxPoint(9, 572), wxSize(270,250));
-  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(15, 598));
+  panel->sc_box = new wxStaticBox(panel, -1, "Use Smart Card", wxPoint(290, 17), wxSize(270,250));
+  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(296, 43));
   panel->sc_username_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_USERNAME,
-					    progcfg->USERNAME.c_str(), wxPoint(15, 624), wxSize(250,25));
+					    progcfg->USERNAME.c_str(), wxPoint(296, 69), wxSize(250,25));
 
-  panel->sc_pin_label = new wxStaticText(panel, -1, "Smart Card PIN", wxPoint(15, 655));
+  panel->sc_pin_label = new wxStaticText(panel, -1, "Smart Card PIN", wxPoint(296, 100));
   panel->sc_pin_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_PIN,
 				       "",
-				       wxPoint(15, 676),
+				       wxPoint(296, 121),
 				       wxSize(250,25),
 				       wxTE_PROCESS_ENTER|wxTE_PASSWORD);
-  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(15, 707));
+  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(296, 152));
   panel->sc_keyid_input = new wxTextCtrl(panel, ID_OPENDATABASE_TEXTCONTROL_SC_CERT_ID, 
-					 progcfg->SC_cert_id.c_str(), wxPoint(15, 728), wxSize(250, 25)),
-  panel->sc_slot_label = new wxStaticText(panel, -1, "Smart Card Slot (empty for any)", wxPoint(15, 759));
-  panel->sc_slot_input = new wxTextCtrl(panel, -1, progcfg->SC_slot.c_str(), wxPoint(15, 780), wxSize(120, 25));
+					 progcfg->SC_cert_id.c_str(), wxPoint(296, 173), wxSize(250, 25)),
+  panel->sc_slot_label = new wxStaticText(panel, -1, "Smart Card Slot (empty for any)", wxPoint(296, 204));
+  panel->sc_slot_input = new wxTextCtrl(panel, -1, progcfg->SC_slot.c_str(), wxPoint(296, 225), wxSize(120, 25));
 #endif // __ENABLE_SMART_CARD__
     
   panel->ok_btn = new wxButton(panel, ID_OPENDATABASE_OK, "OK",
