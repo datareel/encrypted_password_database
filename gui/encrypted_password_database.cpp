@@ -269,6 +269,8 @@ void InitProgramConfig(int argc, char *argv[])
       dfile << "SC_modulePath = " << progcfg->SC_modulePath.c_str() << "\n";
       dfile << "SC_engine_ID = " << progcfg->SC_engine_ID.c_str() << "\n";
       dfile << "SC_cert_id = " << progcfg->SC_cert_id.c_str() << "\n";
+      dfile << "# PKCS#11 slot ID of the card to use, empty for any (one card only)" << "\n";
+      dfile << "SC_slot = " << progcfg->SC_slot.c_str() << "\n";
       dfile << "\n";
 #endif // __ENABLE_SMART_CARD__      
       dfile << "# Security settings" << "\n";
@@ -336,6 +338,10 @@ void InitProgramConfig(int argc, char *argv[])
 
     char *s8 = CfgData->GetStrValue("SC_cert_id");
     if(s8) progcfg->SC_cert_id = s8;
+
+    char *s_slot = CfgData->GetStrValue("SC_slot");
+    if(s_slot) progcfg->SC_slot = s_slot;
+    progcfg->SC_slot.TrimLeading(' '); progcfg->SC_slot.TrimTrailing(' ');
 #endif // __ENABLE_SMART_CARD__
     
     char *s9 = CfgData->GetStrValue("web_browser");

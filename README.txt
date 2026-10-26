@@ -349,8 +349,14 @@ PIN safeguards. CAC cards lock after 3 wrong PINs, so:
   Some PKCS#11 modules, possibly ActivClient, do not report the PIN
   tries, so no warning does not mean tries are left. Check the PIN
   tries left with the card software first.
-* When the cert ID is not found on any card and more than one card is
-  inserted, no card is guessed.
+* With more than one card inserted (for example a CAC and a YubiKey,
+  which both have ID 03 with OpenSC), a cert ID found on more than one
+  card, or on no card, is refused and no PIN is sent. Select the card
+  with --smartcard-slot=N in epdb_auth_tool, or the Smart Card Slot
+  field of the GUI open dialog (saved as SC_slot in the configuration
+  file). N is the slot ID shown in parentheses by
+  pkcs11-tool --list-token-slots, decimal or 0x hex. Only that slot is
+  used.
 * After a wrong PIN the error says one PIN try was used and what the
   card reports about the tries left.
 

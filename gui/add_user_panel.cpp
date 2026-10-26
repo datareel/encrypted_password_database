@@ -259,6 +259,16 @@ int AdduserPanel::TestInput()
     sc.SetEnginePath(progcfg->SC_enginePath.c_str());
     sc.SetModulePath(progcfg->SC_modulePath.c_str()); 
     sc.SetEngineID(progcfg->SC_engine_ID.c_str());
+    // 10/26/2026: Use only the card in the configured PKCS#11 slot
+    if(!progcfg->SC_slot.is_null()) {
+      unsigned long slot_id = 0;
+      if(!SC_parse_slot(progcfg->SC_slot.c_str(), &slot_id)) {
+	ProgramError->Message("The SC_slot setting in the configuration file is not a slot number");
+	is_ok = 0;
+	return 0;
+      }
+      sc.SetSlot(slot_id);
+    }
     sc.SetCertID(sbuf.c_str());
     smartcard_username = (const char *)sc_username_input->GetValue();
     use_cert_file = 0;

@@ -143,6 +143,7 @@ struct wxappfwProgramConfig {
   gxString SC_modulePath;
   gxString SC_engine_ID;
   gxString SC_cert_id;
+  gxString SC_slot; // 10/26/2026: PKCS#11 slot ID, empty for any slot
 #endif // __ENABLE_SMART_CARD__
 };
 

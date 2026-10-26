@@ -254,6 +254,7 @@ int main(int argc, char **argv)
       }
       cerr << "Smart card module path = " << sc.modulePath << "\n" << flush;
       cerr << "Smart card cert ID = " << sc.cert_id << "\n"  << flush;
+      if(sc.has_slot) cerr << "Smart card slot = " << sc.slot_id << "\n"  << flush;
     }
 
     if(SC_uses_engine() && (!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath))) {
@@ -744,6 +745,7 @@ void HelpMessage()
   cout << "                 Also id_01, label_name, slot_N-id_01, slot_N-label_name or \"pkcs11:id=%01\"" << "\n" << flush;
   if(SC_uses_engine()) cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
   cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard PKCS#11 module)" << "\n" << flush;
+  cout << "          --smartcard-slot=N (Use only the card in PKCS#11 slot N, decimal or 0x hex, see pkcs11-tool --list-slots)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
 
   cout << "\n" << flush;
@@ -1140,6 +1142,18 @@ int ProcessDashDashArg(gxString &arg)
     }
     WarnSecretOnCommandLine("--smartcard-pin", "--smartcard-pin-file or --smartcard-pin-fd");
     sc.SetPin(equal_arg.c_str());
+    has_valid_args = 1;
+  }
+
+  // 10/26/2026: Use only the card in this PKCS#11 slot, for cert lookup,
+  // adding a card user and the login. No other slot is opened.
+  if(arg == "smartcard-slot") {
+    unsigned long slot_id = 0;
+    if(!SC_parse_slot(equal_arg.c_str(), &slot_id)) {
+      cerr << "ERROR: --smartcard-slot needs a slot ID: --smartcard-slot=1 or --smartcard-slot=0x4" << "\n" << flush;
+      return 0;
+    }
+    sc.SetSlot(slot_id);
     has_valid_args = 1;
   }
 

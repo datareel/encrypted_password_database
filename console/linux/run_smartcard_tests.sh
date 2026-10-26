@@ -16,8 +16,13 @@
 #   SC_MODULE  PKCS#11 module, default /usr/lib64/opensc-pkcs11.so
 #   SC_EC_ID   ID of an EC key on the card, tests that it is refused (optional)
 #   SC_EC_CERT PEM cert of an EC key, tests that it is refused (optional)
-#   SC_LIST_ONLY=1  List the reader slots, token flags and objects with
-#              pkcs11-tool and exit. Never logs in, no PIN is used.
+#   SC_SLOT    PKCS#11 slot ID of the card to test (decimal or 0x hex, the
+#              number in parentheses in pkcs11-tool --list-token-slots).
+#              Needed when more than one card is inserted, only that slot
+#              is used.
+#   SC_LIST_ONLY=1  List every reader slot, its token (label, maker,
+#              model, PIN flags) and the certs and keys on it with
+#              pkcs11-tool, and exit. Never logs in, no PIN is used.
 #   SC_TEST_WRONG_PIN=1  Also run the PIN safeguard tests: wrong PINs,
 #              low/final/locked PIN flags and C_Login counts. Refused
 #              unless the token is a SoftHSM2 token, the tests run on a
@@ -56,20 +61,34 @@ if [ ! -f "${MODULE}" ]; then
 fi
 
 # Token information without a login
-TOKEN_INFO=$(pkcs11-tool --module "${MODULE}" --list-token-slots 2>&1)
-NUM_TOKENS=$(echo "${TOKEN_INFO}" | grep -c "token label")
-IS_SOFTHSM=0
-if echo "${TOKEN_INFO}" | grep -i "token manufacturer" | grep -qi "SoftHSM"; then IS_SOFTHSM=1; fi
-
+ALL_TOKENS=$(pkcs11-tool --module "${MODULE}" --list-token-slots 2>&1)
+SLOT_IDS=$(echo "${ALL_TOKENS}" | sed -n 's/^Slot [0-9]* (\(0x[0-9a-fA-F]*\)).*/\1/p')
 if [ "${SC_LIST_ONLY}" = "1" ]; then
-    echo "${TOKEN_INFO}"
-    echo ""
-    echo "Objects that can be read without a PIN:"
-    pkcs11-tool --module "${MODULE}" --list-objects 2>&1
+    echo "${ALL_TOKENS}"
+    for id in ${SLOT_IDS}; do
+	echo ""
+	echo "---- Certs and keys in slot ID ${id} (--smartcard-slot=${id}), read without a PIN:"
+	pkcs11-tool --module "${MODULE}" --slot ${id} --list-objects 2>&1
+    done
     echo ""
     echo "No login was made and no PIN was used."
     exit 0
 fi
+SLOT_ARG=""
+TOKEN_INFO="${ALL_TOKENS}"
+if [ -n "${SC_SLOT}" ]; then
+    case "${SC_SLOT}" in
+	0x*|0X*) SLOT_HEX=$(printf '0x%x' "${SC_SLOT}") ;;
+	*[!0-9]*|"") echo "ERROR: SC_SLOT must be a slot ID such as 1 or 0x4"; exit 1 ;;
+	*) SLOT_HEX=$(printf '0x%x' "${SC_SLOT}") ;;
+    esac
+    # Only the selected slot's token information
+    TOKEN_INFO=$(echo "${ALL_TOKENS}" | awk -v id="(${SLOT_HEX}):" '/^Slot / { on = ($3 == id) } on')
+    SLOT_ARG="--smartcard-slot=${SLOT_HEX}"
+fi
+NUM_TOKENS=$(echo "${TOKEN_INFO}" | grep -c "token label")
+IS_SOFTHSM=0
+if echo "${TOKEN_INFO}" | grep -i "token manufacturer" | grep -qi "SoftHSM"; then IS_SOFTHSM=1; fi
 
 if [ -z "${SC_PIN}" ] || [ -z "${SC_CERT}" ] || [ ! -f "${SC_CERT}" ]; then
     echo "ERROR: Set SC_PIN and SC_CERT, see the usage at the top of $0"
@@ -80,8 +99,12 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -ne 1 ]; then
     exit 1
 fi
 if [ ${NUM_TOKENS} -ne 1 ]; then
-    echo "${TOKEN_INFO}"
-    echo "ERROR: Found ${NUM_TOKENS} tokens, insert exactly one card (and no other cards or YubiKeys)"
+    echo "${ALL_TOKENS}"
+    if [ -n "${SC_SLOT}" ]; then
+	echo "ERROR: No card in slot ID ${SLOT_HEX}"
+    else
+	echo "ERROR: Found ${NUM_TOKENS} cards, insert only the card to test or set SC_SLOT to its slot ID"
+    fi
     exit 1
 fi
 if echo "${TOKEN_INFO}" | grep -i "token flags" | grep -qiE "PIN locked|final try|count low"; then
@@ -112,7 +135,7 @@ if [ ! -f ${TESTDB} ] || [ ${NEW_DIR}/../epdb_test_db.cpp -nt ${TESTDB} ]; then
 fi
 SC_CERT=$(cd $(dirname ${SC_CERT}) && pwd)/$(basename ${SC_CERT})
 [ -n "${SC_EC_CERT}" ] && SC_EC_CERT=$(cd $(dirname ${SC_EC_CERT}) && pwd)/$(basename ${SC_EC_CERT})
-SC="--smartcard-cert-id=${SC_ID:-01} --smartcard-provider=${MODULE}"
+SC="--smartcard-cert-id=${SC_ID:-01} --smartcard-provider=${MODULE} ${SLOT_ARG}"
 
 mkdir -p ${testDIR}
 cd ${testDIR}
@@ -214,12 +237,12 @@ card --smartcard --smartcard-username=card ${SC} ${PIN} --db-list up.ehd
 check $? "the v1 card block opens the database after --upgrade-db"
 
 if [ -n "${SC_LABEL}" ]; then
-    card --smartcard --smartcard-username=card "--smartcard-cert-id=label_${SC_LABEL}" --smartcard-provider=${MODULE} ${PIN} --db-list a.ehd
+    card --smartcard --smartcard-username=card "--smartcard-cert-id=label_${SC_LABEL}" --smartcard-provider=${MODULE} ${SLOT_ARG} ${PIN} --db-list a.ehd
     [ $? -eq 0 ] && cmp -s out.txt list.txt
     check $? "open with a label_ cert ID"
 fi
 URI_ID=$(printf '%s' "${SC_ID:-01}" | sed 's/\(..\)/%\1/g')
-card --smartcard --smartcard-username=card "--smartcard-cert-id=pkcs11:id=${URI_ID}" --smartcard-provider=${MODULE} ${PIN} --db-list a.ehd
+card --smartcard --smartcard-username=card "--smartcard-cert-id=pkcs11:id=${URI_ID}" --smartcard-provider=${MODULE} ${SLOT_ARG} ${PIN} --db-list a.ehd
 [ $? -eq 0 ] && cmp -s out.txt list.txt
 check $? "open with a pkcs11: URI cert ID"
 card --smartcard --smartcard-username=card ${SC} ${PIN} --smartcard-provider=/no/such/module.so --db-list a.ehd
@@ -232,7 +255,7 @@ if [ -n "${SC_EC_CERT}" ]; then
     check $? "an EC cert file is refused with a clear message"
 fi
 if [ -n "${SC_EC_ID}" ]; then
-    ${TOOL} --password-file=pw.txt --add-smartcard-cert --smartcard-cert-id=${SC_EC_ID} --smartcard-provider=${MODULE} --add-username=ec b.ehd > out.txt 2>err.txt
+    ${TOOL} --password-file=pw.txt --add-smartcard-cert --smartcard-cert-id=${SC_EC_ID} --smartcard-provider=${MODULE} ${SLOT_ARG} --add-username=ec b.ehd > out.txt 2>err.txt
     [ $? -ne 0 ] && grep -q "EC keys are not supported" err.txt
     check $? "an EC key on the card is refused with a clear message"
 fi
@@ -309,16 +332,37 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -eq 1 ]; then
 	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} ${PIN} --smartcard-allow-pin-count-low --db-list a.ehd
 	[ $? -eq 0 ] && cmp -s out.txt list.txt && [ "$(logins)" = "1" ]
 	check $? "the right PIN works with --smartcard-allow-pin-count-low after a wrong PIN"
-	# A second token: an unknown cert ID must not be guessed
+	# A second token, with an unrelated key under the same cert ID (as a
+	# CAC and a YubiKey both have ID 03 with OpenSC)
 	SOFTHSM_UTIL=$(dirname ${MODULE})/../../bin/softhsm2-util
 	[ -x ${SOFTHSM_UTIL} ] || SOFTHSM_UTIL=softhsm2-util
 	${SOFTHSM_UTIL} --module ${MODULE} --init-token --free --label second --so-pin 87654321 --pin 123456 >>${logFILE} 2>&1
+	slot_of() { pkcs11-tool --module ${MODULE} --list-token-slots 2>/dev/null | awk -v l="$1" '/^Slot / { id = $3; gsub(/[():]/, "", id) } $0 ~ "token label *: *" l "$" { print id }'; }
+	SLOT1=$(slot_of epdbtest)
+	SLOT2=$(slot_of second)
+	echo "SoftHSM2 slots: ${SLOT1} (epdbtest) ${SLOT2} (second)" >> ${logFILE}
+	opened_on() { awk -v id="$1" '/: C_OpenSession$/ { o = 1; next } o && /slotID =/ { if ($NF == id) n++; o = 0 } END { print n + 0 }' spy.log 2>/dev/null; }
 	spyrun 0 --smartcard --smartcard-username=card --smartcard-cert-id=7e --smartcard-provider=${SPY} ${PIN} --db-list a.ehd
-	[ $? -ne 0 ] && [ "$(logins)" = "0" ] && grep -q "more than one card" err.txt
-	check $? "two cards and an unknown cert ID: no PIN is sent to a guessed card"
+	[ $? -ne 0 ] && [ "$(logins)" = "0" ] && grep -q "more than one card" err.txt && grep -q "Cards in slots" err.txt
+	check $? "two cards and an unknown cert ID: no PIN is sent, the slots are listed"
 	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} ${PIN} --db-list a.ehd
 	[ $? -eq 0 ] && cmp -s out.txt list.txt && [ "$(logins)" = "1" ]
-	check $? "two cards: the card with the cert ID is used, one C_Login"
+	check $? "two cards, the cert ID on one: that card is used, one C_Login"
+	pkcs11-tool --module ${MODULE} --slot ${SLOT2} --login --pin 123456 --keypairgen --key-type rsa:2048 --id ${SC_ID:-01} --label "other card" >>${logFILE} 2>&1
+	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} ${PIN} --db-list a.ehd
+	[ $? -ne 0 ] && [ ! -s out.txt ] && [ "$(logins)" = "0" ] && grep -q "found on 2 cards" err.txt
+	check $? "the cert ID on two cards: no PIN is sent, --smartcard-slot is asked for"
+	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=${SLOT1} ${PIN} --db-list a.ehd
+	[ $? -eq 0 ] && cmp -s out.txt list.txt && [ "$(logins)" = "1" ] && [ "$(opened_on ${SLOT2})" = "0" ] && [ "$(opened_on ${SLOT1})" != "0" ]
+	check $? "--smartcard-slot: one C_Login on that card, the other card is never opened"
+	${TOOL} --password-file=pw.txt --add-smartcard-cert --smartcard-cert-id=${SC_ID:-01} --smartcard-provider=${MODULE} --smartcard-slot=${SLOT1} --add-username=slotuser a.ehd >>${logFILE} 2>&1
+	check $? "--smartcard-slot with --add-smartcard-cert (no PIN)"
+	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=0x7fff0001 ${PIN} --db-list a.ehd
+	[ $? -ne 0 ] && [ "$(logins)" = "0" ] && grep -q "no smart card found in slot" err.txt
+	check $? "--smartcard-slot with no card in that slot: no PIN is sent"
+	${TOOL} --smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=abc ${PIN} --db-list a.ehd > out.txt 2> err.txt
+	[ $? -ne 0 ] && grep -q "needs a slot ID" err.txt
+	check $? "--smartcard-slot refuses a value that is not a slot ID"
     fi
 fi
 

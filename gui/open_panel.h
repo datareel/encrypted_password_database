@@ -134,6 +134,8 @@ public: // Control objects
   wxTextCtrl *sc_pin_input;
   wxStaticText *sc_keyid_label;
   wxTextCtrl *sc_keyid_input;
+  wxStaticText *sc_slot_label; // 10/26/2026: PKCS#11 slot, empty for any
+  wxTextCtrl *sc_slot_input;
 #endif // __ENABLE_SMART_CARD__
 
 private: // Data members
