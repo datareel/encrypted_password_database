@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Relase 2025.105
+Release 2026.101
 
 Supports Window 10, Windows 11, and Windows 2025 server
 Supports Red Hat Enterprise Linux 6, 7, 8, 9, and 10 
@@ -8,6 +8,61 @@ Supports Red Hat Enterprise Linux 6, 7, 8, 9, and 10
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
+
+RELEASE 2026.101: SECURITY FIXES AND DATABASE FORMAT V2
+-------------------------------------------------------
+Release 2026.101 fixes the issues found by a security review on
+10/25/2026 and adds a new database format.
+
+Database format v2:
+* Passwords and key files are turned into the database key once per
+  open with PBKDF2-HMAC-SHA256 (600000 iterations, 32-byte random salt)
+  instead of 1000 iterations for every field. Separate keys for field
+  encryption, field MACs and a database MAC are derived from it.
+* A MAC over the whole database, bound to each record and column,
+  detects entries that were changed, swapped, added or removed outside
+  the program. A failed check is reported when the database is opened.
+  The GUI warns that the file may have been tampered with and lets you
+  accept and re-seal it, with No as the default; epdb_auth_tool fails
+  and --reseal-db accepts the current contents.
+* Users added to a v2 database use RSA-OAEP with SHA-256.
+* New databases are created as v2. Existing databases keep working and
+  are only upgraded on request: File/Upgrade Database Format in the GUI
+  or epdb_auth_tool --upgrade-db. The upgrade first saves the database
+  to name.v1-backup-<date>-<time>.ehd and .ehx (mode 600), checks every
+  entry of the upgraded database against the original, and leaves the
+  original unchanged if anything fails. RSA and smart card users of the
+  v1 database can open the upgraded database.
+* Releases before 2026.101 cannot open a v2 database.
+
+Security fixes:
+* Damaged or crafted database files no longer crash the program or
+  overflow memory (user list, encrypted strings, index file, records).
+* epdb_auth_tool checks the password or key before listing or
+  searching, stops on decrypt errors, exits 1 on any error, and writes
+  prompts and messages to stderr.
+* RSA and smart card opens check the recovered key, and a database
+  name that was never set no longer accepts any password.
+* Builds use stack protection, FORTIFY_SOURCE, full RELRO and a
+  non-executable stack, and epdb_auth_tool is a position independent
+  executable.
+
+Changes in behaviour:
+* Private RSA key and AES key files must be owned by you with no group
+  or other access (chmod 600 file), like ssh private keys.
+* epdb_auth_tool needs database file names that end in .ehd.
+* The Password and Previous Password columns are masked; View/Show
+  passwords shows them. Copied values are cleared from the clipboard
+  after 30 seconds (ClipboardClearSeconds) and the open databases are
+  closed after 15 idle minutes (AutoLockMinutes).
+* Only http and https links open, after asking. Other text in a cell
+  is never started as a program.
+* CSV export writes a mode 600 file and prefixes values that start
+  with = + - @ with a quote; the import removes it.
+* Merge does not support v2 databases yet. Export to CSV and import.
+* epdb_auth_tool has --password-file, --password-fd and the same for
+  the RSA passphrase and smart card PIN. --password=value still works
+  but prints a warning. New output options: --csv, --field=n, --null.
 
 FEATURES
 --------
