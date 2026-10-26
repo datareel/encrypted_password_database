@@ -239,17 +239,21 @@ int main(int argc, char **argv)
     if(clientcfg->verbose_mode) cerr << "Using smart card cert for decryption" << "\n" << flush;
 
     if(clientcfg->verbose_mode) {
-      cerr << "Smart card engine ID = " << sc.engine_ID << "\n" << flush;
-      cerr << "Smart card engine path = " << sc.enginePath << "\n" << flush;
+      // 10/26/2026: OpenSSL 3 builds (RHEL 9, RHEL 10 and Windows) load the
+      // PKCS#11 module directly and have no engine
+      if(SC_uses_engine()) {
+	cerr << "Smart card engine ID = " << sc.engine_ID << "\n" << flush;
+	cerr << "Smart card engine path = " << sc.enginePath << "\n" << flush;
+      }
       cerr << "Smart card module path = " << sc.modulePath << "\n" << flush;
       cerr << "Smart card cert ID = " << sc.cert_id << "\n"  << flush;
     }
 
-    if(!check_if_file_exists(sc.enginePath)) {
+    if(SC_uses_engine() && (!futils_exists(sc.enginePath) || !futils_isfile(sc.enginePath))) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return ExitProgram(1);
     }
-    if(!futils_exists(sc.modulePath)) {
+    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
       cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
       return ExitProgram(1);
     }
@@ -368,8 +372,10 @@ int main(int argc, char **argv)
 	ERROR_LEVEL++;
 	f->Close();
 	delete f;
-	ptr = ptr->next;
-	continue; 
+	// 10/26/2026: Stop here, the PIN may be wrong and CAC and PIV
+	// cards lock after a few wrong PINs. Never try it on another file.
+	OPENSSL_cleanse(sc.pin, sizeof(sc.pin));
+	break;
       }
       file_key = DBStringConfig::crypt_key;
       f->Close();
@@ -517,7 +523,14 @@ int main(int argc, char **argv)
 	cerr << "ERROR: --add-smartcard-cert requires --add-username" << "\n" << flush;
 	return ExitProgram(1);
       }
+      if(!use_smartcard_cert_file && (!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath))) {
+	cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
+	return ExitProgram(1);
+      }
       cerr << "Adding smartcard cert for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
+      if(!use_smartcard_cert_file && clientcfg->verbose_mode) {
+	cerr << "Reading the public key for cert ID " << sc.cert_id << " from the smart card with " << sc.modulePath << "\n" << flush;
+      }
       DatabaseUserAuth db_auth;
       gxDatabase *f = OpenEPDB(fname.c_str(), err_string, gxDBASE_READWRITE);
       if(!f) {
@@ -641,7 +654,12 @@ void DisplayVersion()
   cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n" << flush;
   cout << "\n" << flush;
 #ifdef __ENABLE_SMART_CARD__
-  cout << "Smart card enabled for " << SC_get_default_engine_ID() << "\n" << flush;
+  if(SC_uses_engine()) {
+    cout << "Smart card enabled for " << SC_get_default_engine_ID() << "\n" << flush;
+  }
+  else {
+    cout << "Smart card enabled for PKCS#11" << "\n" << flush;
+  }
 #endif // __ENABLE_SMART_CARD__
 }
 
@@ -680,16 +698,18 @@ void HelpMessage()
   cout << "\n" << flush;
   cout << "Smart card settings:\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
-  cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
-  cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard provider)" << "\n" << flush;
+  cout << "                 Also id_01, label_name, slot_N-id_01, slot_N-label_name or \"pkcs11:id=%01\"" << "\n" << flush;
+  if(SC_uses_engine()) cout << "          --smartcard-engine=" << SC_get_default_enginePath() << " (Set the smartcard engine path)" << "\n" << flush;
+  cout << "          --smartcard-provider=" << SC_get_default_modulePath() << " (Set the smartcard PKCS#11 module)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
 
   cout << "\n" << flush;
   cout << "DB add user functions:\n" << flush;
   cout << "          --add-rsa-key (Add access to database for another users public RSA key)" << "\n" << flush;
 #ifdef __ENABLE_SMART_CARD__
-  cout << "          --add-smartcard-cert (Add access to database for another users smart card)" << "\n" << flush;
-  cout << "          --add-username (Username being added for public RSA key file or exported smart card cert file)" << "\n" << flush;
+  cout << "          --add-smartcard-cert (Add access to database for the smart card in the reader, uses --smartcard-cert-id)" << "\n" << flush;
+  cout << "          --add-smartcard-cert-file=file.pem (Add access to database for another users exported smart card cert)" << "\n" << flush;
+  cout << "          --add-username (Username being added for public RSA key file or smart card cert)" << "\n" << flush;
 #else
   cout << "          --add-username (Username being added for public RSA key file)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
@@ -1028,6 +1048,11 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: --smartcard-cert-id missing ID: --smartcard-cert-id=01" << "\n" << flush;
       return 0;
     }
+    // 10/26/2026: Refuse an ID that does not fit, it was cut short
+    if(equal_arg.length() >= SC_max_cert_id_size) {
+      cerr << "ERROR: --smartcard-cert-id is longer than " << (SC_max_cert_id_size-1) << " characters" << "\n" << flush;
+      return 0;
+    }
     sc.SetCertID(equal_arg.c_str());
     has_valid_args = 1;
   }
@@ -1038,7 +1063,10 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     sc.SetEnginePath(equal_arg.c_str());
-    if(!check_if_file_exists(sc.enginePath)) {
+    if(!SC_uses_engine()) {
+      cerr << "NOTE: --smartcard-engine is ignored, this build loads the PKCS#11 provider module directly" << "\n" << flush;
+    }
+    if(SC_uses_engine() && !check_if_file_exists(sc.enginePath)) {
       cerr << "ERROR: Smart card engine " << sc.enginePath << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -1050,8 +1078,12 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: --smartcard-provider missing path: --smartcard-provider=" <<  SC_get_default_modulePath() << "\n" << flush;
       return 0;
     }
+    if(equal_arg.length() >= SC_max_path_size) {
+      cerr << "ERROR: --smartcard-provider path is longer than " << (SC_max_path_size-1) << " characters" << "\n" << flush;
+      return 0;
+    }
     sc.SetModulePath(equal_arg.c_str());
-    if(!check_if_file_exists(sc.modulePath)) {
+    if(!futils_exists(sc.modulePath) || !futils_isfile(sc.modulePath)) {
       cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
@@ -1114,9 +1146,17 @@ int ProcessDashDashArg(gxString &arg)
   }
 
 #ifdef __ENABLE_SMART_CARD__
-  if(arg == "add-smartcard-cert") {
+  // 10/26/2026: --add-smartcard-cert with no file reads the public key
+  // from the card in the reader (no PIN needed), as fcrypt does.
+  // --add-smartcard-cert=file is kept for older scripts.
+  if(arg == "add-smartcard-cert" && equal_arg.is_null()) {
+    add_smart_card = 1;
+    use_smartcard_cert_file = 0;
+    has_valid_args = 1;
+  }
+  else if((arg == "add-smartcard-cert") || (arg == "add-smartcard-cert-file")) {
     if(equal_arg.is_null()) {
-      cerr << "ERROR: --add-smartcard-cert missing filename: --add-smartcard-cert=${HOME}/certs/certfile.pem" << "\n" << flush;
+      cerr << "ERROR: --add-smartcard-cert-file missing filename: --add-smartcard-cert-file=${HOME}/certs/certfile.pem" << "\n" << flush;
       return 0;
     }
     add_smart_card = 1;
@@ -1126,8 +1166,10 @@ int ProcessDashDashArg(gxString &arg)
       cerr << "ERROR: Smart card cert file " << smartcard_cert_file.c_str() << " does not exist or cannot be read" <<  "\n" << flush;
       return 0;
     }
-    if(SC_read_cert_file(&sc, smartcard_cert_file.c_str()) != 0) {
-      cerr << "ERROR: " << sc.err_string << "\n" << flush;
+    // 10/26/2026: PEM or DER (Windows .cer) cert files
+    gxString cert_err;
+    if(EPDBReadSmartCardCertFile(&sc, smartcard_cert_file.c_str(), cert_err) != 0) {
+      cerr << "ERROR: " << cert_err.c_str() << "\n" << flush;
       return 0;
     }
     has_valid_args = 1;

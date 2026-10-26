@@ -80,6 +80,14 @@ const gxUINT32 DB_AUTH_BLOCK_STATUS_PKCS1 = 1;
 const gxUINT32 DB_AUTH_BLOCK_STATUS_OAEP = 2;
 const unsigned DB_AUTH_MAX_USERNAME_LEN = 255;
 
+#ifdef __ENABLE_SMART_CARD__
+// 10/26/2026: Reads a cert exported from a smart card, PEM or DER (such
+// as a .cer file exported on Windows), into sc for
+// SC_cert_file_public_key_encrypt(). Returns 0 if the file holds an
+// X.509 cert with an RSA key.
+int EPDBReadSmartCardCertFile(SmartCardOB *sc, const char *fname, gxString &err);
+#endif // __ENABLE_SMART_CARD__
+
 // 10/25/2026: Returns 0 if the key decrypts the database name
 int VerifyDatabaseKey(gxDatabase *f, const MemoryBuffer &key, gxString &err, int &aes_error);
 

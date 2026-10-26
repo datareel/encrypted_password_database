@@ -474,6 +474,11 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   if(rv != 0) {
     ERROR_LEVEL = rv;
     err << clear << "Smart card cert encrypt error " << sc->err_string;
+    // 10/26/2026: The key is wrapped with RSA, a card key or cert that is
+    // not RSA, such as an EC P-256 or P-384 key, fails here
+    if(strcmp(sc->err_string, "Public key encrypt failed") == 0) {
+      err << " (the smart card key must be an RSA key, EC keys are not supported)";
+    }
     return ERROR_LEVEL;
   }
 
@@ -543,6 +548,50 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   }
 
   return ERROR_LEVEL;
+}
+#endif // __ENABLE_SMART_CARD__
+
+#ifdef __ENABLE_SMART_CARD__
+// 10/26/2026: See db_auth.h
+int EPDBReadSmartCardCertFile(SmartCardOB *sc, const char *fname, gxString &err)
+{
+  if(SC_read_cert_file(sc, fname) != 0) {
+    err << clear << sc->err_string;
+    return -1;
+  }
+  BIO *bio = BIO_new_mem_buf((const void *)sc->cert_file_buf, sc->cert_file_buf_len);
+  X509 *x509 = bio ? PEM_read_bio_X509(bio, 0, 0, 0) : 0;
+  if(bio) BIO_free(bio);
+  if(!x509) {
+    // Not PEM, try DER and store it as PEM
+    const unsigned char *dp = (const unsigned char *)sc->cert_file_buf;
+    x509 = d2i_X509(0, &dp, (long)sc->cert_file_buf_len);
+    BIO *out = x509 ? BIO_new(BIO_s_mem()) : 0;
+    char *pem = 0;
+    long pem_len = 0;
+    if(out && PEM_write_bio_X509(out, x509)) pem_len = BIO_get_mem_data(out, &pem);
+    memset(sc->cert_file_buf, 0, SC_max_cert_file_len);
+    sc->cert_file_buf_len = 0;
+    if(!x509 || pem_len <= 0 || pem_len >= (long)SC_max_cert_file_len) {
+      if(out) BIO_free(out);
+      if(x509) X509_free(x509);
+      err << clear << "The smart card cert file " << fname << " is not a PEM or DER X.509 cert";
+      return -1;
+    }
+    memmove(sc->cert_file_buf, pem, pem_len);
+    sc->cert_file_buf_len = (unsigned)pem_len;
+    BIO_free(out);
+  }
+  EVP_PKEY *pkey = X509_get0_pubkey(x509);
+  int is_rsa = (pkey && EVP_PKEY_base_id(pkey) == EVP_PKEY_RSA);
+  X509_free(x509);
+  if(!is_rsa) {
+    memset(sc->cert_file_buf, 0, SC_max_cert_file_len);
+    sc->cert_file_buf_len = 0;
+    err << clear << "The smart card cert in " << fname << " does not hold an RSA key, EC keys are not supported";
+    return -1;
+  }
+  return 0;
 }
 #endif // __ENABLE_SMART_CARD__
 

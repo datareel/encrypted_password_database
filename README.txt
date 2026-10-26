@@ -68,7 +68,9 @@ Platforms and builds:
 * Binaries are released for RHEL 8, 9 and 10 and for 64-bit Windows 11
   and Windows Server 2022 or later. RHEL 6 and 7 and 32-bit Windows
   binaries are no longer released.
-* Smart card support is not in the RHEL 10 binaries yet.
+* Smart card support is not in the 2026.101 RHEL 10 and Windows
+  binaries. It is turned on for RHEL 10 and Windows in the source after
+  2026.101, see SMART CARDS AND DOD CAC CARDS below.
 * Built with fcrypt 2026.104 and DataReel 6.1. Windows builds use
   OpenSSL 3.5.x LTS, Linux builds use the OpenSSL from the OS.
 
@@ -273,9 +275,9 @@ Set up the build environment for the command line utility build:
 
 > cd ${HOME}/git/encrypted_password_database/console/linux
 Use the makefile for your RHEL release. Smart card support is turned
-on in makefile_rhel8 and makefile_rhel9 and off in makefile_rhel10:
+on in every makefile, for example in makefile_rhel10:
 
-SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL8__
+SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL10__
 
 Run the make to build the command line utility programs:
 
@@ -285,3 +287,60 @@ To run the command line tests:
 
 > ./run_cli_tests.sh
 
+To run the smart card tests with a test card or a SoftHSM2 token, see
+the usage at the top of run_smartcard_tests.sh:
+
+> SC_PIN=pin SC_CERT=cert.pem SC_ID=03 ./run_smartcard_tests.sh
+
+SMART CARDS AND DOD CAC CARDS
+-----------------------------
+Smart card access uses the fcrypt smart card code. Builds that use
+OpenSSL 3 (RHEL 9, RHEL 10 and Windows) load the card's PKCS#11 module
+directly, no OpenSSL pkcs11 engine (libp11) is used or needed. RHEL 8
+builds still use the pkcs11 engine. The PKCS#11 module is:
+
+  RHEL:    /usr/lib64/opensc-pkcs11.so (dnf install opensc pcsc-lite,
+           systemctl enable --now pcscd)
+  Windows: C:\Program Files\HID Global\ActivClient\acpkcs211.dll if
+           ActivClient is installed, otherwise
+           C:\Program Files\OpenSC Project\OpenSC\pkcs11\opensc-pkcs11.dll
+
+Set a different module with --smartcard-provider=path in
+epdb_auth_tool, or with SC_modulePath in the GUI configuration file
+(encrypted_password_database.cfg in the program's home directory).
+
+The cert ID can be a hex ID such as 03, or id_03, label_name,
+slot_N-id_03, slot_N-label_name or a "pkcs11:id=%03" URI. List the
+keys and certs on the card with the OpenSC pkcs11-tool:
+
+> pkcs11-tool --list-objects
+> pkcs11-tool --module "C:\Program Files\HID Global\ActivClient\acpkcs211.dll" --list-objects
+
+A DOD CAC card holds PIV Authentication, Digital Signature and Key
+Management (encryption) keys. Use the Key Management key, since DOD
+can recover escrowed encryption keys when a card is replaced. With
+OpenSC its ID is 03. ActivClient shows a long hex ID and a label such
+as "Encryption - name", use that ID or label_Encryption - name. Keep a
+password or another user on every database and add access for a new
+card before the old card expires.
+
+The card key must be RSA (CAC cards use RSA 2048). EC keys, such as
+P-256 or P-384 keys on some PIV cards and YubiKeys, are refused. A
+wrong PIN is never retried, CAC cards lock after a few wrong PINs.
+
+Add your card to a database you can open with a password:
+
+> epdb_auth_tool --password --add-smartcard-cert --smartcard-cert-id=03 --add-username=myname mydb.ehd
+
+Add another user's card from a cert they exported (PEM or DER .cer):
+
+> epdb_auth_tool --password --add-smartcard-cert-file=user.cer --add-username=user mydb.ehd
+
+Open the database with the card:
+
+> epdb_auth_tool --smartcard --smartcard-username=myname --smartcard-cert-id=03 --db-list mydb.ehd
+
+In the GUI use Users/Add Users and either an exported cert file or
+"Or read the cert from the smart card in the reader" with the cert ID,
+then open the database with the Use Smart Card fields of the open
+dialog.

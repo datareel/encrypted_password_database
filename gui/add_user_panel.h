@@ -53,7 +53,8 @@ enum { // Page setup panel IDs
   ID_ADDUSER_TEXTCONTROL_RSA_USERNAME,
   ID_ADDUSER_TEXTCONTROL_RSA_KEY,
   ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
-  ID_ADDUSER_TEXTCONTROL_SC_CERT
+  ID_ADDUSER_TEXTCONTROL_SC_CERT,
+  ID_ADDUSER_TEXTCONTROL_SC_CERT_ID
 };
 // --------------------------------------------------------------
 
@@ -81,6 +82,7 @@ public: // Event handlers
   void OnTextControlSCCertFileEnter(wxCommandEvent &event);
   void OnCertFileBrowse(wxCommandEvent &event);
   void OnTextControlSCUsernameEnter(wxCommandEvent &event);
+  void OnTextControlSCCertIDEnter(wxCommandEvent &event);
 #endif // __ENABLE_SMART_CARD__
   
 public: // Memeber functions
@@ -104,6 +106,9 @@ public: // Control objects
   wxStaticText *sc_cert_label;
   wxTextCtrl *sc_cert_input;
   wxButton *sc_browse;
+  wxCheckBox *sc_use_card_checkbox; // 10/26/2026: Read the cert from the card
+  wxStaticText *sc_keyid_label;
+  wxTextCtrl *sc_keyid_input;
 #endif // __ENABLE_SMART_CARD__
   
   wxButton *ok_btn;

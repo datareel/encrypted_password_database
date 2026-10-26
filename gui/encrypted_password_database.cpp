@@ -326,7 +326,10 @@ void InitProgramConfig(int argc, char *argv[])
     if(s5) progcfg->SC_enginePath = s5;
 
     char *s6 = CfgData->GetStrValue("SC_modulePath");
-    if(s6) progcfg->SC_modulePath = s6;
+    // 10/26/2026: Keep the default module if the saved one is gone, such
+    // as an OpenSC path saved before ActivClient was installed and OpenSC
+    // removed
+    if(s6 && futils_exists(s6) && futils_isfile(s6)) progcfg->SC_modulePath = s6;
 
     char *s7 = CfgData->GetStrValue("SC_engine_ID");
     if(s7) progcfg->SC_engine_ID = s7; 
