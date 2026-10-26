@@ -10,7 +10,13 @@ PROJECT = epdb_auth_tool
 
 INSTALL_DIR = ../../bin/win32
 
-include msvc.env
+# 64-bit x64 settings when the compiler ENV is set with msvc64_vs2026.bat,
+# 32-bit x86 settings otherwise
+!IF "$(VSCMD_ARG_TGT_ARCH)" == "x64"
+!include msvc64.env
+!ELSE
+!include msvc.env
+!ENDIF
 
 # Set the project dependencies  
 # ===============================================================

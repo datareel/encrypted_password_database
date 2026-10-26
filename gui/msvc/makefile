@@ -6,7 +6,13 @@
 # Define a name for the executable
 PROJECT =  encrypted_password_database
 
+# 64-bit x64 settings when the compiler ENV is set with msvc64_vs2026.bat,
+# 32-bit x86 settings otherwise
+!IF "$(VSCMD_ARG_TGT_ARCH)" == "x64"
+!include ../../env/msvc64.env
+!ELSE
 !include ../../env/msvc.env
+!ENDIF
 
 # Setup additional paths for includes and source code
 APP_PATH = ..
