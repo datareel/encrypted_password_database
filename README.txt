@@ -249,8 +249,9 @@ WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.4
 Change the WXSRCDIR to your wxWidget build installation path. 
 
 > cd ${HOME}/git/encrypted_password_database/gui/linux
-There is a makefile for each RHEL release: makefile_rhel8,
-makefile_rhel9 and makefile_rhel10. For RHEL 10:
+RHEL 10 is the default build, the makefile is the same as
+makefile_rhel10. Use makefile_rhel8 or makefile_rhel9 to build on RHEL 8
+or RHEL 9. For RHEL 10:
 
 > cat makefile_rhel10
 
@@ -269,19 +270,20 @@ example: make WXSRCDIR=$HOME/3plibs/wxWidgets-3.2.4_rhel9 -f makefile_rhel9
 
 Run the make to build the GUI
 
-> make -f makefile_rhel10
+> make
 
 Set up the build environment for the command line utility build:
 
 > cd ${HOME}/git/encrypted_password_database/console/linux
-Use the makefile for your RHEL release. Smart card support is turned
-on in every makefile, for example in makefile_rhel10:
+The default makefile is for RHEL 10, use makefile_rhel8 or
+makefile_rhel9 on RHEL 8 or RHEL 9. Smart card support is turned on in
+every makefile, for example in makefile_rhel10:
 
 SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL10__
 
 Run the make to build the command line utility programs:
 
-> make -f makefile_rhel10
+> make
 
 To run the command line tests:
 

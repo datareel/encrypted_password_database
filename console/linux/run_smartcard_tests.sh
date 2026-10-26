@@ -43,8 +43,11 @@ if ! ${TOOL} --version 2>&1 | grep -q "Smart card enabled"; then
     exit 1
 fi
 if [ ! -f ${TESTDB} ] || [ ${NEW_DIR}/../epdb_test_db.cpp -nt ${TESTDB} ]; then
+    # 10/26/2026: The default makefile is RHEL 10, use the RHEL 8 or 9
+    # makefile on those releases
     MAKEFILE=makefile
-    if [ -f /etc/redhat-release ] && grep -qi Coughlan /etc/redhat-release; then MAKEFILE=makefile_rhel10; fi
+    RHEL_VERSION=$( (. /etc/os-release 2>/dev/null; echo ${VERSION_ID%%.*}) )
+    if [ "${RHEL_VERSION}" = "8" ] || [ "${RHEL_VERSION}" = "9" ]; then MAKEFILE=makefile_rhel${RHEL_VERSION}; fi
     (cd ${NEW_DIR} && make -f ${MAKEFILE} PROJECT=epdb_test_db >/dev/null 2>&1)
     if [ ! -f ${TESTDB} ]; then
 	echo "ERROR: Cannot build ${TESTDB}"

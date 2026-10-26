@@ -1,5 +1,5 @@
 all:
-	make PROJECT=wxappfw FINAL=1 64BITCFG=1 RHEL=10 -f ../../env/linux.mak
+	make PROJECT=wxappfw FINAL=1 64BITCFG=1 RHEL=10 LIBRARIES="-lXxf86vm -lSM -lICE" -f ../../env/linux.mak
 
 install:
 	make PROJECT=wxappfw FINAL=1 64BITCFG=1 RHEL=10 -f ../../env/linux.mak install

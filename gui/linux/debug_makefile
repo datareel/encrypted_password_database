@@ -1,2 +1,4 @@
+# 10/26/2026: RHEL 10 is the default build, makefile_rhel8 and makefile_rhel9 have
+# the release builds for older RHEL.
 all:
-	make PROJECT=encrypted_password_database FINAL=0 64BITCFG=1 RHEL=8 -f ../../env/linux.mak
+	make PROJECT=encrypted_password_database FINAL=0 64BITCFG=1 RHEL=10 LIBRARIES="-lXxf86vm -lSM -lICE" -f ../../env/linux.mak

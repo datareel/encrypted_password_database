@@ -1,3 +1,5 @@
+# 10/26/2026: RHEL 10 is the default build. Use makefile_rhel8 or
+# makefile_rhel9 for older RHEL builds.
 # Define a name for the executable
 PROJECT = epdb_auth_tool
 
@@ -20,15 +22,17 @@ ADD_INC_PATHS = -I../../include -I../../src -I../ -I$(DATAREEL_INCLUDE_PATH) -I$
 # Define debug macros specific to the gxcode library
 64BIT_DEFMACS = -D__64_BIT_DATABASE_ENGINE__ -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES
 ANSI_DEFMACS = -D__USE_ANSI_CPP__
-#CPP_DEFMACS = -D__USE_CPP_IOSTREAM__ -D__CPP_EXCEPTIONS__
 CPP_DEFMACS = -D__USE_CPP_IOSTREAM__
 DISPLAY_DEFMACS = -D__CONSOLE__
 THREAD_DEFMACS = -D__REENTRANT__ 
 POSIX_DEFMACS= -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS
 UNICODE_DEMACS = -D__HAS_UNICODE__
 #SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL7__
-SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL8__
+#SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL8__
 #SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL9__
+# 10/26/2026: RHEL 10 smart card support loads the OpenSC PKCS#11 module
+# directly, the RHEL 10 OpenSSL has no ENGINE API
+SMARTCARD_DEMACS = -D__ENABLE_SMART_CARD__ -D__RHEL10__
 
 # Setup define macros
 DEFMACS = -D__UNIX__ -D__POSIX__ -D__LINUX__ -D__X86__ \
@@ -46,7 +50,7 @@ LINKER = ld
 # Define compiler and linker flags macros
 # 10/25/2026: Hardening flags, position independent executable with
 # stack protection, full RELRO and a non-executable stack
-HARDEN_CFLAGS = -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2
+HARDEN_CFLAGS = -fPIE -fstack-protector-strong -fstack-clash-protection -fcf-protection -D_FORTIFY_SOURCE=3
 HARDEN_LDFLAGS = -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
 COMPILE_FLAGS= -Wall $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2 $(HARDEN_CFLAGS)
 COMPILE_ONLY = -c
