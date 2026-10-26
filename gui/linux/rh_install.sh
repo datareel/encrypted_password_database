@@ -51,7 +51,11 @@ if [ "${missing}" != "" ]; then
     echo "WARNING: Missing system libraries:"
     for lib in ${missing}; do echo "    ${lib}"; done
     echo "Install the packages that provide them, for example:"
-    echo "    sudo dnf install gtk3 webkit2gtk3 pcre2-utf32 libXxf86vm libSM libXtst"
+    if [ ${RHEL_VERSION} -eq 10 ]; then
+        echo "    sudo dnf install gtk3 pcre2-utf32 libXxf86vm libSM libICE"
+    else
+        echo "    sudo dnf install gtk3 webkit2gtk3 pcre2-utf32 libXxf86vm libSM libXtst"
+    fi
 fi
 
 if [ ! -d ${HOME}/.encrypted_password_database ]; then

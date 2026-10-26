@@ -115,10 +115,14 @@ tar xvfz encrypted_password_database_2026_101_rhel_8_9_10_binaries.tar.gz
 cd encrypted_password_database_2026_101_rhel_8_9_10_binaries
 ./rh_install.sh
 
-The installer lists any system libraries that are missing. The GUI
-needs the GTK 3 desktop libraries and pcre2-utf32:
+The installer lists any system libraries that are missing. Most
+desktop systems have them. To add them on RHEL 10:
 
-sudo dnf install gtk3 pcre2-utf32
+sudo dnf install gtk3 pcre2-utf32 libXxf86vm libSM libICE
+
+On RHEL 8 and 9:
+
+sudo dnf install gtk3 webkit2gtk3 pcre2-utf32 libXxf86vm libSM libXtst
 
 To run the Encrypted Password Database GUI from the command line:
 
