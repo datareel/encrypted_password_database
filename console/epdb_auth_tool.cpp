@@ -40,6 +40,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 #endif // __USE_ANSI_CPP__
 
 #include "epdb_functions.h"
+#if defined (__UNIX__)
+#include <unistd.h>
+#else
+#include <io.h>
+#include <stdio.h>
+#endif
 #include "c_thread.h"
 
 #ifdef __MSVC_DEBUG__
@@ -113,6 +119,7 @@ int ProcessDashDashArg(gxString &arg);
 int ProcessArgs(char *arg);
 void WarnSecretOnCommandLine(const char *option, const char *alternatives);
 int ReadSecretArg(const gxString &arg, gxString &value, gxString &secret);
+int ConsoleIsInteractive();
 void WipeSecretArg(char *arg);
 int DEBUG_m(char *message, int level = 1, int rv = 0);
 int ExitProgram(int rv = 0, char *exit_message = 0);
@@ -260,6 +267,11 @@ int main(int argc, char **argv)
 
     if(debug_mode) sc.verbose_mode = 1;
     gxString pin_buf;
+    // 10/26/2026: A PIN that does not fit is refused, never cut short
+    if(sc.pin_too_long) {
+      cerr << "ERROR: The smart card PIN is longer than " << (SC_max_pin_size-1) << " characters, the PIN was not sent" << "\n" << flush;
+      return ExitProgram(1);
+    }
     if(sc.pin[0] == 0) {
       cerr << "Smart card PIN: " << flush;
       if(!consoleGetString(pin_buf, 1)) {
@@ -268,9 +280,15 @@ int main(int argc, char **argv)
 	cerr << "Invalid entry!" << "\n" << flush;
 	return ExitProgram(1);
       }
+      cerr << "\n" << flush;
+      // 10/26/2026: Never send an empty or cut short PIN, it uses up a try
+      if(pin_buf.is_null() || pin_buf.length() >= SC_max_pin_size) {
+	pin_buf.Clear(1);
+	cerr << "ERROR: The smart card PIN is empty or too long, the PIN was not sent" << "\n" << flush;
+	return ExitProgram(1);
+      }
       sc.SetPin(pin_buf.c_str());
       pin_buf.Clear(1);
-      cerr << "\n" << flush;
     }
   }
 #endif // __ENABLE_SMART_CARD__
@@ -367,8 +385,30 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
-      if(db_auth.DecryptWithSmartcard(&sc, smartcard_username) != 0) {
+      int sc_rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
+      if(sc_rv != 0 && sc.error_level == SC_ERROR_PIN_COUNT_LOW && !sc.allow_pin_count_low) {
+	// 10/26/2026: The PIN was not sent. Ask before sending it to a card
+	// that reports low PIN tries, only when a person is at the console.
+	cerr << "WARNING: " << sc.err_string << "\n" << flush;
+	if(ConsoleIsInteractive()) {
+	  cerr << "Check the PIN tries left (for example in ActivClient, open the card and view its smart card info) and be sure of the PIN." << "\n" << flush;
+	  cerr << "Send the PIN to the card? [y/N]: " << flush;
+	  gxString answer;
+	  if(consoleGetString(answer, 0) && (answer == "y" || answer == "Y" || answer == "yes")) {
+	    sc.allow_pin_count_low = 1;
+	    sc_rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
+	  }
+	  cerr << "\n" << flush;
+	}
+	else {
+	  cerr << "Not interactive, use --smartcard-allow-pin-count-low to send the PIN" << "\n" << flush;
+	}
+      }
+      if(sc_rv != 0) {
 	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
+	if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) {
+	  cerr << "Use --smartcard-allow-final-try only if you are sure of the PIN, a wrong PIN locks the card" << "\n" << flush;
+	}
 	ERROR_LEVEL++;
 	f->Close();
 	delete f;
@@ -695,6 +735,9 @@ void HelpMessage()
   cout << "          --smartcard-pin-file=file (Read the smart card PIN from a file only you can read)" << "\n" << flush;
   cout << "          --smartcard-pin-fd=n (Read the smart card PIN from open file descriptor n)" << "\n" << flush;
   cout << "          --smartcard-username=name (Username assigned to the smart card cert, defaults to current user)" << "\n" << flush;
+  cout << "          --smartcard-allow-pin-count-low (Send the PIN when the card reports low PIN tries, asks first if interactive)" << "\n" << flush;
+  cout << "          --smartcard-allow-final-try (Send the PIN when the card reports one try left, a wrong PIN locks the card)" << "\n" << flush;
+  cout << "                 The PIN is sent at most once per run, it is never retried after a failure" << "\n" << flush;
   cout << "\n" << flush;
   cout << "Smart card settings:\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;
@@ -1100,6 +1143,18 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
+  // 10/26/2026: Send the PIN to a card that reports low PIN tries or one
+  // try left. Some modules, such as ActivClient may, do not report them.
+  if(arg == "smartcard-allow-pin-count-low") {
+    sc.allow_pin_count_low = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "smartcard-allow-final-try") {
+    sc.allow_pin_count_low = 1;
+    sc.allow_pin_final_try = 1;
+    has_valid_args = 1;
+  }
+
   if((arg == "smartcard-pin-file") || (arg == "smartcard-pin-fd")) {
     if(equal_arg.is_null()) {
       cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
@@ -1286,3 +1341,13 @@ void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char)
 // ------------------------------- //
 // --------- End of File --------- //
 // ------------------------------- //
+
+int ConsoleIsInteractive()
+// 10/26/2026: Returns 1 if stdin and stderr are a terminal
+{
+#if defined (__UNIX__)
+  return isatty(0) && isatty(2);
+#else
+  return _isatty(_fileno(stdin)) && _isatty(_fileno(stderr));
+#endif
+}

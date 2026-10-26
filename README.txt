@@ -290,9 +290,14 @@ To run the command line tests:
 > ./run_cli_tests.sh
 
 To run the smart card tests with a test card or a SoftHSM2 token, see
-the usage at the top of run_smartcard_tests.sh:
+the usage at the top of run_smartcard_tests.sh. List the card without
+a PIN first, then run the tests (they stop at the first PIN error):
 
+> SC_LIST_ONLY=1 ./run_smartcard_tests.sh
 > SC_PIN=pin SC_CERT=cert.pem SC_ID=03 ./run_smartcard_tests.sh
+
+The wrong PIN and PIN flag tests (SC_TEST_WRONG_PIN=1) only run with a
+SoftHSM2 token.
 
 SMART CARDS AND DOD CAC CARDS
 -----------------------------
@@ -327,8 +332,27 @@ password or another user on every database and add access for a new
 card before the old card expires.
 
 The card key must be RSA (CAC cards use RSA 2048). EC keys, such as
-P-256 or P-384 keys on some PIV cards and YubiKeys, are refused. A
-wrong PIN is never retried, CAC cards lock after a few wrong PINs.
+P-256 or P-384 keys on some PIV cards and YubiKeys, are refused.
+
+PIN safeguards. CAC cards lock after 3 wrong PINs, so:
+* The PIN is sent to the card at most once per database open, and
+  after any failed login no more logins are made until the program is
+  run again (the GUI must be restarted). Nothing retries a PIN: not a
+  loop over database files, not a fallback, not a second key.
+* The PIN is not sent when it is empty, too long (it is never cut
+  short), has control characters or is outside the card's PIN length.
+* The PIN is not sent when the card reports its PIN is locked. When
+  the card reports one PIN try left or low PIN tries, the PIN is only
+  sent after you confirm: the GUI asks (default No), epdb_auth_tool
+  asks for low tries at a terminal and otherwise needs
+  --smartcard-allow-pin-count-low or --smartcard-allow-final-try.
+  Some PKCS#11 modules, possibly ActivClient, do not report the PIN
+  tries, so no warning does not mean tries are left. Check the PIN
+  tries left with the card software first.
+* When the cert ID is not found on any card and more than one card is
+  inserted, no card is guessed.
+* After a wrong PIN the error says one PIN try was used and what the
+  card reports about the tries left.
 
 Add your card to a database you can open with a password:
 

@@ -176,6 +176,14 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   sc.SetCertID(sbuf.c_str());      
   sbuf = (const char *)sc_pin_input->GetValue();
   sc_pin_input->Clear();
+  // 10/26/2026: Never send an empty or cut short PIN, it uses up a card
+  // PIN try. The PIN is not kept after this function returns.
+  if(sbuf.is_null() || sbuf.length() >= SC_max_pin_size) {
+    sbuf.Clear(1);
+    ProgramError->Message("The smart card PIN is empty or too long, the PIN was not sent to the card");
+    is_ok = 0;
+    return 0;
+  }
   sc.SetPin(sbuf.c_str());
   sbuf.Clear(1);
   
@@ -192,8 +200,41 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   db_auth.f = &f; // Set the file pointer
 
   rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
+  if(rv != 0 && (sc.error_level == SC_ERROR_PIN_COUNT_LOW || sc.error_level == SC_ERROR_PIN_FINAL_TRY)) {
+    // 10/26/2026: The PIN was not sent. Ask first, the default is No.
+    gxString warn;
+    if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) {
+      warn << clear << "The smart card reports ONE PIN try is left. A wrong PIN will LOCK the card.\n\n"
+	   << "Check the PIN tries left (for example in ActivClient, open the card and view its smart card info) and be sure of the PIN.\n\n"
+	   << "Send the PIN to the card?";
+    }
+    else {
+      warn << clear << "The smart card reports it is low on PIN tries (a wrong PIN was entered before).\n\n"
+	   << "Check the PIN tries left (for example in ActivClient, open the card and view its smart card info) and be sure of the PIN.\n\n"
+	   << "Send the PIN to the card?";
+    }
+    wxMessageDialog dialog(this, warn.c_str(), "Smart Card PIN Warning",
+			   wxYES_NO|wxNO_DEFAULT|wxICON_WARNING);
+    if(dialog.ShowModal() == wxID_YES) {
+      sc.allow_pin_count_low = 1;
+      if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) sc.allow_pin_final_try = 1;
+      rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
+    }
+    else {
+      OPENSSL_cleanse(sc.pin, sizeof(sc.pin));
+      ProgramError->Message("The smart card PIN was not sent");
+      is_ok = 0;
+      return 0;
+    }
+  }
+  OPENSSL_cleanse(sc.pin, sizeof(sc.pin));
   if(rv != 0) {
-    ProgramError->Message(db_auth.err.c_str());   
+    gxString msg;
+    msg << clear << db_auth.err.c_str();
+    if(SC_login_blocked()) {
+      msg << "\n\nNo more smart card logins will be made until the program is restarted.";
+    }
+    ProgramError->Message(msg.c_str());   
     is_ok = 0;
     return 0;
   }
