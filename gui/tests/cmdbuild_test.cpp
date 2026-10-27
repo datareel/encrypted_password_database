@@ -102,7 +102,8 @@ static std::string ShellRoundTrip(const std::string &command, int shell)
   std::string out;
 #if defined (_WIN32)
   if(shell == EPDB_SHELL_POWERSHELL) {
-    std::string ps = WriteTemp("cmdbuild_test.ps1", command + "\r\n");
+    // A UTF-8 BOM, or Windows PowerShell 5.1 reads the script in the ANSI code page
+    std::string ps = WriteTemp("cmdbuild_test.ps1", "\xef\xbb\xbf" + command + "\r\n");
     out = RunCapture("powershell -NoProfile -ExecutionPolicy Bypass -File \"" + ps + "\"");
     remove(ps.c_str());
   }
@@ -150,6 +151,12 @@ static void QuotingTests(int shell, const char *shell_name)
   std::vector<std::string> args;
   for(int i = 0; values[i]; i++) {
     if(shell != EPDB_SHELL_BASH && strchr(values[i], '"')) continue; // Refused, tested below
+    if(shell == EPDB_SHELL_POWERSHELL && (!values[i][0] || values[i][strlen(values[i])-1] == '\\')) continue;
+    // Windows programs get their arguments in the system code page, a
+    // UTF-8 value cannot arrive unchanged (the builder warns, tested below)
+    int wide = 0;
+    for(const char *c = values[i]; *c; c++) if((unsigned char)*c >= 0x80) wide = 1;
+    if(shell != EPDB_SHELL_BASH && wide) continue;
     args.push_back(values[i]);
   }
 
@@ -173,6 +180,12 @@ static void QuotingTests(int shell, const char *shell_name)
   std::string name = std::string(shell_name) + ": every special value reaches the program unchanged";
   Check(name.c_str(), clean == expect, "\ncommand: " + cmd + "\ngot:\n" + clean + "expected:\n" + expect);
 
+  if(shell == EPDB_SHELL_POWERSHELL) {
+    name = std::string(shell_name) + ": a quoted value with a trailing backslash is refused";
+    Check(name.c_str(), EPDBQuoteArg("C:\\path with trailing\\", shell, q) != 0);
+    name = std::string(shell_name) + ": an empty value is refused (Windows PowerShell 5.1 drops it)";
+    Check(name.c_str(), EPDBQuoteArg("", shell, q) != 0);
+  }
   if(shell != EPDB_SHELL_BASH) {
     name = std::string(shell_name) + ": a value with a double quote is refused";
     Check(name.c_str(), EPDBQuoteArg("double \"quote\"", shell, q) != 0);
@@ -255,6 +268,18 @@ static void CommandTests()
 	r.command == "\"C:\\Program Files\\Encrypted Password Database\\epdb_auth_tool.exe\" "
 	"\"--rsa-key=C:\\Keys\\my key.pem\" --rsa-key-username=dgaer \"--rsa-key-passphrase-file=C:\\Secrets\\100%% pass.txt\" "
 	"--db-info --non-interactive \"C:\\Users\\Me\\Documents\\work db.ehd\"", r.command + err);
+
+  o.database = "C:\\Users\\Me\\Documents\\caf\xc3\xa9.ehd";
+  int warned = 0;
+  if(EPDBBuildCommand(o, EPDB_SHELL_CMD, r, err) == 0) {
+    for(size_t i = 0; i < r.notes.size(); i++) if(Contains(r.notes[i], "plain ASCII")) warned = 1;
+  }
+  Check("Windows shells warn about a non-ASCII file name", warned);
+  warned = 0;
+  if(EPDBBuildCommand(o, EPDB_SHELL_BASH, r, err) == 0) {
+    for(size_t i = 0; i < r.notes.size(); i++) if(Contains(r.notes[i], "plain ASCII")) warned = 1;
+  }
+  Check("bash does not warn about UTF-8", !warned);
 
   o.auth = EPDB_AUTH_PASSWORD;
   o.password.source = EPDB_SECRET_FILE;

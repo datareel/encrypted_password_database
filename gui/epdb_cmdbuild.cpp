@@ -163,9 +163,13 @@ int EPDBQuoteArg(const std::string &arg, int shell, std::string &out)
     // Single quoted strings keep every character, a single quote is
     // doubled. PowerShell 7.3 and later pass embedded double quotes to
     // the program; Windows PowerShell 5.1 does not, so they are refused.
+    // 5.1 also turns a trailing backslash of a quoted value into an
+    // escaped quote, and 7.3 does not, so that is refused too.
     for(size_t i = 0; i < arg.size(); i++) {
       if(arg[i] == '"' || arg[i] == '\n' || arg[i] == '\r') return -1;
     }
+    // and drops an empty argument
+    if(arg.empty() || arg[arg.size()-1] == '\\') return -1;
     out = "'";
     for(size_t i = 0; i < arg.size(); i++) {
       unsigned char c = (unsigned char)arg[i];
@@ -524,12 +528,27 @@ int EPDBBuildCommand(const EPDBCmdOptions &opt, int shell, EPDBCmdResult &result
   for(size_t i = 0; i < b.args.size(); i++) {
     std::string q;
     if(EPDBQuoteArg(b.args[i], shell, q) != 0) {
-      err = "A value has a double quote or a line break, which this shell cannot pass: " + b.args[i];
+      err = "A value has a double quote, a line break or (PowerShell) a trailing backslash, which this shell "
+	"cannot pass safely: " + b.args[i];
       return -1;
     }
     if(i == 0 && shell == EPDB_SHELL_POWERSHELL && q[0] == '\'') cmd += "& "; // Run a quoted path
     cmd += q;
     if(i + 1 < b.args.size()) cmd += " ";
+  }
+  if(shell != EPDB_SHELL_BASH) {
+    // 10/27/2026: Windows programs read their arguments in the system
+    // code page, so characters outside it do not arrive as typed
+    for(size_t i = 0; i < b.args.size(); i++) {
+      int wide = 0;
+      for(size_t k = 0; k < b.args[i].size(); k++) if((unsigned char)b.args[i][k] >= 0x80) wide = 1;
+      if(wide) {
+	b.notes.push_back("A file name or value has characters outside plain ASCII. epdb_auth_tool on Windows "
+			  "reads its arguments in the system code page, rename the file or use a plain ASCII name "
+			  "if the command cannot find it.");
+	break;
+      }
+    }
   }
   result.args = b.args;
   result.command = cmd;

@@ -551,6 +551,8 @@ void CommandBuilderDialog::OnSave(wxCommandEvent &WXUNUSED(event))
       else crlf += text[i];
     }
     text = crlf;
+    // A UTF-8 BOM, so Windows PowerShell 5.1 reads the script as UTF-8
+    if(sh == EPDB_SHELL_POWERSHELL) text = "\xef\xbb\xbf" + text;
   }
   gxString err;
   if(WritePrivateFile(dialog.GetPath().utf8_str(), text.data(), (unsigned)text.size(), err) != 0) {
