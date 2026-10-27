@@ -33,81 +33,33 @@ Main frame toolbar functions.
 #include "app_defs.h"
 
 void MainFrame::RecreateToolbar()
+// 10/27/2026: SVG icons at 24 DIP with text. The search box is at the
+// top of each database tab.
 {
-  // delete and recreate the toolbar
   wxToolBarBase *toolBar = GetToolBar();
-
   long style = toolBar ? toolBar->GetWindowStyle() : MAIN_TOOLBAR_STYLE;
-
   delete toolBar;
-  
   SetToolBar(NULL);
-  
+
   style &= ~(wxTB_HORIZONTAL | wxTB_VERTICAL);
-  style |= m_horzToolbar ? wxTB_HORIZONTAL : wxTB_VERTICAL;
-  
+  style |= wxTB_HORIZONTAL;
   toolBar = CreateToolBar(style, MAIN_TOOLBAR_ID);
-  
-  // Set up toolbar
-  wxBitmap toolBarBitmaps[7];
-  
-#if USE_XPM_BITMAPS
-  toolBarBitmaps[0] = wxBitmap(new_xpm);
-  toolBarBitmaps[1] = wxBitmap(open_xpm);
-  toolBarBitmaps[2] = wxBitmap(addrec_xpm);
-  toolBarBitmaps[3] = wxBitmap(delrec_xpm);
-  toolBarBitmaps[4] = wxBitmap(findrec_xpm);
-  toolBarBitmaps[5] = wxBitmap(print_xpm);
-  toolBarBitmaps[6] = wxBitmap(help_xpm);
-#else // !USE_XPM_BITMAPS
-  toolBarBitmaps[0] = wxBITMAP(new);
-  toolBarBitmaps[1] = wxBITMAP(open);
-  toolBarBitmaps[2] = wxBITMAP(addrec);
-  toolBarBitmaps[3] = wxBITMAP(delrec);
-  toolBarBitmaps[4] = wxBITMAP(findrec);
-  toolBarBitmaps[5] = wxBITMAP(print);
-  toolBarBitmaps[6] = wxBITMAP(help);
-#endif // USE_XPM_BITMAPS/!USE_XPM_BITMAPS
 
-  if(!m_smallToolbar ) {
-    // int w = 2*toolBarBitmaps[0].GetWidth();
-    // int h = 2*toolBarBitmaps[0].GetHeight();
-    // NOTE: Use standard toolbar bitmap size for OS
-    int w = 2*16;
-    int h = 2*16;
-    for ( size_t n = 0; n < WXSIZEOF(toolBarBitmaps); n++ ) {
-      toolBarBitmaps[n] =
-	wxBitmap(toolBarBitmaps[n].ConvertToImage().Scale(w, h));
-    }
-    toolBar->SetToolBitmapSize(wxSize(w, h));
-  }
-
-  toolBar->AddTool(WXAPPFW_FILE_NEW, "New", 
-		   toolBarBitmaps[0], "Create new database");
-  toolBar->AddTool(WXAPPFW_FILE_OPEN, "Open", 
-		   toolBarBitmaps[1], "Open existing database");
-
+  toolBar->AddTool(WXAPPFW_FILE_NEW, "New", EPDBIcon("new_db"), "Create a new database");
+  toolBar->AddTool(WXAPPFW_FILE_OPEN, "Open", EPDBIcon("open"), "Unlock and open an existing database");
+  toolBar->AddTool(WXAPPFW_FILE_LOCK, "Lock", EPDBIcon("lock"), "Close every open database (Ctrl+Shift+L)");
   toolBar->AddSeparator();
-  toolBar->AddTool(WXAPPFW_DATABASE_ADD, "Add", 
-		   toolBarBitmaps[2], "Add an entry");
-  toolBar->AddTool(WXAPPFW_DATABASE_DELETE, "Delete", 
-		   toolBarBitmaps[3], "Delete selected object");
-  toolBar->AddTool(WXAPPFW_DATABASE_FIND, "Find", 
-		   toolBarBitmaps[4], "Find an object in the database");
-
+  toolBar->AddTool(WXAPPFW_DATABASE_ADD, "Add", EPDBIcon("add_record"), "Add a record");
+  toolBar->AddTool(WXAPPFW_DATABASE_CHANGE, "Edit", EPDBIcon("edit"), "Edit the selected record");
+  toolBar->AddTool(WXAPPFW_DATABASE_DELETE, "Delete", EPDBIcon("delete"), "Delete the selected record");
   toolBar->AddSeparator();
-  toolBar->AddTool(WXAPPFW_PRINT_MSWPRINT, "Print", 
-		   toolBarBitmaps[5], "Print current database");
-
+  toolBar->AddTool(WXAPPFW_RECORD_COPY_USER, "Copy user", EPDBIcon("copy_user"), "Copy the username");
+  toolBar->AddTool(WXAPPFW_RECORD_COPY_PASSWORD, "Copy password", EPDBIcon("password"),
+		   "Copy the password, it is cleared from the clipboard after a while");
+  toolBar->AddTool(WXAPPFW_RECORD_OPEN_LINK, "Open link", EPDBIcon("open_link"), "Open the website link");
   toolBar->AddSeparator();
-  toolBar->AddTool(WXAPPFW_HELP_ONLINE, "Help", 
-		   toolBarBitmaps[6], "Help");
-  
-  // After adding the buttons to the toolbar, must call Realize() to reflect
-  // the changes.
+  toolBar->AddTool(WXAPPFW_PRINT_MSWPRINT, "Print", EPDBIcon("print"), "Print the current database");
   toolBar->Realize();
-  
-  toolBar->SetRows(m_horzToolbar ? m_rows : 10 / m_rows);
 }
 
 // ----------------------------------------------------------- //

@@ -142,6 +142,24 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   EVT_MENU(WXAPPFW_SECURITY_SELF_DESTRUCT, MainFrame::OnSelfDestruct)
   EVT_MENU(WXAPPFW_SECURITY_SHOW_LOG, MainFrame::OnShowAccessLog)
   EVT_MENU(WXAPPFW_SECURITY_VERIFY_LOG, MainFrame::OnVerifyAccessLog)
+  // 10/27/2026: Phase 3 main window
+  EVT_MENU(WXAPPFW_FILE_LOCK, MainFrame::OnLock)
+  EVT_MENU(WXAPPFW_RECORD_COPY_USER, MainFrame::OnCopyUser)
+  EVT_MENU(WXAPPFW_RECORD_COPY_PASSWORD, MainFrame::OnCopyPassword)
+  EVT_MENU(WXAPPFW_RECORD_OPEN_LINK, MainFrame::OnOpenLink)
+  EVT_MENU(WXAPPFW_EDIT_FIND_FOCUS, MainFrame::OnFindFocus)
+  EVT_MENU(WXAPPFW_VIEW_DETAILS, MainFrame::OnToggleDetails)
+  EVT_MENU(WXAPPFW_TOOLS_CMDBUILD, MainFrame::OnCommandBuilder)
+  EVT_MENU(WXAPPFW_TOOLS_GENERATE, MainFrame::OnGeneratePassword)
+  EVT_TIMER(WXAPPFW_STATUS_TIMER, MainFrame::OnStatusTimer)
+  EVT_UPDATE_UI(WXAPPFW_RECORD_COPY_USER, MainFrame::OnUpdateNeedsRecord)
+  EVT_UPDATE_UI(WXAPPFW_RECORD_COPY_PASSWORD, MainFrame::OnUpdateNeedsRecord)
+  EVT_UPDATE_UI(WXAPPFW_RECORD_OPEN_LINK, MainFrame::OnUpdateNeedsRecord)
+  EVT_UPDATE_UI(WXAPPFW_DATABASE_CHANGE, MainFrame::OnUpdateNeedsRecord)
+  EVT_UPDATE_UI(WXAPPFW_DATABASE_DELETE, MainFrame::OnUpdateNeedsRecord)
+  EVT_UPDATE_UI(WXAPPFW_DATABASE_ADD, MainFrame::OnUpdateNeedsDatabase)
+  EVT_UPDATE_UI(WXAPPFW_FILE_LOCK, MainFrame::OnUpdateNeedsDatabase)
+  EVT_UPDATE_UI(WXAPPFW_PRINT_MSWPRINT, MainFrame::OnUpdateNeedsDatabase)
 
   EVT_MENU(WXAPPFW_HELP_ONLINE, MainFrame::OnOpenOnlineHelp)
 
@@ -161,11 +179,12 @@ MainFrame::MainFrame(wxWindow *parent,
 		     style | wxNO_FULL_REPAINT_ON_RESIZE)
 {
   // Set the frame icon
-  SetIcon(wxICON(wxappfw));
+  SetIcons(EPDBAppIcons()); // 10/27/2026
   SetTitle(progcfg->ProgramName.c_str());
 
   // 10/25/2026: Timers that clear copied values from the clipboard and
   // close open databases when the program is idle
+  status_timer = 0;
   clipboard_timer = new wxTimer(this, WXAPPFW_CLIPBOARD_TIMER);
   idle_timer = new wxTimer(this, WXAPPFW_IDLE_TIMER);
   last_activity = time(0);
@@ -173,206 +192,158 @@ MainFrame::MainFrame(wxWindow *parent,
   reseal_timer = new wxTimer(this, WXAPPFW_RESEAL_TIMER);
   reseal_timer->Start(2000);
   
-  // Make the menubar bars
+  // 10/27/2026: Phase 3 menus. Every earlier item and accelerator is
+  // kept; the Database menu is now Records and the Print items are in
+  // the File menu. Icons are SVGs drawn at the screen DPI.
   wxMenu *file_menu = new wxMenu;
+  MenuItem(file_menu, WXAPPFW_FILE_NEW, "&New Database...\tCtrl+N", "Create a new database", "new_db");
+  MenuItem(file_menu, WXAPPFW_FILE_OPEN, "&Open Database...\tCtrl+O", "Unlock and open an existing database", "open");
+  MenuItem(file_menu, WXAPPFW_FILE_LOCK, "&Lock\tCtrl+Shift+L", "Close every open database and wipe the keys", "lock");
+  file_menu->AppendSeparator();
+  file_menu->Append(WXAPPFW_FILE_IMPORT, "&Import CSV File...", "Import a CSV file into this database");
+  file_menu->Append(WXAPPFW_FILE_EXPORT, "&Export To CSV File...", "Export this database to a CSV file");
+  file_menu->Append(WXAPPFW_FILE_TEMPLATE, "Create CSV &Template...", "Create an import/export CSV template");
+  file_menu->AppendSeparator();
+  file_menu->Append(WXAPPFW_FILE_BACKUP, "&Backup Database...", "Create a backup copy of this database");
+  file_menu->Append(WXAPPFW_FILE_MERGE, "&Merge Database...", "Merge an existing database with this database");
+  file_menu->AppendSeparator();
+  file_menu->Append(WXAPPFW_FILE_COMPARE, "Te&st Database", "Test the current database");
+  file_menu->Append(WXAPPFW_FILE_REBUILD, "&Rebuild Database", "Rebuild the current database");
+  file_menu->Append(WXAPPFW_FILE_REBUILDCONFIG, "Rebuild Database &Config", "Rebuild the current database config header");
+  file_menu->Append(WXAPPFW_FILE_UPGRADE, "&Upgrade Database Format...",
+		    "Upgrade the current database to format v2 with stronger encryption");
+  file_menu->AppendSeparator();
+  file_menu->Append(WXAPPFW_FILE_PROPERTIES, "View Database Stat&s", "Display the current database statistics");
+  file_menu->AppendSeparator();
+#ifdef __USE_MSW_PRINTING__
+  MenuItem(file_menu, WXAPPFW_PRINT_MSWPRINT, "&Print...\tCtrl+P", "Print the database to a selected printer", "print");
+  file_menu->Append(WXAPPFW_PRINT_MSWPREVIEW, "Print Pre&view", "Preview the document before printing");
+  file_menu->Append(WXAPPFW_PRINT_MSWPAGESETUP, "Pa&ge Setup...", "Setup the page options");
+  file_menu->Append(WXAPPFW_PRINT_MSWSETUP, "Printer Setu&p...", "Setup the printer options");
+#endif
+#ifdef __USE_APP_POSTSCRIPT_PRINTING__
+  file_menu->Append(WXAPPFW_PRINT_PSPRINT, "Print to Postscript Printer", "Print the database to a postscript printer");
+  file_menu->Append(WXAPPFW_PRINT_PSPAGESETUP, "Postscript Page Setup", "Setup the postscript page options");
+  file_menu->Append(WXAPPFW_PRINT_PSSETUP, "Line Printer Setup", "Setup postscript line printer options");
+#endif
+#if defined (__USE_APP_TEXT_PRINTING__)
+  file_menu->Append(WXAPPFW_PRINT_ASPRINT, "Print to text file", "Print the database to a text file");
+#endif
+#ifdef __USE_APP_HTM_PRINTING__
+  file_menu->Append(WXAPPFW_PRINT_HTMPRINT, "Print to HTML file", "Print the database to an HTML file");
+#endif
+  file_menu->AppendSeparator();
+  file_menu->Append(WXAPPFW_APP_EXIT, "E&xit\tCtrl+Q", "Exit this program");
 
-  file_menu->Append(WXAPPFW_FILE_NEW, "New Database", 
-		    "Create a new database");
-  file_menu->Append(WXAPPFW_FILE_OPEN, "Open Database",
-		   "Open an existing database");
-  file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_FILE_IMPORT, "Import CSV File",
-		   "Import a CSV file into this database");
-  file_menu->Append(WXAPPFW_FILE_EXPORT, "Export To CSV File",
-		   "Export this database to a CSV file");
-  file_menu->Append(WXAPPFW_FILE_TEMPLATE, "Create CSV Template",
-		   "Create an import/export CSV template");
-  file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_FILE_BACKUP, "Backup Database",
-		   "Create a backup copy of this database");
-  file_menu->Append(WXAPPFW_FILE_MERGE, "Merge Database",
-		   "Merge an existing database with this database");
-  file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_FILE_COMPARE, "Test Database",
-		   "Test the current database");
-  file_menu->Append(WXAPPFW_FILE_REBUILD, "Rebuild Database",
-		   "Rebuild the current database");
-  file_menu->Append(WXAPPFW_FILE_REBUILDCONFIG, "Rebuild Database Config",
-		   "Rebuild the current database config header");
-  file_menu->Append(WXAPPFW_FILE_UPGRADE, "Upgrade Database Format...",
-		   "Upgrade the current database to format v2 with stronger encryption");
-  file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_FILE_PROPERTIES, "View Database Stats",
-		   "Display the current database statistics");
-  file_menu->AppendSeparator();
-  file_menu->Append(WXAPPFW_APP_EXIT, "Exit", "Exit this program");
-
-  // Edit menu
-  wxMenu *edit_menu = new wxMenu("", wxMENU_TEAROFF);
-  // 10/27/2026: Undo and redo of record changes, Ctrl+Shift+Z also redoes
-  edit_menu->Append(WXAPPFW_EDIT_UNDO, "Undo\tCtrl-Z", "Undo the last record change");
-  edit_menu->Append(WXAPPFW_EDIT_REDO, "Redo\tCtrl-Y", "Redo the last undone record change");
+  // Edit menu. 10/27/2026: Ctrl+Shift+Z also redoes.
+  wxMenu *edit_menu = new wxMenu;
+  MenuItem(edit_menu, WXAPPFW_EDIT_UNDO, "&Undo\tCtrl+Z", "Undo the last record change", "undo");
+  MenuItem(edit_menu, WXAPPFW_EDIT_REDO, "&Redo\tCtrl+Y", "Redo the last undone record change", "redo");
   edit_menu->AppendSeparator();
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
-  edit_menu->Append(WXAPPFW_EDIT_COPY, "Copy Cell\tCtrl-C", 
-		    "Copy cell to clipboard");
-  edit_menu->Append(WXAPPFW_EDIT_CUT, "Cut Cell\tCtrl-X", 
-		    "Cut cell and copy to clipboard");
-  edit_menu->Append(WXAPPFW_EDIT_PASTE, "Paste Cell\tCtrl-V", 
-		    "Paste cell from clipboard");
+  MenuItem(edit_menu, WXAPPFW_EDIT_COPY, "&Copy Cell\tCtrl+C", "Copy cell to clipboard", "copy");
+  edit_menu->Append(WXAPPFW_EDIT_CUT, "Cu&t Cell\tCtrl+X", "Cut cell and copy to clipboard");
+  edit_menu->Append(WXAPPFW_EDIT_PASTE, "&Paste Cell\tCtrl+V", "Paste cell from clipboard");
   edit_menu->AppendSeparator();
-  edit_menu->Append(WXAPPFW_CLEAR_CLIPBOARD, "Clear Clipboard\tCtrl-L", 
-		    "Clear all text from the clipboard");
+  edit_menu->Append(WXAPPFW_CLEAR_CLIPBOARD, "C&lear Clipboard\tCtrl+L", "Clear all text from the clipboard");
   edit_menu->AppendSeparator();
 #endif
-  edit_menu->Append(WXAPPFW_EDIT_PREFERENCES, "Preferences",
-		    "Edit user preferences");
+  MenuItem(edit_menu, WXAPPFW_EDIT_FIND_FOCUS, "&Search Records\tCtrl+F", "Move to the search box", "find");
+  edit_menu->AppendSeparator();
+  MenuItem(edit_menu, WXAPPFW_EDIT_PREFERENCES, "Pr&eferences...", "Edit user preferences", "preferences");
 
-  // Database menu
-  wxMenu *database_menu = new wxMenu("", wxMENU_TEAROFF);
-  database_menu->Append(WXAPPFW_DATABASE_FIND, "&Find\tAlt-F",
-			"Find an object in the database");
+  // Records menu (was Database)
+  wxMenu *database_menu = new wxMenu;
+  MenuItem(database_menu, WXAPPFW_DATABASE_FIND, "&Find...\tAlt+F", "Find an object in the database", "find");
   database_menu->AppendSeparator();
-  database_menu->Append(WXAPPFW_DATABASE_ADD, "&Add\tAlt-A",
-			"Add an object to the database");
-  database_menu->Append(WXAPPFW_DATABASE_CHANGE, "&Change\tAlt-C",
-			"Change selected table item");
-  database_menu->Append(WXAPPFW_DATABASE_DELETE, "&Delete\tAlt-D",
-			"Delete selected table item");
+  MenuItem(database_menu, WXAPPFW_DATABASE_ADD, "&Add Record...\tAlt+A", "Add a record to the database", "add_record");
+  MenuItem(database_menu, WXAPPFW_DATABASE_CHANGE, "&Edit Record...\tAlt+C", "Change the selected record", "edit");
+  MenuItem(database_menu, WXAPPFW_DATABASE_DELETE, "&Delete Record\tAlt+D", "Delete the selected record", "delete");
   database_menu->AppendSeparator();
-  database_menu->Append(WXAPPFW_DATABASE_DISPLAY, "Display",
-			"Display the database");
+  MenuItem(database_menu, WXAPPFW_RECORD_COPY_USER, "Copy &Username\tCtrl+Shift+U", "Copy the username of the selected record", "copy_user");
+  MenuItem(database_menu, WXAPPFW_RECORD_COPY_PASSWORD, "Copy &Password\tCtrl+Shift+C", "Copy the password of the selected record", "password");
+  MenuItem(database_menu, WXAPPFW_RECORD_OPEN_LINK, "Open &Website Link\tCtrl+Shift+O", "Open the website link of the selected record", "open_link");
+  database_menu->AppendSeparator();
+  database_menu->Append(WXAPPFW_DATABASE_DISPLAY, "Dis&play Records...", "Show the records one at a time");
 
   // View menu
-  wxMenu *view_menu = new wxMenu("", wxMENU_TEAROFF);
-  view_menu->Append(WXAPPFW_VIEW_STATUS, "View Status Window",
-		    "View the status window");
-  view_menu->Append(WXAPPFW_VIEW_CLOSE, "Close Status Window",
-		    "Close the status window");
-  view_menu->Append(WXAPPFW_VIEW_CLEAR, "Clear Status Window",
-		    "Clear the status window");
+  wxMenu *view_menu = new wxMenu;
+  view_menu->AppendCheckItem(WXAPPFW_VIEW_DETAILS, "Record &Details Pane", "Show the details of the selected record");
+  view_menu->AppendCheckItem(WXAPPFW_VIEW_TOOLBAR, "&Toolbar", "Toggle the toolbar on and off");
+  view_menu->AppendCheckItem(WXAPPFW_VIEW_SHOW_PASSWORDS, "Show &passwords", "Show the password columns in clear text");
   view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_TOOLBAR, "View Toolbar",
-		    "Toggle the toolbar on and off", TRUE);
+  view_menu->Append(WXAPPFW_VIEW_STATUS, "View &Status Window", "View the status window");
+  view_menu->Append(WXAPPFW_VIEW_CLOSE, "Close Status Window", "Close the status window");
+  view_menu->Append(WXAPPFW_VIEW_CLEAR, "Clear Status Window", "Clear the status window");
   view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_ROWLABELS, "View Row Labels",
-		    "View the database row labels");
-  view_menu->Append(WXAPPFW_VIEW_COLLABELS, "View Column Labels",
-		    "View the database column labels");
-  view_menu->Append(WXAPPFW_VIEW_AUTOSIZE, "Auto size cells",
-		    "Auto size cells to fit content");
-  view_menu->Append(WXAPPFW_VIEW_DISABLE_AUTOSIZE, "Disable auto size",
-		    "Disable cell auto size when database is opened");
-  view_menu->Append(WXAPPFW_VIEW_CELLOVERFLOW, "Toggle cell overflow",
-		    "Allow cell content to overflow to next cell");
-  view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_GRIDLINES, "Toggle grid lines",
-		    "View database grid lines");
-  view_menu->Append(WXAPPFW_VIEW_GRIDLINECOLOR, "Grid line color",
-		    "Set the grid line color lines");
-  view_menu->Append(WXAPPFW_VIEW_GRIDBACKGROUNDCOLOR, "Grid background color",
-		    "Set the grid background color for all cells");
-  view_menu->Append(WXAPPFW_VIEW_GRIDLABELBACKGROUNDCOLOR, "Grid label background color",
-		    "Set the grid label background color");
-  view_menu->Append(WXAPPFW_VIEW_GRIDLABELTEXTCOLOR, "Grid label text color",
-		    "Set the grid label text color");
-  view_menu->Append(WXAPPFW_VIEW_GRIDLABELFONT, "Grid label font",
-		    "Set the grid label font");
-  view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_GRIDTEXTCOLOR, "Grid text color",
-		    "Set the grid text color for all cells");
-  view_menu->Append(WXAPPFW_VIEW_GRIDTEXTFONT, "Grid text font",
-		    "Set the grid text font for all cells");
-  view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_SKIPLINES, "Toggle skip lines",
-		    "View database skip lines");
-  view_menu->Append(WXAPPFW_VIEW_SKIPLINECOLOR, "Skip line color",
-		    "Set the skip line color lines");
-  view_menu->AppendSeparator();
-  view_menu->AppendCheckItem(WXAPPFW_VIEW_SHOW_PASSWORDS, "Show passwords",
-			     "Show the password columns in clear text");
-  view_menu->AppendSeparator();
-  view_menu->Append(WXAPPFW_VIEW_HYPERLINKCOLOR, "Hyperlink text color",
-		    "Set the hyperlink text color for all cells");
-  view_menu->Append(WXAPPFW_VIEW_HYPERLINKFONT, "Hyperlink text font",
-		    "Set the hyperlink text font for all cells");
-
-  // Print menu
-  wxMenu *print_menu = new wxMenu("", wxMENU_TEAROFF);
-#ifdef __USE_MSW_PRINTING__
-  print_menu->Append(WXAPPFW_PRINT_MSWPRINT, "Print",
-		     "Print the database to a selected printer");
-  print_menu->Append(WXAPPFW_PRINT_MSWPREVIEW, "Preview",
-		     "Preview the document before printing");
-  print_menu->Append(WXAPPFW_PRINT_MSWPAGESETUP, "Page Setup",
-		     "Setup the page options");
-  print_menu->Append(WXAPPFW_PRINT_MSWSETUP, "Printer Setup",
-		     "Setup the printer options");
-#endif // __USE_MSW_PRINTING__
-
-#ifdef __USE_APP_POSTSCRIPT_PRINTING__
-  print_menu->AppendSeparator();
-  print_menu->Append(WXAPPFW_PRINT_PSPRINT, "Print to Postscript Printer",
-		     "Print the database to a postscript printer");
-  print_menu->Append(WXAPPFW_PRINT_PSPAGESETUP, "Postscript Page Setup",
-		     "Setup the postscript page options");
-  print_menu->Append(WXAPPFW_PRINT_PSSETUP, "Line Printer Setup",
-		     "Setup postscript line printer options");
-  print_menu->AppendSeparator();
-#endif // __USE_POSTSCRIPT_PRINTING__
-
-#if defined (__USE_APP_TEXT_PRINTING__)
-  // Text file and HTML printer options
-  print_menu->Append(WXAPPFW_PRINT_ASPRINT, "Print to text file",
-		     "Print the database to a text file");
-  print_menu->AppendSeparator();
-#endif
-
-#ifdef __USE_APP_HTM_PRINTING__
-  print_menu->Append(WXAPPFW_PRINT_HTMPRINT, "Print to HTML file",
-		     "Print the database to an HTML file");
-#endif
-
-  wxMenu *help_menu = new wxMenu;
-  help_menu->Append(WXAPPFW_HELP_ONLINE, "Online Help Doc");
-  help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
+  wxMenu *grid_menu = new wxMenu;
+  grid_menu->Append(WXAPPFW_VIEW_ROWLABELS, "View Row Labels", "View the database row labels");
+  grid_menu->Append(WXAPPFW_VIEW_COLLABELS, "View Column Labels", "View the database column labels");
+  grid_menu->Append(WXAPPFW_VIEW_AUTOSIZE, "Auto size cells", "Auto size cells to fit content");
+  grid_menu->Append(WXAPPFW_VIEW_DISABLE_AUTOSIZE, "Disable auto size", "Disable cell auto size when database is opened");
+  grid_menu->Append(WXAPPFW_VIEW_CELLOVERFLOW, "Toggle cell overflow", "Allow cell content to overflow to next cell");
+  grid_menu->AppendSeparator();
+  grid_menu->Append(WXAPPFW_VIEW_GRIDLINES, "Toggle grid lines", "View database grid lines");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDLINECOLOR, "Grid line color...", "Set the grid line color lines");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDBACKGROUNDCOLOR, "Grid background color...", "Set the grid background color for all cells");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDLABELBACKGROUNDCOLOR, "Grid label background color...", "Set the grid label background color");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDLABELTEXTCOLOR, "Grid label text color...", "Set the grid label text color");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDLABELFONT, "Grid label font...", "Set the grid label font");
+  grid_menu->AppendSeparator();
+  grid_menu->Append(WXAPPFW_VIEW_GRIDTEXTCOLOR, "Grid text color...", "Set the grid text color for all cells");
+  grid_menu->Append(WXAPPFW_VIEW_GRIDTEXTFONT, "Grid text font...", "Set the grid text font for all cells");
+  grid_menu->AppendSeparator();
+  grid_menu->Append(WXAPPFW_VIEW_SKIPLINES, "Toggle skip lines", "View database skip lines");
+  grid_menu->Append(WXAPPFW_VIEW_SKIPLINECOLOR, "Skip line color...", "Set the skip line color lines");
+  grid_menu->AppendSeparator();
+  grid_menu->Append(WXAPPFW_VIEW_HYPERLINKCOLOR, "Hyperlink text color...", "Set the hyperlink text color for all cells");
+  grid_menu->Append(WXAPPFW_VIEW_HYPERLINKFONT, "Hyperlink text font...", "Set the hyperlink text font for all cells");
+  view_menu->AppendSubMenu(grid_menu, "&Grid Appearance");
 
   wxMenu *users_menu = new wxMenu;
 #ifdef __ENABLE_SMART_CARD__
-  users_menu->Append(WXAPPFW_USERS_ADD, "Add Users", "Add user access with public RSA key or smart card cert");
+  MenuItem(users_menu, WXAPPFW_USERS_ADD, "&Add User...", "Add user access with a public RSA key or a smart card cert", "users");
 #else
-  users_menu->Append(WXAPPFW_USERS_ADD, "Add Users", "Add user access with public RSA key");
+  MenuItem(users_menu, WXAPPFW_USERS_ADD, "&Add User...", "Add user access with a public RSA key", "users");
 #endif // __ENABLE_SMART_CARD__
+  users_menu->Append(WXAPPFW_USERS_REMOVE, "&Remove User...", "Remove the access of a user");
+  users_menu->Append(WXAPPFW_USERS_LIST, "&List Users", "Display the users with access");
 
-  users_menu->Append(WXAPPFW_USERS_REMOVE, "Remove Users", "Removed user access");
-  users_menu->Append(WXAPPFW_USERS_LIST, "List Users", "Display list of users with access");
-  
   // 10/27/2026: Security menu
   wxMenu *security_menu = new wxMenu;
-  security_menu->AppendCheckItem(WXAPPFW_SECURITY_ACCESS_LOG, "Access Log",
+  security_menu->AppendCheckItem(WXAPPFW_SECURITY_ACCESS_LOG, "&Access Log",
 				 "Log opens and changes to the per-user access log");
-  security_menu->Check(WXAPPFW_SECURITY_ACCESS_LOG, progcfg->access_log != 0);
-  security_menu->Append(WXAPPFW_SECURITY_IN_FILE_LOG, "In-File Access Log On/Off...",
+  security_menu->Append(WXAPPFW_SECURITY_IN_FILE_LOG, "&In-File Access Log On/Off...",
 			"Keep the last opens and changes, encrypted, in the open database file");
-  security_menu->Append(WXAPPFW_SECURITY_SHOW_LOG, "Show Access Log", "List the access log entries of the open database");
-  security_menu->Append(WXAPPFW_SECURITY_VERIFY_LOG, "Verify Access Log", "Check the access logs of the open database");
+  security_menu->Append(WXAPPFW_SECURITY_SHOW_LOG, "&Show Access Log", "List the access log entries of the open database");
+  security_menu->Append(WXAPPFW_SECURITY_VERIFY_LOG, "&Verify Access Log", "Check the access logs of the open database");
   security_menu->AppendSeparator();
-  security_menu->Append(WXAPPFW_SECURITY_SELF_DESTRUCT, "Self-Destruct Settings...",
-			"Destroy the records of the open database after too many failed opens");
+  MenuItem(security_menu, WXAPPFW_SECURITY_SELF_DESTRUCT, "Self-&Destruct Settings...",
+	   "Destroy the records of the open database after too many failed opens", "security");
+
+  // 10/27/2026: Tools menu
+  wxMenu *tools_menu = new wxMenu;
+  MenuItem(tools_menu, WXAPPFW_TOOLS_CMDBUILD, "&Command Builder...",
+	   "Build epdb_auth_tool command lines for scripts and automation", "terminal");
+  MenuItem(tools_menu, WXAPPFW_TOOLS_GENERATE, "&Generate Password...", "Make a random password", "generate");
+
+  wxMenu *help_menu = new wxMenu;
+  MenuItem(help_menu, WXAPPFW_HELP_ONLINE, "Online &Help", "Open the online help in the web browser", "help");
+  help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
 
   wxMenuBar *menu_bar = new wxMenuBar;
-
-  menu_bar->Append(file_menu, "File");
-  menu_bar->Append(edit_menu, "Edit");
-  menu_bar->Append(database_menu, "Database");
-  menu_bar->Append(view_menu, "View");
-  menu_bar->Append(print_menu, "Print");
-  menu_bar->Append(users_menu, "Users");
-  menu_bar->Append(security_menu, "Security");
-  menu_bar->Append(help_menu, "Help");
-  
-  // Associate the menu bar with the frame
+  menu_bar->Append(file_menu, "&File");
+  menu_bar->Append(edit_menu, "&Edit");
+  menu_bar->Append(database_menu, "&Records");
+  menu_bar->Append(view_menu, "&View");
+  menu_bar->Append(users_menu, "&Users");
+  menu_bar->Append(security_menu, "&Security");
+  menu_bar->Append(tools_menu, "&Tools");
+  menu_bar->Append(help_menu, "&Help");
   SetMenuBar(menu_bar);
+  GetMenuBar()->Check(WXAPPFW_SECURITY_ACCESS_LOG, progcfg->access_log != 0);
+  GetMenuBar()->Check(WXAPPFW_VIEW_DETAILS, progcfg->show_details != 0);
+  GetMenuBar()->Check(WXAPPFW_VIEW_SHOW_PASSWORDS, progcfg->show_passwords != 0);
 
   // 10/27/2026: Ctrl+Shift+Z also redoes
   wxAcceleratorEntry accel_entries[1];
@@ -388,20 +359,26 @@ MainFrame::MainFrame(wxWindow *parent,
     GetMenuBar()->Check(WXAPPFW_VIEW_TOOLBAR, FALSE);
   }
 
-  // Panel, label and text fonts
-  labelFont = new wxFont(10, wxSWISS, wxNORMAL, wxNORMAL);
-  itemFont = new wxFont(10, wxSWISS, wxNORMAL, wxNORMAL);
-  textWindowFont = new wxFont(10, wxMODERN, wxNORMAL, wxNORMAL);
-  hyperlinkFont = new wxFont(10, wxSWISS, wxNORMAL, wxNORMAL);
+  // Panel, label and text fonts. 10/27/2026: The system GUI font, the
+  // status window uses a monospace font of the same size.
+  labelFont = new wxFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+  itemFont = new wxFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+  textWindowFont = new wxFont(EPDBMonoFont());
+  hyperlinkFont = new wxFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
   gridlineColor = new wxColour(0, 0, 0);
   cellFontColor = new wxColour(0, 0, 0);
   textreadonlyColor = new wxColour(105, 105, 105);
   hyperlinkColor = new wxColour(0, 0, 255);
 
 #if wxUSE_STATUSBAR
-  // Create a status bar (by default with 1 pane only)
-  CreateStatusBar(2);
+  // 10/27/2026: Message, how the database was unlocked, records, format
+  // and the auto-lock countdown
+  CreateStatusBar(5);
+  int widths[5] = { -3, -3, FromDIP(110), FromDIP(80), FromDIP(150) };
+  GetStatusBar()->SetStatusWidths(5, widths);
   SetStatusText(progcfg->ProgramName.c_str());
+  status_timer = new wxTimer(this, WXAPPFW_STATUS_TIMER);
+  status_timer->Start(1000);
 #endif // wxUSE_STATUSBAR
 
   sframe = InitStatusFrame(this, textWindowFont);
@@ -442,6 +419,27 @@ MainFrame::MainFrame(wxWindow *parent,
 
   if(progcfg->ViewToolBar == 1) {
     RecreateToolbar();
+  }
+  Bind(wxEVT_DPI_CHANGED, &MainFrame::OnDPIChanged, this);
+}
+
+wxMenuItem *MainFrame::MenuItem(wxMenu *menu, int id, const wxString &text, const wxString &help, const char *icon)
+// 10/27/2026: A menu item with an SVG icon
+{
+  wxMenuItem *item = new wxMenuItem(menu, id, text, help);
+  if(icon) item->SetBitmap(EPDBIcon(icon, EPDB_MENU_ICON_DIP));
+  menu->Append(item);
+  return item;
+}
+
+void MainFrame::OnDPIChanged(wxDPIChangedEvent &event)
+// 10/27/2026: Moved to a monitor with another DPI: the bitmap bundles
+// redraw themselves, the status bar widths are in DIPs
+{
+  event.Skip();
+  if(GetStatusBar()) {
+    int widths[5] = { -3, -3, FromDIP(110), FromDIP(80), FromDIP(150) };
+    GetStatusBar()->SetStatusWidths(5, widths);
   }
 }
 
@@ -530,6 +528,20 @@ void MainFrame::OnCloseWindow(wxCloseEvent& event)
 
   if(dpanel->PanelIsOpen()) {
     dpanel->Show(FALSE);
+  }
+
+  // 10/27/2026: Keep the window and details pane sizes, in DIPs
+  if(!IsMaximized() && !IsIconized()) {
+    wxSize sz = ToDIP(GetSize());
+    GUISaveConfigValue("MainWindowWidthDIP", wxString::Format("%d", sz.x).utf8_str());
+    GUISaveConfigValue("MainWindowHeightDIP", wxString::Format("%d", sz.y).utf8_str());
+  }
+  for(gxListNode<CryptDBDocument *> *p = progcfg->child_frame_list.GetHead(); p; p = p->next) p->data->SaveSplitterPosition();
+  GUISaveConfigValue("DetailsPaneWidthDIP", wxString::Format("%d", progcfg->details_width_dip).utf8_str());
+  if(status_timer) {
+    status_timer->Stop();
+    delete status_timer;
+    status_timer = 0;
   }
 
   // 10/25/2026: Stop the timers, remove a value this program copied from
@@ -862,17 +874,10 @@ void MainFrame::OnSelfDestruct(wxCommandEvent& event)
   gxDatabase *f = doc->GetPOD()->OpenDataFile();
   FCControlBlock c;
   EPDBReadControl(f, c);
-  gxString m;
-  m << "Self-destruct destroys every record of this database after too many failed opens. It is "
-    << (c.SelfDestruct() ? "ON" : "off") << " now";
-  if(c.SelfDestruct()) m << ", " << c.limit << " attempts";
-  m << ".\n\nIt only counts guesses made through this program and epdb_auth_tool: anyone with a copy of the "
-    << "file can guess offline or reset the counter. A destroyed database cannot be recovered except from your "
-    << "own backups. With self-destruct on, a read-only copy is not opened.\n\n"
-    << "Enter the number of failed opens allowed (1 to " << FC_SD_MAX_ATTEMPTS << "), or 0 to turn self-destruct off:";
-  long n = wxGetNumberFromUser(m.c_str(), "Attempts", "Self-Destruct Settings",
-			       c.SelfDestruct() ? (long)c.limit : (long)FC_SD_DEFAULT_ATTEMPTS, 0, FC_SD_MAX_ATTEMPTS, this);
-  if(n < 0) return; // Canceled
+  // 10/27/2026: A real dialog with wrapped text, n is 0 for off
+  SelfDestructDialog sd(this, c.SelfDestruct(), c.limit);
+  if(sd.ShowModal() != wxID_OK) return; // Canceled
+  long n = sd.IsOn() ? (long)sd.Limit() : 0;
   if(!GUIConfirmClearUndo(doc, "Changing self-destruct")) return;
   EPDBHeaderExt x;
   EPDBReadExt(f, x);
@@ -1481,21 +1486,16 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     progcfg->num_child_frames++;
     
     // Give it an icon
-#ifdef __WXMSW__
-    subframe->SetIcon(wxIcon("doc"));
-#else
-    subframe->SetIcon(wxIcon(doc_xpm));
-#endif
+    subframe->SetIcons(EPDBAppIcons()); // 10/27/2026
     
-    int width, height;
-    subframe->GetClientSize(&width, &height);
-    CryptDBGrid *grid_frame = new CryptDBGrid(subframe, 
-					      wxPoint(0, 0), 
-					      wxSize(width, height));
+    // 10/27/2026: The grid goes in the splitter, the details pane right of it
+    CryptDBGrid *grid_frame = new CryptDBGrid(subframe, wxDefaultPosition, wxDefaultSize, subframe->splitter);
     subframe->grid_frame = grid_frame;
+    subframe->AttachGrid(grid_frame->m_grid);
 
     subframe->DBParms()->crypt_key = progcfg->global_dbparms.crypt_key;
     DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
+    subframe->unlock_description = unlock_dlg->UnlockDescription(); // 10/27/2026
 
     // Open the database associated with this child frame
     CryptDBDocument *prev_frame = progcfg->active_child_frame; 
@@ -1594,18 +1594,12 @@ void MainFrame::OnNew(wxCommandEvent& event)
     subframe->SetTitle((const char *)new_db_panel->name_input->GetValue().c_str());
     
     // Give it an icon
-#ifdef __WXMSW__
-    subframe->SetIcon(wxIcon("doc"));
-#else
-    subframe->SetIcon(wxIcon(doc_xpm));
-#endif
+    subframe->SetIcons(EPDBAppIcons()); // 10/27/2026
     
-    int width, height;
-    subframe->GetClientSize(&width, &height);
-    CryptDBGrid *grid_frame = new CryptDBGrid(subframe, 
-					      wxPoint(0, 0), 
-					      wxSize(width, height));
+    // 10/27/2026: The grid goes in the splitter, the details pane right of it
+    CryptDBGrid *grid_frame = new CryptDBGrid(subframe, wxDefaultPosition, wxDefaultSize, subframe->splitter);
     subframe->grid_frame = grid_frame;
+    subframe->AttachGrid(grid_frame->m_grid);
     grid_frame->InitGrid(); // Make a blank grid with no entries
 
     // Open the database associated with this child frame
@@ -2186,7 +2180,7 @@ printer is not set correctly?", "Previewing", wxOK);
 
   wxPreviewFrame *preview_frame = new wxPreviewFrame(preview, this,
 						     progcfg->ProgramName.c_str());
-  preview_frame->SetIcon(wxICON(wxappfw));
+  preview_frame->SetIcons(EPDBAppIcons()); // 10/27/2026
   preview_frame->Centre(wxBOTH);
   preview_frame->Initialize();
   preview_frame->Show(TRUE);
@@ -2299,7 +2293,7 @@ void MainFrame::AutoSize(wxCommandEvent& event)
 #ifdef __WXWIN2_GRID__
     int col_width = child_frame->GetGrid()->GetColumnWidth(i);
 #else
-    int col_width = child_frame->GetGrid()->GetColSize(i);
+    int col_width = child_frame->GetGrid()->ToDIP(child_frame->GetGrid()->GetColSize(i)); // 10/27/2026: DIPs
 #endif
     db_config->col_sizes[i] = col_width;
   }
@@ -2806,6 +2800,136 @@ void MainFrame::OnToggleToolbar(wxCommandEvent& WXUNUSED(event))
   }
 }
 // --------------------------------------------------------------
+
+// ----------------------------------------------------------- //
+// 10/27/2026: Phase 3 main window commands
+// ----------------------------------------------------------- //
+void MainFrame::OnLock(wxCommandEvent& WXUNUSED(event))
+{
+  if(progcfg->child_frame_list.IsEmpty()) return;
+  LockAllDatabases("Locked: the open databases were closed and their keys wiped");
+  SetStatusText("Locked", 0);
+}
+
+static CryptDBDocument *EPDBSelectedRecord(MainFrame *mf, int &row)
+{
+  row = -1;
+  CryptDBDocument *doc = mf->ActiveChild();
+  if(!doc || !doc->GridFrame()) return 0;
+  row = doc->CurrentRecordRow();
+  return row >= 0 ? doc : 0;
+}
+
+void MainFrame::OnCopyUser(wxCommandEvent& WXUNUSED(event))
+{
+  int row;
+  CryptDBDocument *doc = EPDBSelectedRecord(this, row);
+  if(!doc) return;
+  if(CopyToClipboard(doc->GetGrid()->GetCellValue(row, 1))) SetStatusText("Username copied to the clipboard", 0);
+}
+
+void MainFrame::OnCopyPassword(wxCommandEvent& WXUNUSED(event))
+{
+  int row;
+  CryptDBDocument *doc = EPDBSelectedRecord(this, row);
+  if(!doc) return;
+  if(CopyToClipboard(doc->GetGrid()->GetCellValue(row, 2))) {
+    wxString m = "Password copied to the clipboard";
+    if(progcfg->clipboard_clear_seconds > 0) m << wxString::Format(", cleared in %d seconds", progcfg->clipboard_clear_seconds);
+    SetStatusText(m, 0);
+  }
+}
+
+void MainFrame::OnOpenLink(wxCommandEvent& WXUNUSED(event))
+{
+  int row;
+  CryptDBDocument *doc = EPDBSelectedRecord(this, row);
+  if(!doc) return;
+  wxString url = doc->GetGrid()->GetCellValue(row, 6);
+  url.Trim().Trim(false);
+  if(url.IsEmpty()) {
+    SetStatusText("The record has no website link", 0);
+    return;
+  }
+  gxString u = (const char *)url.utf8_str();
+  LaunchURL(u, this);
+}
+
+void MainFrame::OnFindFocus(wxCommandEvent& WXUNUSED(event))
+// The search box of the active database, or the Find dialog
+{
+  CryptDBDocument *doc = ActiveChild();
+  if(doc && doc->search_ctrl) {
+    doc->search_ctrl->SetFocus();
+    doc->search_ctrl->SelectAll();
+    return;
+  }
+  wxCommandEvent e(wxEVT_MENU, WXAPPFW_DATABASE_FIND);
+  ProcessEvent(e);
+}
+
+void MainFrame::OnToggleDetails(wxCommandEvent& event)
+{
+  progcfg->show_details = event.IsChecked() ? 1 : 0;
+  GUISaveConfigValue("ShowDetailsPane", progcfg->show_details ? "1" : "0");
+  for(gxListNode<CryptDBDocument *> *p = progcfg->child_frame_list.GetHead(); p; p = p->next) {
+    p->data->ShowDetails(progcfg->show_details);
+  }
+}
+
+void MainFrame::OnCommandBuilder(wxCommandEvent& event)
+{
+  CommandBuilderDialog dlg(this, ActiveChild(), event.GetInt() == 1);
+  dlg.ShowModal();
+}
+
+void MainFrame::OnGeneratePassword(wxCommandEvent& WXUNUSED(event))
+{
+  GeneratePasswordDialog dlg(this, 0);
+  dlg.ShowModal();
+}
+
+void MainFrame::UpdateStatusFields()
+{
+  if(!GetStatusBar() || GetStatusBar()->GetFieldsCount() < 5) return;
+  CryptDBDocument *doc = ActiveChild();
+  if(!doc || !doc->GridFrame() || !doc->DBParms()->pod) {
+    SetStatusText("No database open", 1);
+    SetStatusText("", 2);
+    SetStatusText("", 3);
+    SetStatusText("", 4);
+    return;
+  }
+  SetStatusText(doc->unlock_description, 1);
+  int n = doc->GridFrame()->NumRecords();
+  SetStatusText(wxString::Format("%d record%s", n, n == 1 ? "" : "s"), 2);
+  SetStatusText(EPDBIsKeyset(doc->DBParms()->crypt_key) ? "Format v2" : "Format v1 (upgrade)", 3);
+  if(progcfg->auto_lock_minutes > 0) {
+    long left = (long)(progcfg->auto_lock_minutes * 60) - (long)(time(0) - last_activity);
+    if(left < 0) left = 0;
+    SetStatusText(wxString::Format("Auto-lock in %ld:%02ld", left / 60, left % 60), 4);
+  }
+  else {
+    SetStatusText("Auto-lock off", 4);
+  }
+}
+
+void MainFrame::OnStatusTimer(wxTimerEvent& WXUNUSED(event))
+{
+  UpdateStatusFields();
+}
+
+void MainFrame::OnUpdateNeedsRecord(wxUpdateUIEvent& event)
+{
+  int row;
+  event.Enable(EPDBSelectedRecord(this, row) != 0);
+}
+
+void MainFrame::OnUpdateNeedsDatabase(wxUpdateUIEvent& event)
+{
+  CryptDBDocument *doc = ActiveChild();
+  event.Enable(doc != 0 && doc->GridFrame() != 0);
+}
 
 int MainFrame::DatabaseIsOpen(gxString &dbname)
 {

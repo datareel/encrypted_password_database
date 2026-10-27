@@ -93,7 +93,7 @@ private: // Unlock methods, each returns 1 if the database was unlocked
 private:
   wxComboBox *file_input;
   wxRadioBox *method_box;
-  wxSimplebook *book;
+  wxPanel *pages[4]; // One page per unlock method
   PasswordEntry *password_input;
   wxTextCtrl *key_input;
   wxTextCtrl *rsa_username_input;

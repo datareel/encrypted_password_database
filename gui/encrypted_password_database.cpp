@@ -46,15 +46,6 @@ wxWindow 2.X/3.X application frame work.
 // Resources
 // --------------------------------------------------------------
 #if defined(__WXGTK__) || defined(__WXMOTIF__)
-#include "icons/wxappfw.xpm"
-#include "icons/doc.xpm"
-#include "bitmaps/addrec.xpm"
-#include "bitmaps/delrec.xpm"
-#include "bitmaps/findrec.xpm"
-#include "bitmaps/help.xpm"
-#include "bitmaps/new.xpm"
-#include "bitmaps/open.xpm"
-#include "bitmaps/print.xpm"
 #endif
 // --------------------------------------------------------------
 
@@ -171,8 +162,9 @@ void InitProgramConfig(int argc, char *argv[])
 #endif // __APP_DEBUG_VERSION__
 
 #elif defined (__UNIX__)
-  ::wxSetWorkingDirectory(progcfg->homeDir.c_str());
-
+  // 10/27/2026: The home directory is made before it is used as the
+  // working directory, a first start showed "Could not set current
+  // working directory"
   int has_home = 1;
   int has_datadir = 1;
   int has_docdir = 1;
@@ -183,6 +175,8 @@ void InitProgramConfig(int argc, char *argv[])
       }
   }
   
+  if(has_home) ::wxSetWorkingDirectory(progcfg->homeDir.c_str());
+
   if(!::wxDirExists(progcfg->dataDir.c_str())) {
        if(futils_mkdir(progcfg->dataDir.c_str()) != 0) {
 	 has_datadir = 0;
@@ -331,6 +325,19 @@ void InitProgramConfig(int argc, char *argv[])
       progcfg->clipboard_clear_seconds = atoi(s_clip);
       if(progcfg->clipboard_clear_seconds < 0) progcfg->clipboard_clear_seconds = 0;
     }
+
+    // 10/27/2026: Window sizes in DIPs
+    char *s_mw = CfgData->GetStrValue("MainWindowWidthDIP");
+    char *s_mh = CfgData->GetStrValue("MainWindowHeightDIP");
+    if(s_mw && s_mh) {
+      progcfg->main_width_dip = atoi(s_mw);
+      progcfg->main_height_dip = atoi(s_mh);
+      if(progcfg->main_width_dip < 400 || progcfg->main_height_dip < 300) progcfg->main_width_dip = progcfg->main_height_dip = 0;
+    }
+    char *s_dw = CfgData->GetStrValue("DetailsPaneWidthDIP");
+    if(s_dw && atoi(s_dw) >= 150) progcfg->details_width_dip = atoi(s_dw);
+    char *s_sd = CfgData->GetStrValue("ShowDetailsPane");
+    if(s_sd) progcfg->show_details = (atoi(s_sd) != 0);
 
     char *s4 = CfgData->GetStrValue("EncryptionMode"); 
     if(s4) mode = s4; 
@@ -979,6 +986,9 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "epdb_cmdbuild.cpp"
 #include "sc_picker.cpp"
 #include "unlock_dlg.cpp"
+#include "details_pane.cpp"
+#include "misc_dlg.cpp"
+#include "cmdbuild_dlg.cpp"
 #include "add_user_panel.cpp"
 #include "m_frame.cpp"
 #include "epdb_gui_hooks.cpp" // 10/27/2026

@@ -66,7 +66,8 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)epdb_art.h $(APP_PATH)$(PATHSEP)epdb_icons.h \
 	    $(APP_PATH)$(PATHSEP)epdb_widgets.h $(APP_PATH)$(PATHSEP)epdb_recent.h \
 	    $(APP_PATH)$(PATHSEP)epdb_cmdbuild.h $(APP_PATH)$(PATHSEP)sc_picker.h \
-	    $(APP_PATH)$(PATHSEP)unlock_dlg.h \
+	    $(APP_PATH)$(PATHSEP)unlock_dlg.h $(APP_PATH)$(PATHSEP)details_pane.h \
+	    $(APP_PATH)$(PATHSEP)misc_dlg.h $(APP_PATH)$(PATHSEP)cmdbuild_dlg.h $(APP_PATH)$(PATHSEP)epdb_version.h \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.h \
 	    $(APP_PATH)$(PATHSEP)a_panel.cpp \
 	    $(APP_PATH)$(PATHSEP)epdb_gui_hooks.cpp $(APP_PATH)$(PATHSEP)epdb_gui_hooks.h \
@@ -106,6 +107,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)epdb_art.cpp $(APP_PATH)$(PATHSEP)epdb_widgets.cpp \
 	    $(APP_PATH)$(PATHSEP)epdb_recent.cpp $(APP_PATH)$(PATHSEP)epdb_cmdbuild.cpp \
 	    $(APP_PATH)$(PATHSEP)sc_picker.cpp $(APP_PATH)$(PATHSEP)unlock_dlg.cpp \
+	    $(APP_PATH)$(PATHSEP)details_pane.cpp $(APP_PATH)$(PATHSEP)misc_dlg.cpp $(APP_PATH)$(PATHSEP)cmdbuild_dlg.cpp \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.cpp
 
 # ===============================================================
@@ -137,7 +139,7 @@ $(PROJECT)$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)$(PROJECT).cpp $(PROJECT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(APP_PATH)$(PATHSEP)$(PROJECT).cpp
 
 $(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
-	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
+	$(RC) -r /i$(WXDIR)\include /i$(APP_PATH) -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
 
 OBJECTS = $(PROJECT)$(OBJ_EXT) as2print$(OBJ_EXT) db_auth$(OBJ_EXT) epdb_core$(OBJ_EXT) \
 	dbstring$(OBJ_EXT) m_compress$(OBJ_EXT) m_dbase$(OBJ_EXT) \

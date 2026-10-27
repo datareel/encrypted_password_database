@@ -77,7 +77,114 @@ CryptDBDocument::CryptDBDocument(wxMDIParentFrame *parent,
   progcfg->child_frame_list.Add(p);
   
   // this should work for MDI frames as well as for normal ones
-  SetSizeHints(100, 100);
+  SetSizeHints(FromDIP(300), FromDIP(200));
+
+  // 10/27/2026: The grid is put in the splitter by AttachGrid()
+  splitter = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+				  wxSP_LIVE_UPDATE | wxSP_3DSASH | wxSP_NO_XP_THEME);
+  splitter->SetSashGravity(1.0); // The grid takes the extra width
+  splitter->SetMinimumPaneSize(FromDIP(150));
+  details = new DetailsPane(splitter, this);
+
+  // Search across all fields (but the passwords), or one field
+  wxPanel *bar = new wxPanel(this);
+  wxBoxSizer *bs = new wxBoxSizer(wxHORIZONTAL);
+  search_ctrl = new wxSearchCtrl(bar, WXAPPFW_SEARCH_CTRL, "", wxDefaultPosition, FromDIP(wxSize(260, -1)));
+  search_ctrl->ShowCancelButton(true);
+  search_ctrl->SetDescriptiveText("Search records (Ctrl+F)");
+  bs->Add(search_ctrl, 0, wxALIGN_CENTER_VERTICAL);
+  bs->Add(new wxStaticText(bar, wxID_ANY, "in"), 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
+  search_field = new wxChoice(bar, WXAPPFW_SEARCH_FIELD);
+  search_field->Append("All fields");
+  for(int i = 0; i < NumDataMembers; i++) {
+    if(IsPasswordField(i)) continue; // Passwords are not searched
+    search_field->Append(progcfg->global_dbparms.dbgrid_labels[i].c_str(), (void *)(wxIntPtr)(i + 1));
+  }
+  search_field->SetSelection(0);
+  bs->Add(search_field, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(6));
+  search_count = EPDBNote(bar, "");
+  bs->Add(search_count, 1, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(10));
+  bar->SetSizer(bs);
+  search_ctrl->Bind(wxEVT_TEXT, &CryptDBDocument::OnSearch, this);
+  search_ctrl->Bind(wxEVT_SEARCH, &CryptDBDocument::OnSearch, this);
+  search_ctrl->Bind(wxEVT_SEARCH_CANCEL, &CryptDBDocument::OnSearchCancel, this);
+  search_field->Bind(wxEVT_CHOICE, &CryptDBDocument::OnSearch, this);
+
+  wxBoxSizer *s = new wxBoxSizer(wxVERTICAL);
+  s->Add(bar, 0, wxEXPAND | wxALL, FromDIP(6));
+  s->Add(splitter, 1, wxEXPAND);
+  SetSizer(s);
+}
+
+void CryptDBDocument::ApplySearch()
+{
+  if(!grid_frame) return;
+  int field = -1;
+  if(search_field->GetSelection() > 0) {
+    field = (int)(wxIntPtr)search_field->GetClientData(search_field->GetSelection()) - 1;
+  }
+  wxString text = search_ctrl->GetValue();
+  int shown = grid_frame->ApplyFilter(text, field);
+  if(text.IsEmpty()) search_count->SetLabel("");
+  else search_count->SetLabel(wxString::Format("%d matching record%s", shown, shown == 1 ? "" : "s"));
+  details->ShowRow(CurrentRecordRow());
+}
+
+void CryptDBDocument::OnSearch(wxCommandEvent& WXUNUSED(event))
+{
+  ApplySearch();
+}
+
+void CryptDBDocument::OnSearchCancel(wxCommandEvent& WXUNUSED(event))
+{
+  search_ctrl->Clear();
+  ApplySearch();
+}
+
+void CryptDBDocument::AttachGrid(wxGrid *grid)
+{
+  if(grid->GetParent() != splitter) grid->Reparent(splitter);
+  details->UpdateLabels();
+  if(progcfg->show_details) {
+    // A negative position is from the right edge: the pane keeps its width
+    splitter->SplitVertically(grid, details, -FromDIP(progcfg->details_width_dip));
+  }
+  else {
+    details->Hide();
+    splitter->Initialize(grid);
+  }
+}
+
+void CryptDBDocument::ShowDetails(int show)
+{
+  if(!grid_frame) return;
+  if(show && !splitter->IsSplit()) {
+    details->Show();
+    splitter->SplitVertically(grid_frame->m_grid, details, -FromDIP(progcfg->details_width_dip));
+    details->ShowRow(CurrentRecordRow());
+  }
+  else if(!show && splitter->IsSplit()) {
+    SaveSplitterPosition();
+    splitter->Unsplit(details);
+  }
+}
+
+void CryptDBDocument::SaveSplitterPosition()
+// The details pane width is kept in DIPs so it is the same on every monitor
+{
+  if(!splitter->IsSplit()) return;
+  int w = splitter->GetClientSize().x - splitter->GetSashPosition();
+  if(w > FromDIP(100)) progcfg->details_width_dip = ToDIP(w);
+}
+
+int CryptDBDocument::CurrentRecordRow()
+{
+  if(!grid_frame || !grid_frame->m_grid) return -1;
+  wxGrid *g = grid_frame->m_grid;
+  int r = g->GetGridCursorRow();
+  if(r < 0 || r >= g->GetNumberRows() || !g->IsRowShown(r)) return -1;
+  if(g->GetCellValue(r, 0).IsEmpty()) return -1;
+  return r;
 }
 
 int ResealDocument(CryptDBDocument *doc)
@@ -410,6 +517,7 @@ void CryptDBDocument::OnSelectCell(wxGridEvent& event)
     DBParms()->current_row = event.GetRow();
     DBParms()->current_col = event.GetCol();
     DBParms()->current_name = grid_frame->m_grid->GetCellValue(DBParms()->current_row, 0);
+    if(details) details->ShowRow(event.GetRow()); // 10/27/2026
   }
 
 #ifdef __APP_DEBUG_VERSION__

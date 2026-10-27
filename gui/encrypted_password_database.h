@@ -263,7 +263,19 @@ enum {
   WXAPPFW_SECURITY_IN_FILE_LOG,    // In-file access log of the open database
   WXAPPFW_SECURITY_SELF_DESTRUCT,  // Self-destruct settings of the open database
   WXAPPFW_SECURITY_SHOW_LOG,       // Show the access logs
-  WXAPPFW_SECURITY_VERIFY_LOG      // Verify the access logs
+  WXAPPFW_SECURITY_VERIFY_LOG,     // Verify the access logs
+  // 10/27/2026: Phase 3 main window
+  WXAPPFW_FILE_LOCK,               // Lock (close) every open database
+  WXAPPFW_RECORD_COPY_USER,        // Copy the username of the selected record
+  WXAPPFW_RECORD_COPY_PASSWORD,    // Copy the password of the selected record
+  WXAPPFW_RECORD_OPEN_LINK,        // Open the website link of the selected record
+  WXAPPFW_EDIT_FIND_FOCUS,         // Move to the search box
+  WXAPPFW_VIEW_DETAILS,            // Show the record details pane
+  WXAPPFW_TOOLS_CMDBUILD,          // Command builder
+  WXAPPFW_TOOLS_GENERATE,          // Generate a password
+  WXAPPFW_SEARCH_CTRL,             // Toolbar search box
+  WXAPPFW_SEARCH_FIELD,            // Toolbar search field
+  WXAPPFW_STATUS_TIMER             // Status bar auto-lock countdown
 };
 // --------------------------------------------------------------
 
@@ -283,6 +295,7 @@ void DatabaseWriteHook(void *data);  // 10/25/2026: Marks a v2 database changed
 class CryptDBDocument;
 int ResealDocument(CryptDBDocument *doc); // 10/25/2026: Seals a changed v2 database
 int IsPasswordField(int member);     // 10/25/2026: True for the password columns
+int IsMultiLineField(int member);    // 10/27/2026: Security questions, account information and notes
 
 
 // Database helper functions
@@ -341,6 +354,9 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "epdb_cmdbuild.h"  // 10/27/2026: Command builder
 #include "sc_picker.h"      // 10/27/2026: Smart card picker, no login
 #include "unlock_dlg.h"     // 10/27/2026: Unlock Database dialog
+#include "details_pane.h"   // 10/27/2026: Record details pane
+#include "misc_dlg.h"       // 10/27/2026: Self-destruct, generate password and other small dialogs
+#include "cmdbuild_dlg.h"   // 10/27/2026: Tools > Command Builder
 #include "p_config.h"       // Program configuration data
 #include "m_frame.h"        // Main frame for this application
 

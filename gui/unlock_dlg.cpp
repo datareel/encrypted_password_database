@@ -72,6 +72,7 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   is_ok = 0;
   open_failed = 0;
   method = EPDB_UNLOCK_PASSWORD;
+  for(int i = 0; i < 4; i++) pages[i] = 0;
   SetIcons(EPDBAppIcons());
 
   const int pad = FromDIP(10);
@@ -99,7 +100,10 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
 			      num_methods, methods, num_methods, wxRA_SPECIFY_COLS);
   top->Add(method_box, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
 
-  book = new wxSimplebook(this, wxID_ANY);
+  // One page per method, only the chosen one is shown so the dialog is
+  // only as tall as that page
+  wxBoxSizer *pages_sizer = new wxBoxSizer(wxVERTICAL);
+  wxWindow *book = this;
 
   // Password page
   wxPanel *p = new wxPanel(book);
@@ -108,7 +112,7 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   password_input = new PasswordEntry(p, wxID_ANY);
   ps->Add(password_input, 0, wxEXPAND);
   p->SetSizer(ps);
-  book->AddPage(p, "Password");
+  pages[EPDB_UNLOCK_PASSWORD] = p;
 
   // Key file page
   p = new wxPanel(book);
@@ -118,7 +122,7 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   ps->Add(EPDBFileRow(p, key_input, b, ID_UNLOCK_BROWSE_KEY), 0, wxEXPAND);
   ps->Add(EPDBNote(p, "The key file must be readable only by you.", 0), 0, wxTOP, FromDIP(4));
   p->SetSizer(ps);
-  book->AddPage(p, "Key file");
+  pages[EPDB_UNLOCK_KEY_FILE] = p;
 
   // Private RSA key page
   p = new wxPanel(book);
@@ -135,7 +139,7 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   g->AddSpacer(0);
   g->Add(EPDBNote(p, "Leave the passphrase empty if the key has none."), 0);
   p->SetSizer(g);
-  book->AddPage(p, "Private key");
+  pages[EPDB_UNLOCK_RSA_KEY] = p;
 
 #ifdef __ENABLE_SMART_CARD__
   // Smart card page
@@ -170,12 +174,17 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   ap->SetSizer(ag);
   ps->Add(sc_advanced, 0, wxEXPAND | wxTOP, FromDIP(4));
   p->SetSizer(ps);
-  book->AddPage(p, "Smart card");
+  pages[EPDB_UNLOCK_SMART_CARD] = p;
   sc_picker->Bind(EPDB_EVT_CARD_CHANGED, &UnlockDialog::OnCardChanged, this);
   sc_advanced->Bind(wxEVT_COLLAPSIBLEPANE_CHANGED, [this](wxCollapsiblePaneEvent &) { Refit(); });
 #endif
 
-  top->Add(book, 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
+  for(int i = 0; i < 4; i++) {
+    if(!pages[i]) continue;
+    pages_sizer->Add(pages[i], 1, wxEXPAND);
+    pages[i]->Hide();
+  }
+  top->Add(pages_sizer, 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
 
   message = new wxStaticText(this, wxID_ANY, "");
   message->SetForegroundColour(EPDBWarningColour());
@@ -190,8 +199,8 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   top->Add(btns, 0, wxEXPAND | wxALL, pad);
   SetEscapeId(wxID_CANCEL);
 
-  SetSizerAndFit(top);
-  SetMinSize(GetSize());
+  SetSizer(top);
+  SelectMethod(EPDB_UNLOCK_PASSWORD);
 }
 
 UnlockDialog::~UnlockDialog()
@@ -209,11 +218,14 @@ void UnlockDialog::ClearSecrets()
 }
 
 void UnlockDialog::Refit()
+// Fits the dialog to the shown page, keeping a width the user chose
 {
+  int w = GetSize().x;
+  SetMinSize(wxDefaultSize);
   Layout();
   wxSize best = GetSizer()->ComputeFittingWindowSize(this);
-  wxSize cur = GetSize();
-  if(best.y > cur.y || best.x > cur.x) SetSize(wxSize(wxMax(best.x, cur.x), wxMax(best.y, cur.y)));
+  SetMinSize(best);
+  SetSize(wxSize(wxMax(best.x, w), best.y));
 }
 
 void UnlockDialog::OnDPIChanged(wxDPIChangedEvent &event)
@@ -234,7 +246,6 @@ int UnlockDialog::ShowPanel(gxString &fname, const wxString &start_file)
   if(!start_file.IsEmpty()) file_input->SetValue(start_file);
   else if(!recent.empty()) file_input->SetValue(recent[0].path);
   LoadFileSettings();
-  Fit();
   CentreOnParent();
   int rv = ShowModal();
 #ifdef __ENABLE_SMART_CARD__
@@ -279,7 +290,7 @@ void UnlockDialog::SelectMethod(int m)
 {
   method = m;
   method_box->SetSelection(m);
-  book->ChangeSelection(m);
+  for(int i = 0; i < 4; i++) if(pages[i]) pages[i]->Show(i == m);
 #ifdef __ENABLE_SMART_CARD__
   if(m == EPDB_UNLOCK_SMART_CARD) {
     // Hints for choosing the card: the card users of this database and

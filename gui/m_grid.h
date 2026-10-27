@@ -44,7 +44,7 @@ const int GRID_FRAME_ID = 2571;
 class CryptDBGrid : public wxFrame
 {
 public:
-  CryptDBGrid(wxWindow *parent, const wxPoint& pos, const wxSize& size);
+  CryptDBGrid(wxWindow *parent, const wxPoint& pos, const wxSize& size, wxWindow *grid_parent = 0);
 
 public: // Event handlers
 
@@ -65,6 +65,8 @@ public: // Grid functions
   void ReloadGrid(int test_database = 1);
   void ClearGrid();
   void RefreshGrid();
+  int ApplyFilter(const wxString &text, int field); // 10/27/2026: Search
+  int NumRecords();                                 // 10/27/2026
   int SetGridBackgroundColor(int refresh_grid = 1);
   int SetGridBackgroundColor(wxColour *color, int refresh_grid = 1);
   int SetGridTextColor(int refresh_grid = 1);

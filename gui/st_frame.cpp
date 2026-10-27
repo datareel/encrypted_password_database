@@ -47,7 +47,7 @@ StatusFrame::StatusFrame(wxWindow* parent, wxWindowID id,
   wxApp::s_macAboutMenuItemId = Minimal_About;
 #endif
   
-  SetIcon(wxICON(wxappfw));
+  SetIcons(EPDBAppIcons()); // 10/27/2026
   status_win = 0;
 }
   

@@ -37,6 +37,7 @@ Document controls
 #include "epdb_core.h"
 
 class CryptDBGrid;
+class DetailsPane;
 
 class CryptDBDocument : public wxMDIChildFrame
 {
@@ -83,6 +84,21 @@ public: // Public Member functions
 
 private: // Internal processing functions
   int change_cell_value(wxGridEvent& event);
+
+public: // 10/27/2026: Records grid left, record details right
+  void AttachGrid(wxGrid *grid);
+  void ShowDetails(int show);
+  int CurrentRecordRow(); // The grid row of the selected record, -1 for none
+  void SaveSplitterPosition();
+  void ApplySearch();
+  void OnSearch(wxCommandEvent& event);
+  void OnSearchCancel(wxCommandEvent& event);
+  wxSearchCtrl *search_ctrl;  // Filters the records
+  wxChoice *search_field;     // All fields or one field
+  wxStaticText *search_count;
+  wxSplitterWindow *splitter;
+  DetailsPane *details;
+  wxString unlock_description; // How the database was unlocked, for the status bar
 
 public:
   CryptDBGrid *grid_frame;

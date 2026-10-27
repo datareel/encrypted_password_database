@@ -85,6 +85,10 @@ struct wxappfwProgramConfig {
   int clipboard_clear_seconds; // 10/25/2026: Clear copied values after this time, 0 is off
   int show_passwords;          // 10/25/2026: Show the password columns in clear text
   int access_log;              // 10/27/2026: Per-user access log on (AccessLog = 1)
+  int main_width_dip;          // 10/27/2026: Saved main window size in DIPs, 0 for a share of the screen
+  int main_height_dip;
+  int details_width_dip;       // 10/27/2026: Width of the record details pane in DIPs
+  int show_details;            // 10/27/2026: Show the record details pane
   gxString access_log_file;    // 10/27/2026: Empty for the default per-user log
   
   // Printer document variables

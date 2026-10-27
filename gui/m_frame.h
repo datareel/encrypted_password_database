@@ -152,6 +152,21 @@ public: // Event handlers
   void OnShowAccessLog(wxCommandEvent& event);
   void OnVerifyAccessLog(wxCommandEvent& event);
   
+  // 10/27/2026: Phase 3 main window
+  void OnLock(wxCommandEvent& event);
+  void OnCopyUser(wxCommandEvent& event);
+  void OnCopyPassword(wxCommandEvent& event);
+  void OnOpenLink(wxCommandEvent& event);
+  void OnFindFocus(wxCommandEvent& event);
+  void OnToggleDetails(wxCommandEvent& event);
+  void OnCommandBuilder(wxCommandEvent& event);
+  void OnGeneratePassword(wxCommandEvent& event);
+  void OnStatusTimer(wxTimerEvent& event);
+  void OnUpdateNeedsRecord(wxUpdateUIEvent& event);
+  void OnUpdateNeedsDatabase(wxUpdateUIEvent& event);
+  void OnDPIChanged(wxDPIChangedEvent& event);
+  wxMenuItem *MenuItem(wxMenu *menu, int id, const wxString &text, const wxString &help, const char *icon = 0);
+  void UpdateStatusFields();
 public: // Public member functions
   CryptDBDocument *ActiveChild() { return set_active_child(); }
   int DatabaseIsOpen(gxString &dbname);
@@ -176,6 +191,7 @@ public: // 10/25/2026: Clipboard clearing and idle auto-lock
   wxTimer *reseal_timer; // 10/25/2026: Seals changed v2 databases
   wxString clipboard_value; // The value this program last copied
   time_t last_activity;
+  wxTimer *status_timer;   // 10/27/2026: Status bar fields and auto-lock countdown
 
 public: // Public data members
   wxTextCtrl *statusWin;

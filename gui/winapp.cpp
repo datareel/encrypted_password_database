@@ -81,11 +81,24 @@ bool WinApp::OnInit(void)
 
   frame = new MainFrame((wxFrame *)NULL, MAIN_FRAME_ID, 
 			progcfg->ProgramName.c_str(),
-			wxPoint(50, 50), 
-			wxSize(progcfg->MainFrameWidth, 
-			       progcfg->MainFrameHeight),
+			wxDefaultPosition, wxDefaultSize,
 			wxDEFAULT_FRAME_STYLE | wxHSCROLL | wxVSCROLL);
-  
+
+  // 10/27/2026: The saved size in DIPs, or a share of the screen the
+  // window is on, never larger than the screen work area
+  int disp = wxDisplay::GetFromWindow(frame);
+  wxRect area = wxDisplay(disp == wxNOT_FOUND ? 0 : (unsigned)disp).GetClientArea();
+  wxSize want;
+  if(progcfg->main_width_dip > 0 && progcfg->main_height_dip > 0) {
+    want = frame->FromDIP(wxSize(progcfg->main_width_dip, progcfg->main_height_dip));
+  }
+  else {
+    want = wxSize(area.width * 4 / 5, area.height * 4 / 5);
+  }
+  want.x = wxMin(want.x, area.width);
+  want.y = wxMin(want.y, area.height);
+  frame->SetMinSize(frame->FromDIP(wxSize(640, 420)));
+  frame->SetSize(want);
   frame->Centre(wxBOTH);
   frame->Show(TRUE);
   SetTopWindow(frame);

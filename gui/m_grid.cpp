@@ -37,7 +37,7 @@ BEGIN_EVENT_TABLE(CryptDBGrid, wxFrame)
 END_EVENT_TABLE()
 
 CryptDBGrid::CryptDBGrid(wxWindow *parent, const wxPoint& pos, 
-			 const wxSize& size)
+			 const wxSize& size, wxWindow *grid_parent)
   : wxFrame(parent, -1, "Database Grid", pos, size,
 		     wxSUNKEN_BORDER |
 		     wxNO_FULL_REPAINT_ON_RESIZE |
@@ -52,7 +52,92 @@ CryptDBGrid::CryptDBGrid(wxWindow *parent, const wxPoint& pos,
   grid_pos = pos;
   grid_size = size;
 
-  m_grid = new wxGrid(parent_frame, CHILD_FRAME_ID, grid_pos, grid_size);
+  // 10/27/2026: The grid can have another parent, the splitter of the
+  // document. Grid events still go to the document.
+  m_grid = new wxGrid(grid_parent ? grid_parent : parent_frame, CHILD_FRAME_ID, grid_pos, grid_size);
+}
+
+// 10/27/2026: Multi-line values (security questions, account information
+// and notes) show their first line and an ellipsis
+class FirstLineCellRenderer : public wxGridCellStringRenderer
+{
+public:
+  static wxString FirstLine(const wxString &v) {
+    int nl = v.Find('\n');
+    if(nl == wxNOT_FOUND) return v;
+    wxString s = v.Left(nl);
+    s.Trim();
+    return s + wxString::FromUTF8(" \xe2\x80\xa6");
+  }
+  virtual void Draw(wxGrid& grid, wxGridCellAttr& attr, wxDC& dc,
+		    const wxRect& rect, int row, int col, bool isSelected) wxOVERRIDE {
+    wxGridCellRenderer::Draw(grid, attr, dc, rect, row, col, isSelected);
+    wxString v = grid.GetCellValue(row, col);
+    if(v.IsEmpty()) return;
+    SetTextColoursAndFont(grid, attr, dc, isSelected);
+    int hAlign, vAlign;
+    attr.GetAlignment(&hAlign, &vAlign);
+    wxRect r = rect;
+    r.Inflate(-2, -1);
+    grid.DrawTextRectangle(dc, FirstLine(v), r, hAlign, vAlign);
+  }
+  virtual wxSize GetBestSize(wxGrid& grid, wxGridCellAttr& attr, wxDC& dc,
+			     int row, int col) wxOVERRIDE {
+    dc.SetFont(attr.GetFont());
+    wxCoord w, h;
+    dc.GetTextExtent(FirstLine(grid.GetCellValue(row, col)), &w, &h);
+    return wxSize(w + 4, h);
+  }
+  virtual wxGridCellRenderer *Clone() const wxOVERRIDE { return new FirstLineCellRenderer; }
+};
+
+int IsMultiLineField(int member)
+// 10/27/2026: Security questions, account information and notes
+{
+  return (member == 4) || (member == 5) || (member == 7);
+}
+
+int CryptDBGrid::ApplyFilter(const wxString &text, int field)
+// 10/27/2026: Shows only the records with text in a field (field is a
+// member number, or -1 for every field but the passwords). Returns the
+// number of records shown.
+{
+  if(!m_grid) return 0;
+  wxString want = text.Lower();
+  want.Trim().Trim(false);
+  int shown = 0;
+  m_grid->BeginBatch();
+  for(int r = 0; r < m_grid->GetNumberRows(); r++) {
+    int is_record = !m_grid->GetCellValue(r, 0).IsEmpty();
+    int show = 1;
+    if(!want.IsEmpty()) {
+      show = 0;
+      if(is_record) {
+	for(int c = 0; c < NumDataMembers && !show; c++) {
+	  if(field >= 0 && c != field) continue;
+	  if(IsPasswordField(c)) continue;
+	  if(m_grid->GetCellValue(r, c).Lower().Find(want) != wxNOT_FOUND) show = 1;
+	}
+      }
+    }
+    if(show) {
+      if(!m_grid->IsRowShown(r)) m_grid->ShowRow(r);
+      if(is_record) shown++;
+    }
+    else if(m_grid->IsRowShown(r)) {
+      m_grid->HideRow(r);
+    }
+  }
+  m_grid->EndBatch();
+  return shown;
+}
+
+int CryptDBGrid::NumRecords()
+{
+  if(!m_grid) return 0;
+  int n = 0;
+  for(int r = 0; r < m_grid->GetNumberRows(); r++) if(!m_grid->GetCellValue(r, 0).IsEmpty()) n++;
+  return n;
 }
 
 // 10/25/2026: Draws the password columns as a fixed mask unless
@@ -118,10 +203,18 @@ long CryptDBGrid::InitGrid()
 
   // 10/25/2026: Mask the password columns
   for(int col = 0; col < NumDataMembers; col++) {
-    if(!IsPasswordField(col)) continue;
-    wxGridCellAttr *attr = new wxGridCellAttr;
-    attr->SetRenderer(new MaskedCellRenderer);
-    m_grid->SetColAttr(col, attr);
+    if(IsPasswordField(col)) {
+      wxGridCellAttr *attr = new wxGridCellAttr;
+      attr->SetRenderer(new MaskedCellRenderer);
+      m_grid->SetColAttr(col, attr);
+    }
+    else if(IsMultiLineField(col)) {
+      // 10/27/2026: First line only, edited in a multi-line editor
+      wxGridCellAttr *attr = new wxGridCellAttr;
+      attr->SetRenderer(new FirstLineCellRenderer);
+      attr->SetEditor(new wxGridCellAutoWrapStringEditor);
+      m_grid->SetColAttr(col, attr);
+    }
   }
 
   dbparms.row_label_size = m_grid->GetDefaultRowLabelSize();
@@ -169,7 +262,8 @@ void CryptDBGrid::MakeGridColLabels()
   m_grid->SetGridLineColour(*frame->gridlineColor);
   
   int i;
-  m_grid->SetColLabelSize(dbparms.column_label_size);
+  // 10/27/2026: The label height follows the label font
+  m_grid->SetColLabelSize(wxGRID_AUTOSIZE);
   m_grid->SetColLabelAlignment(wxCENTRE, -1);
   for(i = 0; i < NumDataMembers; i++) {
     char *p = dbparms.db_config.GetColName(i, dest);
@@ -188,7 +282,7 @@ void CryptDBGrid::MakeGridColLabels()
 #ifdef __WXWIN2_GRID__
     m_grid->SetColumnWidth(i, (long)dbparms.db_config.col_sizes[i]);
 #else
-    m_grid->SetColSize(i, (long)dbparms.db_config.col_sizes[i]);
+    m_grid->SetColSize(i, m_grid->FromDIP((int)dbparms.db_config.col_sizes[i])); // 10/27/2026: DIPs
 #endif
     
 #ifdef __APP_DEBUG_VERSION__
@@ -985,7 +1079,7 @@ void CryptDBGrid::LoadGrid(long num_entries)
       // int col_width = m_grid->GetColumnWidth(i);
       int col_width = m_grid->GetColSize(i);
 #else
-      int col_width = m_grid->GetColSize(i);
+      int col_width = m_grid->ToDIP(m_grid->GetColSize(i)); // 10/27/2026: Kept in DIPs
 #endif
       dbparms.db_config.col_sizes[i] = col_width;
     }
