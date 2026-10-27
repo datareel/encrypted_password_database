@@ -27,7 +27,9 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
 USA
 
-Application panel
+Create Database dialog. 10/27/2026: Rewritten with sizers: the name and
+folder of the new database, then the ways it can be unlocked (master
+password or key file, RSA public keys, smart cards), with a summary.
 */
 // ----------------------------------------------------------- // 
 #ifndef __NEW_PANEL_HPP__
@@ -35,96 +37,59 @@ Application panel
 
 #include "app_defs.h"
 
-// --------------------------------------------------------------
-// Window IDs
-// --------------------------------------------------------------
 #define NEWDATABASE_PANEL_ID 730
-// --------------------------------------------------------------
-
-// --------------------------------------------------------------
-// Identification for event handlers, controls, and menu commands
-// --------------------------------------------------------------
-enum { // Page setup panel IDs 
-  ID_NEWDATABASE_OK = 731,
-  ID_NEWDATABASE_CANCEL,
-  ID_NEWDATABASE_KEY_BROWSE,
-  ID_NEWDATABASE_RSA_KEY_BROWSE,
-  ID_NEWDATABASE_TEXTCONTROL_CONFIRM_PASSWORD,
-  ID_NEWDATABASE_TEXTCONTROL_KEY_FILE,
-  ID_NEWDATABASE_TEXTCONTROL_RSA_USERNAME,
-  ID_NEWDATABASE_TEXTCONTROL_RSA_KEY,
-#ifdef __ENABLE_SMART_CARD__
-  ID_NEWDATABASE_TEXTCONTROL_SC_USERNAME,
-  ID_NEWDATABASE_TEXTCONTROL_SC_CERT_ID
-#endif // __ENABLE_SMART_CARD__
-};
-// --------------------------------------------------------------
 
 class NewDatabasePanel : public wxDialog
 {
 public:
-  NewDatabasePanel(wxWindow *parent, wxWindowID id, char *title,
-		   int xpos, int ypos, int width, int height,
-		   long style = wxDEFAULT_DIALOG_STYLE,
-		   char* name = (char *)"dialogBox");
+  NewDatabasePanel(wxWindow *parent);
   ~NewDatabasePanel();
-  
-public: // Event handlers
-  // Frame event handlers
-  void OnCloseWindow(wxCloseEvent& WXUNUSED(event));
 
-  // Button event handlers
+public: // Event handlers
+  void OnCloseWindow(wxCloseEvent &event);
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
+  void OnBrowseFolder(wxCommandEvent &event);
   void OnKeyFileBrowse(wxCommandEvent &event);
   void OnRSAKeyFileBrowse(wxCommandEvent &event);
-  void OnTextControlPasswordEnter(wxCommandEvent &event);
-  void OnTextControlKeyFileEnter(wxCommandEvent &event);
-  void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
-  void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
+  void OnGenerate(wxCommandEvent &event);
+  void OnChange(wxCommandEvent &event);
 
-#ifdef __ENABLE_SMART_CARD__
-  void OnTextControlSCUsernameEnter(wxCommandEvent &event);
-  void OnTextControlSCCertIDEnter(wxCommandEvent &event);
-#endif // __ENABLE_SMART_CARD__
-  
-public: // Memeber functions
+public: // Member functions
   int CheckPassword();
   void ShowPanel();
   int TestInput();
   int IsOK() { return is_ok == 1; }
+  gxString DatabasePath() const; // Folder and name, without the extension
+  gxString DatabaseName() const;
+  void UpdateState();
 
 public: // Control objects
-  wxStaticText *name_label;
   wxTextCtrl *name_input;
-  wxStaticBox *password_box;
-  wxStaticBox *key_box;
-  wxStaticText *password_label;
-  wxStaticText *confirm_password_label;
-  wxTextCtrl *password_input;
-  wxTextCtrl *confirm_password_input;
-  wxStaticText *key_label;
+  wxTextCtrl *folder_input;
+  wxStaticText *path_label;
+  wxCheckBox *password_check;
+  wxPanel *password_panel;
+  PasswordEntry *password_input;
+  PasswordEntry *confirm_password_input;
+  PasswordStrength *strength;
+  wxCheckBox *key_check;
+  wxPanel *key_panel;
   wxTextCtrl *key_input;
-  wxButton *browse;
-  wxStaticBox *rsa_key_box;
-  wxStaticText *rsa_username_label;
+  wxStaticText *key_note;
+  wxCheckBox *rsa_check;
+  wxPanel *rsa_panel;
   wxTextCtrl *rsa_username_input;
-  wxStaticText *rsa_key_label;
   wxTextCtrl *rsa_key_input;
-  wxButton *rsa_browse;
-
 #ifdef __ENABLE_SMART_CARD__
-  wxStaticBox *sc_box;
-  wxStaticText *sc_username_label;
+  wxCheckBox *sc_check;
+  wxPanel *sc_panel;
+  SmartCardPicker *sc_picker;
   wxTextCtrl *sc_username_input;
-  wxStaticText *sc_keyid_label;
-  wxTextCtrl *sc_keyid_input;
-  wxCheckBox *sc_use_checkbox;
-#endif // __ENABLE_SMART_CARD__  
+#endif // __ENABLE_SMART_CARD__
+  wxStaticText *summary;
+  wxStaticText *message;
 
-  wxButton *ok_btn;
-  wxButton *cancel_btn;
-  
 private: // Data members
   int is_ok;
 
@@ -140,11 +105,11 @@ public:
   int use_smartcard;
   SmartCardOB sc;
   gxString smartcard_username;
-#endif // __ENABLE_SMART_CARD__  
-  
+  wxString card_name;
+#endif // __ENABLE_SMART_CARD__
   // Use a random key if no password or symmectric are provided with RSA or smartcard
-  unsigned char random_key[128]; 
-  
+  unsigned char random_key[128];
+
 private:
   DECLARE_EVENT_TABLE()
 };

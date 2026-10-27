@@ -1571,7 +1571,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
   if(new_db_panel->IsOK()) {
     DBStringConfig::crypt_key = progcfg->global_dbparms.crypt_key;
     
-    gxString dbname = (const char *)new_db_panel->name_input->GetValue().c_str();
+    gxString dbname = new_db_panel->DatabasePath(); // 10/27/2026: The chosen folder and name
     
     gxString data_file = ReplaceFileExtension(dbname, progcfg->global_dbparms.data_file_extension.c_str()); // 10/25/2026
     if(futils_exists(data_file.c_str())) {
@@ -1591,7 +1591,8 @@ void MainFrame::OnNew(wxCommandEvent& event)
 						    wxSize(-1, -1),
 						    wxDEFAULT_FRAME_STYLE);
     progcfg->num_child_frames++;
-    subframe->SetTitle((const char *)new_db_panel->name_input->GetValue().c_str());
+    subframe->SetTitle(wxString::FromUTF8(new_db_panel->DatabaseName().c_str()));
+    subframe->unlock_description = "New database"; // 10/27/2026
     
     // Give it an icon
     subframe->SetIcons(EPDBAppIcons()); // 10/27/2026
