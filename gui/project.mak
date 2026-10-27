@@ -109,6 +109,9 @@ include ../../env/fcrypt_objs.mak
 as2print$(OBJ_EXT):	$(SRC_PATH)as2print.cpp $(AS2PRINT_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(SRC_PATH)as2print.cpp
 
+epdb_core$(OBJ_EXT):	$(SRC_PATH)epdb_core.cpp $(DB_AUTH_DEP) $(INCLUDE_PATH)epdb_core.h
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(SRC_PATH)epdb_core.cpp
+
 db_auth$(OBJ_EXT):	$(SRC_PATH)db_auth.cpp $(DB_AUTH_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) $(SRC_PATH)db_auth.cpp
 
@@ -130,7 +133,7 @@ $(PROJECT)$(OBJ_EXT):	$(APP_PATH)$(PATHSEP)$(PROJECT).cpp $(PROJECT_DEP)
 $(PROJECT).res:	$(APP_PATH)$(PATHSEP)$(PROJECT).rc $(WXDIR)\include\wx\msw\wx.rc
 	$(RC) -r /i$(WXDIR)\include -fo$@ $(APP_PATH)$(PATHSEP)$(PROJECT).rc
 
-OBJECTS = $(PROJECT)$(OBJ_EXT) as2print$(OBJ_EXT) db_auth$(OBJ_EXT) \
+OBJECTS = $(PROJECT)$(OBJ_EXT) as2print$(OBJ_EXT) db_auth$(OBJ_EXT) epdb_core$(OBJ_EXT) \
 	dbstring$(OBJ_EXT) m_compress$(OBJ_EXT) m_dbase$(OBJ_EXT) \
 	m_globals$(OBJ_EXT) $(DATAREEL_OBJECTS) $(FCRYPT_CRYPTO_OBJECTS)
 

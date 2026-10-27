@@ -2096,8 +2096,38 @@ static int epdb_check_db_name(const gxString &dfile, gxString &err)
   return 0;
 }
 
+POD *EPDBOpenPOD(const gxString &data_file, const gxString &index_file, gxDatabaseAccessMode mode, gxString &err)
+{
+  return epdb_open_pod(data_file, index_file, mode, err);
+}
+
+int EPDBCopyDatabase(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+		     const gxString &tifile, gxString &err)
+{
+  return epdb_copy_db(dfile, ifile, tdfile, tifile, err);
+}
+
+int EPDBReplaceDatabase(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			const gxString &tifile, int keep_backup, const char *tag,
+			gxString &backup_data_file, gxString &err)
+{
+  return epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, tag, backup_data_file, err);
+}
+
+int EPDBIndexAddresses(POD *pod, gxList<FAU_t> &addrs, gxString &err)
+{
+  EPDBAddressList list;
+  if(epdb_walk_index(pod->Index(), pod->Index()->Root(), list, 0) != 0) {
+    err << clear << "The index file cannot be read";
+    return -1;
+  }
+  for(unsigned i = 0; i < list.num; i++) addrs.Add(list.addr[i]);
+  return 0;
+}
+
 int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 block_type,
-		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err)
+		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err,
+		   int dry_run)
 {
   err.Clear();
   backup_data_file.Clear();
@@ -2155,9 +2185,9 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
     }
     if(pod) delete pod;
   }
-  if(rv == 0) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "remove-user-backup",
-				   backup_data_file, err);
-  if(rv != 0) {
+  if(rv == 0 && !dry_run) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "remove-user-backup",
+					       backup_data_file, err);
+  if(rv != 0 || dry_run) {
     gxString keep = err;
     futils_remove(tdfile.c_str());
     futils_remove(tifile.c_str());
@@ -2389,7 +2419,7 @@ static int epdb_rekey_copy(POD *old_pod, POD *new_pod, MemoryBuffer &old_keyset,
 
 int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset_in, const MemoryBuffer *new_secret,
 	      gxList<EPDBRekeyUser> &keep, SmartCardOB *sc, int keep_backup,
-	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err)
+	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err, int dry_run)
 {
   err.Clear();
   backup_data_file.Clear();
@@ -2475,10 +2505,14 @@ int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset_in, const Me
     if(chk) delete chk;
   }
   delete old_pod;
-  if(rv == 0) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "rekey-backup",
-				   backup_data_file, err);
+  if(rv == 0 && !dry_run) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "rekey-backup",
+					       backup_data_file, err);
   secret.Clear(1);
   old_keyset.Clear(1);
+  if(rv == 0 && dry_run) {
+    futils_remove(tdfile.c_str());
+    futils_remove(tifile.c_str());
+  }
   if(rv != 0) {
     gxString keep_err = err;
     futils_remove(tdfile.c_str());

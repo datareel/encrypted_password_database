@@ -42,6 +42,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include "epdb_functions.h"
 #include "fcfile.h"
 #include "fckeymgmt.h"
+#include "epdb_core.h"
 #if defined (__UNIX__)
 #include <unistd.h>
 #else
@@ -138,6 +139,32 @@ int self_destruct = -1;         // --self-destruct=on|off
 unsigned self_destruct_attempts = 0;
 gxList<FCNameValue> record_fields;
 FCRekeyInput rekey_in;
+// 10/27/2026: Automation and GUI features from the command line
+int exit_code = 0;              // FC_EXIT_* of the first failure
+int non_interactive = 0;        // --non-interactive, --batch
+int quiet_mode = 0;             // --quiet
+int json_output = 0;            // --json
+int dry_run = 0;                // --dry-run
+unsigned lock_timeout = FC_DEF_LOCK_TIMEOUT;
+gxString get_field;             // --get-field=record:field
+gxString output_file;           // --output-file
+gxString show_record_name;      // --show-record
+int db_info = 0;                // --db-info
+int export_db = 0;              // --export[=csv|json]
+int export_json = 0;
+int import_db = 0;              // --import
+gxString input_format;          // --input-format=text|json|csv
+gxString merge_from;            // --merge-from=src.ehd
+gxString merge_secret;          // Credential of the merge source
+int merge_policy = EPDB_MERGE_FAIL;
+int merge_policy_set = 0;
+int change_password = 0;        // --change-password
+gxString new_password;          // --new-password-fd or --new-password-file
+unsigned generate_password = 0; // --generate-password[=length]
+int password_symbols = 0;
+gxList<EPDBRecord> input_records; // JSON or CSV records from the input
+#define NOTE if(!quiet_mode) cerr
+void SetExit(int code) { if(!exit_code) exit_code = code; }
 
 // Functions
 void DisplayVersion();
@@ -154,6 +181,9 @@ int check_if_file_exists(gxString &fname);
 int check_if_file_exists(char *fname);
 void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char);
 int KeyManagementOps(const gxString &fname, MemoryBuffer &file_key, int is_v2);
+int ExtraOps(const gxString &fname, MemoryBuffer &file_key, int is_v2);
+int WillWrite(const gxString &fname);
+int DestroyedNow(const gxString &fname);
 static gxString AuthSlotName();
 int ReadOperationInput();
 int CheckVersions();
@@ -213,6 +243,27 @@ int main(int argc, char **argv)
     }
   }
 
+  // 10/27/2026: The password generator needs no database
+  if(generate_password) {
+    gxString pw;
+    if(EPDBGeneratePassword(generate_password, password_symbols, pw) != 0) {
+      cerr << "ERROR: Cannot generate a password" << "\n" << flush;
+      return ExitProgram(FC_EXIT_USAGE);
+    }
+    int rv = 0;
+    if(!output_file.is_null()) {
+      gxString werr;
+      if(FC_write_secret_file(output_file.c_str(), pw, werr) != 0) {
+	cerr << "ERROR: " << werr.c_str() << "\n" << flush;
+	rv = FC_EXIT_IO;
+      }
+    }
+    else if(json_output) cout << "{\"password\": " << FC_json_string(pw).c_str() << "}" << "\n" << flush;
+    else cout << pw.c_str() << "\n" << flush;
+    SecureWipe(pw);
+    if(num_files == 0) return ExitProgram(rv);
+  }
+
   if(num_files == 0) {
     cerr << "ERROR: No file name specified with command line args" << "\n";
     return ExitProgram(1);
@@ -238,8 +289,36 @@ int main(int argc, char **argv)
     cerr << "ERROR: Use --show-access-log and --verify-access-log in separate runs" << "\n";
     return ExitProgram(1);
   }
+  // 10/27/2026: --change-password is a rekey with a new password
+  int change_password_reads_input = 0;
+  if(change_password) {
+    rekey = 1;
+    change_password_reads_input = !rekey_input_fd.is_null() || !rekey_input_file.is_null() || !FC_stdin_is_terminal();
+  }
   // Record fields and rekey input are read once, before any prompt
-  if(!ReadOperationInput()) return ExitProgram(1);
+  if((!change_password || change_password_reads_input) && !ReadOperationInput()) return ExitProgram(1);
+  if(change_password) {
+    if(new_password.is_null()) {
+      if(non_interactive || !ConsoleIsInteractive()) {
+	cerr << "ERROR: --change-password needs the new password from --new-password-fd or --new-password-file" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
+      gxString again;
+      cerr << "New password: " << flush;
+      int ok = consoleGetString(new_password, 1);
+      cerr << "\n" << "Retype the new password: " << flush;
+      ok = ok && consoleGetString(again, 1);
+      cerr << "\n" << flush;
+      if(!ok || new_password != again) {
+	SecureWipe(again);
+	cerr << "ERROR: The passwords do not match" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
+      SecureWipe(again);
+    }
+    rekey_in.new_password = new_password;
+    SecureWipe(new_password);
+  }
 
   gxString sbuf;
   gxString err_string;
@@ -267,6 +346,10 @@ int main(int argc, char **argv)
     }
     if(clientcfg->verbose_mode) cerr << "Using private RSA key file for decryption" << "\n" << flush;
     if(has_passphrase && rsa_key_passphrase.is_null()) {
+      if(non_interactive) {
+	cerr << "ERROR: The RSA key has a passphrase, give it with --rsa-key-passphrase-fd or --rsa-key-passphrase-file (--non-interactive)" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
       cerr << "RSA key passphrase: " << flush;
       if(!consoleGetString(rsa_key_passphrase, 1)) {
 	rsa_key_passphrase.Clear(1);
@@ -320,6 +403,10 @@ int main(int argc, char **argv)
       return ExitProgram(1);
     }
     if(sc.pin[0] == 0) {
+      if(non_interactive) {
+	cerr << "ERROR: Give the smart card PIN with --smartcard-pin-fd or --smartcard-pin-file (--non-interactive), the PIN was not sent" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
       cerr << "Smart card PIN: " << flush;
       if(!consoleGetString(pin_buf, 1)) {
 	pin_buf.Clear(1);
@@ -341,6 +428,10 @@ int main(int argc, char **argv)
 #endif // __ENABLE_SMART_CARD__
   else if(use_password) {
     if(password.is_null()) {
+      if(non_interactive) {
+	cerr << "ERROR: Give the password with --password-fd or --password-file (--non-interactive)" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
       cerr << "Password: " << flush;
       if(!consoleGetString(password, 1)) {
 	cerr << "\n" << flush;
@@ -359,6 +450,10 @@ int main(int argc, char **argv)
   }
   else {
     if(clientcfg->verbose_mode) cerr << "No decryption method specifed, defaulting to password" << "\n" << flush;
+    if(non_interactive) {
+      cerr << "ERROR: No credential given: use --password-fd, --password-file, --key, --rsa-key or --smartcard (--non-interactive)" << "\n" << flush;
+      return ExitProgram(FC_EXIT_USAGE);
+    }
     cerr << "Password: " << flush;
     if(!consoleGetString(password, 1)) {
       cerr << "\n" << flush;
@@ -378,12 +473,23 @@ int main(int argc, char **argv)
     if(!check_if_file_exists(fname)) {
       // 10/25/2026: A missing file is an error, scripts must not see success
       cerr << "ERROR: Encrypted password database file " << fname.c_str() << " does not exist or cannot be read" << "\n" << flush;
+      SetExit(FC_EXIT_NOT_FOUND);
       ERROR_LEVEL++;
       ptr = ptr->next;
       continue; 
     }
 
-    if(list_users) {
+    if(list_users && json_output) { // 10/27/2026
+      EPDBInfo info;
+      gxString ierr;
+      if(EPDBGetInfo(fname.c_str(), 0, info, ierr) != 0) {
+	cerr << "ERROR: " << ierr.c_str() << "\n" << flush;
+	SetExit(FC_EXIT_IO);
+	ERROR_LEVEL++;
+      }
+      else cout << EPDBInfoJSON(fname.c_str(), info).c_str() << "\n" << flush;
+    }
+    else if(list_users) {
       DEBUG_m("No auth list users operation");
       if(ListUsers(fname.c_str()) != 0) ERROR_LEVEL++;
     }
@@ -398,6 +504,20 @@ int main(int argc, char **argv)
 
     // 10/27/2026: A destroyed database, or self-destruct on a file that
     // cannot be written, is refused before any credential is tried
+    // 10/27/2026: Writers take the advisory lock for the whole file
+    // operation, including the failed open counter of self-destruct
+    FCLock db_lock;
+    if(WillWrite(fname)) {
+      gxString lerr;
+      int lrv = FC_lock_file(fname.c_str(), lock_timeout, db_lock, lerr);
+      if(lrv != 0) {
+	cerr << "ERROR: " << lerr.c_str() << "\n" << flush;
+	SetExit(lrv == 1 ? FC_EXIT_LOCKED : FC_EXIT_IO);
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+    }
     if(!SelfDestructPrecheck(fname)) {
       LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "refused before trying a credential", 0);
       ERROR_LEVEL++;
@@ -408,7 +528,7 @@ int main(int argc, char **argv)
       FCVersionInfo vi; // 10/27/2026: Warn about v1 databases still in use
       gxString verr;
       if(FC_check_version(fname.c_str(), vi, verr) == 0 && vi.is_v1 && !upgrade_db) {
-	cerr << FC_v1_warning(fname.c_str(), vi).c_str() << "\n" << flush;
+	NOTE << FC_v1_warning(fname.c_str(), vi).c_str() << "\n" << flush;
       }
     }
 
@@ -431,6 +551,7 @@ int main(int argc, char **argv)
 	f = 0;
 	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "RSA key did not open the database", 0);
 	CountFailedOpen(fname, "The RSA key did not open the database");
+	SetExit(DestroyedNow(fname) ? FC_EXIT_DESTROYED : FC_EXIT_AUTH);
 	ERROR_LEVEL++;
 	ptr = ptr->next;
 	continue;
@@ -456,7 +577,7 @@ int main(int argc, char **argv)
 	// 10/26/2026: The PIN was not sent. Ask before sending it to a card
 	// that reports low PIN tries, only when a person is at the console.
 	cerr << "WARNING: " << sc.err_string << "\n" << flush;
-	if(ConsoleIsInteractive()) {
+	if(ConsoleIsInteractive() && !non_interactive) {
 	  cerr << "Check the PIN tries left (for example in ActivClient, open the card and view its smart card info) and be sure of the PIN." << "\n" << flush;
 	  cerr << "Send the PIN to the card? [y/N]: " << flush;
 	  gxString answer;
@@ -484,6 +605,7 @@ int main(int argc, char **argv)
 	if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) {
 	  cerr << "Use --smartcard-allow-final-try only if you are sure of the PIN, a wrong PIN locks the card" << "\n" << flush;
 	}
+	SetExit(DestroyedNow(fname) ? FC_EXIT_DESTROYED : FC_EXIT_AUTH);
 	ERROR_LEVEL++;
 	f->Close();
 	delete f;
@@ -525,6 +647,7 @@ int main(int argc, char **argv)
 	f = 0;
 	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "credential did not open the database", 0);
 	if(aes_error) CountFailedOpen(fname, use_key_file ? "The key file did not open the database" : "The password did not open the database");
+	SetExit(DestroyedNow(fname) ? FC_EXIT_DESTROYED : (aes_error ? FC_EXIT_AUTH : FC_EXIT_IO));
 	ERROR_LEVEL++;
 	ptr = ptr->next;
 	continue;
@@ -612,6 +735,13 @@ int main(int argc, char **argv)
 	continue;
       }
       num_operations += n;
+      n = ExtraOps(fname, file_key, is_v2);
+      if(n < 0) {
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+      num_operations += n;
     }
 
     if(display_db_config) {
@@ -688,7 +818,7 @@ int main(int argc, char **argv)
     }
 #endif // __ENABLE_SMART_CARD__
 
-    if(db_list) {
+    if(db_list && !json_output) {
       num_operations++;
       int admin_rights;
       POD *pod = OpenEPDB_POD(fname, err_string);
@@ -707,7 +837,7 @@ int main(int argc, char **argv)
       delete pod;
     }
 
-    if(db_find_key) {
+    if(db_find_key && !json_output) {
       num_operations++;
       int admin_rights;
       POD *pod = OpenEPDB_POD(fname, err_string);
@@ -732,13 +862,14 @@ int main(int argc, char **argv)
     }
     
     if(num_operations == 0) {
-      cerr << "INFO: File " << ptr->data.c_str() << " opened, no operations performed" << "\n" << flush;
+      NOTE << "INFO: File " << ptr->data.c_str() << " opened, no operations performed" << "\n" << flush;
     }
     ptr = ptr->next;
   }
 
   // 10/25/2026: Exit with 0 or 1. The error count wrapped to 0 at 256.
-  return ExitProgram(ERROR_LEVEL ? 1 : 0);
+  // 10/27/2026: The FC_EXIT_* code of the first failure
+  return ExitProgram(exit_code ? exit_code : (ERROR_LEVEL ? 1 : 0));
 }
 
 int ExitProgram(int rv, char *exit_message)
@@ -895,6 +1026,35 @@ void HelpMessage()
   cout << "                 Only guesses made through this program and the GUI are counted. Anyone with a copy of" << "\n" << flush;
   cout << "                 the file can guess offline or reset the counter. A destroyed database cannot be recovered" << "\n" << flush;
   cout << "                 except from your own backups. With self-destruct on, a read-only file is not opened." << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB records and GUI features from the command line:\n" << flush;
+  cout << "          --show-record=name (Show one record, all fields)" << "\n" << flush;
+  cout << "          --get-field=record:field (Write only the value of one field, for scripts, never logged)" << "\n" << flush;
+  cout << "          --db-info (Format, records, users, key generation, logging and self-destruct settings)" << "\n" << flush;
+  cout << "          --export[=csv|json] (Write every record, CSV as the GUI writes it, to stdout or --output-file)" << "\n" << flush;
+  cout << "          --import (Add the JSON or CSV records read from stdin, --record-fd or --record-file, all or nothing)" << "\n" << flush;
+  cout << "          --merge-from=other.ehd (Add the records of another database, all or nothing)" << "\n" << flush;
+  cout << "          --merge-password-file=file, --merge-password-fd=n, --merge-key=file (Credential of the other database)" << "\n" << flush;
+  cout << "          --merge-policy=fail|skip|replace (A record in both: stop, keep this one or take the other, default fail)" << "\n" << flush;
+  cout << "          --input-format=text|json|csv (Record input format, JSON is detected by a leading { or [)" << "\n" << flush;
+  cout << "          --change-password (New database password from --new-password-fd or --new-password-file, a rekey)" << "\n" << flush;
+  cout << "          --generate-password[=length] (Print a random password, 8 to 256 characters, default 20)" << "\n" << flush;
+  cout << "          --password-symbols (Use punctuation in generated passwords)" << "\n" << flush;
+  cout << "          --output-file=file (Write the requested output to a new file only you can read)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "Automation:\n" << flush;
+  cout << "          --non-interactive, --batch (Never prompt, a missing password, PIN or input is an error)" << "\n" << flush;
+  cout << "          --yes (Confirm a delete without asking)" << "\n" << flush;
+  cout << "          --quiet (Only errors and the requested output)" << "\n" << flush;
+  cout << "          --json (JSON output for --db-list, --db-find-key, --show-record, --db-info, --list-users," << "\n" << flush;
+  cout << "                 --check-version, --show-access-log, --export, --import and --merge-from)" << "\n" << flush;
+  cout << "          --dry-run (Do and check --remove-user, --rekey, --delete-record, --add-record, --update-record," << "\n" << flush;
+  cout << "                 --import and --merge-from on a copy, then remove it, the database is not changed)" << "\n" << flush;
+  cout << "          --lock-timeout=seconds (Wait this long for another writer, default " << FC_DEF_LOCK_TIMEOUT << ")" << "\n" << flush;
+  cout << "          Errors go to stderr, the requested output to stdout." << "\n" << flush;
+  cout << "          Exit codes: 0 ok, 1 usage or other error, 2 the credential did not open the database," << "\n" << flush;
+  cout << "          3 file, record or user not found, 4 locked by another writer, 5 --check-version found v1," << "\n" << flush;
+  cout << "          6 destroyed by self-destruct, 7 read or write error (also a read-only file with self-destruct on)" << "\n" << flush;
   cout << "\n" << flush;
   cout << "DB format check (no authentication, never uses a smart card):\n" << flush;
   cout << "          --check-version (Report v1 or v2 for each database, exit 1 if any is v1)" << "\n" << flush;
@@ -1483,6 +1643,141 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
+  // 10/27/2026: Automation and GUI features from the command line
+  if(arg == "non-interactive" || arg == "batch") {
+    non_interactive = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "quiet") {
+    quiet_mode = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "json") {
+    json_output = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "dry-run") {
+    dry_run = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "lock-timeout") {
+    if(equal_arg.is_null() || equal_arg.Atoi() < 0 || equal_arg.Atoi() > 3600) {
+      cerr << "ERROR: --lock-timeout must be 0 to 3600 seconds" << "\n" << flush;
+      return 0;
+    }
+    lock_timeout = (unsigned)equal_arg.Atoi();
+    has_valid_args = 1;
+  }
+  if(arg == "get-field") {
+    if(equal_arg.Find(":") == -1) {
+      cerr << "ERROR: --get-field needs record:field, for example --get-field=\"My Bank:password\"" << "\n" << flush;
+      return 0;
+    }
+    get_field = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "output-file") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --output-file requires a file name" << "\n" << flush;
+      return 0;
+    }
+    output_file = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "show-record") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --show-record requires the record name" << "\n" << flush;
+      return 0;
+    }
+    show_record_name = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "db-info") {
+    db_info = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "export") {
+    gxString f = equal_arg;
+    f.ToLower();
+    if(!f.is_null() && f != "csv" && f != "json") {
+      cerr << "ERROR: --export must be csv or json" << "\n" << flush;
+      return 0;
+    }
+    export_db = 1;
+    export_json = (f == "json");
+    has_valid_args = 1;
+  }
+  if(arg == "import") {
+    import_db = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "input-format") {
+    gxString f = equal_arg;
+    f.ToLower();
+    if(f != "text" && f != "json" && f != "csv") {
+      cerr << "ERROR: --input-format must be text, json or csv" << "\n" << flush;
+      return 0;
+    }
+    input_format = f;
+    has_valid_args = 1;
+  }
+  if(arg == "merge-from") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --merge-from requires the database to merge from" << "\n" << flush;
+      return 0;
+    }
+    merge_from = equal_arg;
+    has_valid_args = 1;
+  }
+  if((arg == "merge-password-file") || (arg == "merge-password-fd")) {
+    if(equal_arg.is_null() || ReadSecretArg(arg, equal_arg, merge_secret) != 0) return 0;
+    has_valid_args = 1;
+  }
+  if(arg == "merge-key") {
+    MemoryBuffer mk;
+    if(equal_arg.is_null() || !check_if_file_exists(equal_arg) || CheckPrivateKeyFile(equal_arg.c_str(), ebuf) != 0 ||
+       read_key_file(equal_arg.c_str(), mk, ebuf) != 0) {
+      cerr << "ERROR: --merge-key: " << ebuf.c_str() << "\n" << flush;
+      return 0;
+    }
+    merge_secret.SetString((const char *)mk.m_buf(), mk.length());
+    mk.Clear(1);
+    has_valid_args = 1;
+  }
+  if(arg == "merge-policy") {
+    gxString f = equal_arg;
+    f.ToLower();
+    if(f == "skip") merge_policy = EPDB_MERGE_SKIP;
+    else if(f == "replace") merge_policy = EPDB_MERGE_REPLACE;
+    else if(f == "fail") merge_policy = EPDB_MERGE_FAIL;
+    else {
+      cerr << "ERROR: --merge-policy must be skip, replace or fail" << "\n" << flush;
+      return 0;
+    }
+    merge_policy_set = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "change-password") {
+    change_password = 1;
+    has_valid_args = 1;
+  }
+  if((arg == "new-password-file") || (arg == "new-password-fd")) {
+    if(equal_arg.is_null() || ReadSecretArg(arg, equal_arg, new_password) != 0) return 0;
+    has_valid_args = 1;
+  }
+  if(arg == "generate-password") {
+    generate_password = equal_arg.is_null() ? 20 : (unsigned)equal_arg.Atoi();
+    if(generate_password < 8 || generate_password > 256) {
+      cerr << "ERROR: --generate-password length must be 8 to 256" << "\n" << flush;
+      return 0;
+    }
+    has_valid_args = 1;
+  }
+  if(arg == "password-symbols") {
+    password_symbols = 1;
+    has_valid_args = 1;
+  }
+
   if(!has_valid_args) {
     cerr << "Unknown or invalid --" << arg.c_str() << "\n" << flush;
     cerr << "Exiting..." << "\n" << flush;
@@ -1713,40 +2008,63 @@ void LogEvent(const gxString &fname, const char *action, const gxString &slot, c
 
 int CheckVersions()
 // Reports v1 or v2 for each file without a credential or smart card.
-// Returns 1 if any file is v1, 2 if any cannot be read, else 0.
+// Returns FC_EXIT_V1 if any file is v1, FC_EXIT_DESTROYED if any was
+// destroyed, FC_EXIT_IO if any cannot be read, else 0.
 {
-  int any_v1 = 0, any_error = 0;
+  int any_v1 = 0, any_error = 0, any_destroyed = 0, n = 0;
+  if(json_output) cout << "[";
   gxListNode<gxString> *ptr = file_list.GetHead();
   while(ptr) {
     FCVersionInfo vi;
-    gxString err;
+    gxString err, state, detail;
     if(FC_check_version(ptr->data.c_str(), vi, err) != 0) {
-      cout << ptr->data.c_str() << ": unknown: " << err.c_str() << "\n" << flush;
+      state = "unknown";
+      detail = err;
       any_error = 1;
     }
     else if(vi.is_v1) {
-      cout << ptr->data.c_str() << ": v1: " << vi.version.c_str() << ", upgrade with: " << vi.upgrade.c_str() << "\n" << flush;
+      state = "v1";
+      detail << vi.version << ", upgrade with: " << vi.upgrade;
       any_v1 = 1;
     }
     else {
       FCControlBlock c;
       if(vi.kind == FC_KIND_EPDB && EPDBReadControl(ptr->data.c_str(), c) && c.destroyed) {
-	cout << ptr->data.c_str() << ": destroyed: the records were destroyed after too many failed opens" << "\n" << flush;
-	any_error = 1;
+	state = "destroyed";
+	detail = "the records were destroyed after too many failed opens";
+	any_destroyed = 1;
       }
       else {
-	cout << ptr->data.c_str() << ": v2: " << vi.version.c_str() << "\n" << flush;
+	state = "v2";
+	detail = vi.version;
       }
+    }
+    if(json_output) {
+      if(n++) cout << ", ";
+      cout << "{\"file\": " << FC_json_string(ptr->data).c_str() << ", \"state\": \"" << state.c_str()
+	   << "\", \"detail\": " << FC_json_string(detail).c_str();
+      if(vi.is_v1) cout << ", \"upgrade\": " << FC_json_string(vi.upgrade).c_str();
+      cout << "}";
+    }
+    else {
+      cout << ptr->data.c_str() << ": " << state.c_str() << ": " << detail.c_str() << "\n";
     }
     ptr = ptr->next;
   }
-  return any_v1 ? 1 : (any_error ? 2 : 0);
+  if(json_output) cout << "]" << "\n";
+  cout << flush;
+  if(any_v1) return FC_EXIT_V1;
+  if(any_destroyed) return FC_EXIT_DESTROYED;
+  return any_error ? FC_EXIT_IO : 0;
 }
 
 int ReadOperationInput()
-// Reads the record fields or rekey input once, before any prompt
+// Reads the record fields, records to import or rekey input once,
+// before any prompt. Record input is name=value lines, JSON (detected
+// by a leading { or [, or --input-format=json) or CSV for --import.
 {
-  if(record_op != EPDB_RECORD_ADD && record_op != EPDB_RECORD_UPDATE && !rekey) return 1;
+  int wants_records = (record_op == EPDB_RECORD_ADD || record_op == EPDB_RECORD_UPDATE || import_db);
+  if(!wants_records && !rekey) return 1;
   gxString &fd = rekey ? rekey_input_fd : record_input_fd;
   gxString &file = rekey ? rekey_input_file : record_input_file;
   MemoryBuffer data;
@@ -1756,6 +2074,10 @@ int ReadOperationInput()
   else if(!fd.is_null()) rv = FC_read_input_fd(fd.c_str(), data, err);
   else {
     if(FC_stdin_is_terminal()) {
+      if(non_interactive) {
+	cerr << "ERROR: --non-interactive needs the input on stdin, --record-fd/--rekey-fd or --record-file/--rekey-file" << "\n" << flush;
+	return 0;
+      }
       cerr << "Enter " << (rekey ? "the rekey input" : "the record fields") << ", one name=value per line, end with "
 #if defined (__UNIX__)
 	   << "Ctrl-D"
@@ -1766,17 +2088,60 @@ int ReadOperationInput()
     }
     rv = FC_read_input_fd("0", data, err);
   }
-  if(rv == 0) rv = FC_parse_name_values(data, record_fields, err);
-  data.Clear(1);
   if(rv == 0 && rekey) {
-    rv = FC_parse_rekey_input(record_fields, rekey_in, err);
+    rv = FC_parse_name_values(data, record_fields, err);
+    if(rv == 0) rv = FC_parse_rekey_input(record_fields, rekey_in, err);
     FC_wipe_name_values(record_fields);
   }
+  else if(rv == 0) {
+    int is_json = (input_format == "json") || (input_format.is_null() && FC_input_is_json(data));
+    if(is_json) {
+      rv = EPDBParseJSONRecords(data, input_records, err);
+      if(rv == 0 && !import_db) {
+	unsigned n = 0;
+	for(gxListNode<EPDBRecord> *p = input_records.GetHead(); p; p = p->next) n++;
+	if(n != 1) {
+	  err << clear << "--add-record and --update-record take one JSON object, use --import for an array of records";
+	  rv = 1;
+	}
+      }
+    }
+    else if(import_db && input_format != "text") {
+      rv = EPDBParseCSV(data, input_records, err);
+    }
+    else if(import_db) {
+      err << clear << "--import reads JSON or CSV records";
+      rv = 1;
+    }
+    else {
+      rv = FC_parse_name_values(data, record_fields, err);
+    }
+  }
+  data.Clear(1);
   if(rv != 0) {
-    cerr << "ERROR: " << (rekey ? "Rekey" : "Record") << " input: " << err.c_str() << "\n" << flush;
+    cerr << "ERROR: " << (rekey ? "Rekey" : "Record") << " input: " << err.c_str() << ", nothing was changed" << "\n" << flush;
+    SetExit(FC_EXIT_USAGE);
     return 0;
   }
   return 1;
+}
+
+int WillWrite(const gxString &fname)
+// Returns 1 if this run may change the file, so it takes the lock
+{
+  if(record_op || remove_user || rekey || upgrade_db || reseal_db || add_rsa_key || import_db ||
+     !merge_from.is_null() || access_log_in_file >= 0 || self_destruct >= 0 || self_destruct_attempts) return 1;
+#ifdef __ENABLE_SMART_CARD__
+  if(add_smart_card) return 1;
+#endif
+  FCControlBlock c; // The failed open counter is written
+  return EPDBReadControl(fname.c_str(), c) && c.SelfDestruct();
+}
+
+int DestroyedNow(const gxString &fname)
+{
+  FCControlBlock c;
+  return EPDBReadControl(fname.c_str(), c) && c.destroyed;
 }
 
 int SelfDestructPrecheck(const gxString &fname)
@@ -1789,6 +2154,7 @@ int SelfDestructPrecheck(const gxString &fname)
   if(c.destroyed) {
     cerr << "ERROR: " << fname.c_str() << " was destroyed after too many failed opens. "
 	 << "It cannot be recovered except from your own backups." << "\n" << flush;
+    SetExit(FC_EXIT_DESTROYED);
     return 0;
   }
   if(!c.SelfDestruct()) return 1;
@@ -1796,6 +2162,7 @@ int SelfDestructPrecheck(const gxString &fname)
   if(!FC_file_writable(fname.c_str()) || !FC_file_writable(ifile.c_str())) {
     cerr << "ERROR: " << fname.c_str() << " has self-destruct on and cannot be written (read-only file or media). "
 	 << "No credential was tried, so the failed open counter cannot be bypassed. Copy the database to writable storage." << "\n" << flush;
+    SetExit(FC_EXIT_IO);
     return 0;
   }
   if(c.failed > 0) {
@@ -1865,7 +2232,7 @@ void ResetFailedOpens(const gxString &fname, const MemoryBuffer &file_key)
 static int ConfirmAtTerminal(const char *question)
 {
   if(assume_yes) return 1;
-  if(!ConsoleIsInteractive()) {
+  if(!ConsoleIsInteractive() || non_interactive) {
     cerr << "ERROR: Not at a terminal, use --yes to " << question << "\n" << flush;
     return 0;
   }
@@ -2082,6 +2449,11 @@ static int RemoveUser(const gxString &fname, MemoryBuffer &file_key)
       else has_sc = 1;
     }
   }
+  if(!has_rsa && !has_sc) {
+    cerr << "ERROR: User " << remove_username.c_str() << " has no RSA key or smart card access to " << fname.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_NOT_FOUND);
+    return -1;
+  }
   gxUINT32 type = remove_user_type;
   if(!type) {
     if(has_rsa && has_sc) {
@@ -2099,16 +2471,23 @@ static int RemoveUser(const gxString &fname, MemoryBuffer &file_key)
 	 << ". The database may have no password anyone knows, so removing it could leave a database nothing can open. "
 	 << "Open it with the database password or key file to remove this user." << "\n" << flush;
     LogEvent(fname, "remove-user", remove_username, gxString(), 0, "refused, last user", &file_key);
+    SetExit(FC_EXIT_USAGE);
     return -1;
   }
   int keep_backup = !SelfDestructOn(fname);
   gxString backup, err;
-  if(EPDBRemoveUser(fname.c_str(), file_key, type, remove_username, keep_backup, backup, err) != 0) {
+  if(EPDBRemoveUser(fname.c_str(), file_key, type, remove_username, keep_backup, backup, err, dry_run) != 0) {
     cerr << "ERROR: The database was not changed: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_NOT_FOUND);
     LogEvent(fname, "remove-user", remove_username, gxString(), 0, "not changed", &file_key);
     return -1;
   }
-  cerr << "Removed " << (type == 1 ? "RSA key" : "smart card") << " access for user " << remove_username.c_str()
+  if(dry_run) {
+    NOTE << "Dry run: removing " << (type == 1 ? "RSA key" : "smart card") << " access for user " << remove_username.c_str()
+	 << " would work, " << fname.c_str() << " was not changed" << "\n" << flush;
+    return 0;
+  }
+  NOTE << "Removed " << (type == 1 ? "RSA key" : "smart card") << " access for user " << remove_username.c_str()
        << " from " << fname.c_str() << "\n" << flush;
   if(keep_backup) {
     cerr << "The original database was saved to " << backup.c_str() << " and " << ReplaceFileExtension(backup, ".ehx").c_str()
@@ -2135,6 +2514,7 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
   if(rv == 1) {
     cerr << "ERROR: The rekey of " << fname.c_str() << " needs a choice for every user and the database password, "
 	 << "nothing was changed. Missing from the rekey input:" << "\n" << missing.c_str() << flush;
+    SetExit(FC_EXIT_USAGE);
     return -1;
   }
   if(rv != 0) {
@@ -2203,8 +2583,12 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
 #else
   SmartCardOB *scp = 0;
 #endif
+  if(dry_run && pw_action == FC_REKEY_PW_GENERATE) {
+    // Nothing is kept, remove the generated password again
+    if(!rekey_new_password_file.is_null()) futils_remove(rekey_new_password_file.c_str());
+  }
   rv = EPDBRekey(fname.c_str(), file_key, pw_action == FC_REKEY_PW_NONE ? 0 : &new_secret, users, scp,
-		 keep_backup, new_keyset, backup, err);
+		 keep_backup, new_keyset, backup, err, dry_run);
   new_secret.Clear(1);
   if(rv != 0) {
     cerr << "ERROR: Rekey of " << fname.c_str() << " failed, the database was not changed: " << err.c_str() << "\n" << flush;
@@ -2214,19 +2598,27 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
     }
     LogEvent(fname, "rekey", AuthSlotName(), gxString(), 0, "not changed", &file_key);
     OPENSSL_cleanse(old_lk, sizeof(old_lk));
+    SetExit(FC_EXIT_USAGE);
     return -1;
   }
-  cerr << "Rekeyed " << fname.c_str() << ": new master key, every field encrypted again" << "\n" << flush;
-  for(gxListNode<FCRekeySlot> *p = keep.GetHead(); p; p = p->next) {
-    cerr << "  kept " << (p->data.type == FC_SLOT_RSA ? "RSA key" : "smart card") << " user " << p->data.username.c_str() << "\n" << flush;
+  if(dry_run) {
+    NOTE << "Dry run: the rekey of " << fname.c_str() << " would work (the new database was written and checked, then removed), "
+	 << "the database was not changed" << "\n" << flush;
+    new_keyset.Clear(1);
+    OPENSSL_cleanse(old_lk, sizeof(old_lk));
+    return 0;
   }
-  if(pw_action == FC_REKEY_PW_KEEP) cerr << "  the database password is the same (the master key is new: it is derived from the password with a new salt)" << "\n" << flush;
-  if(pw_action == FC_REKEY_PW_NEW) cerr << "  the database has the new password" << "\n" << flush;
+  NOTE << "Rekeyed " << fname.c_str() << ": new master key, every field encrypted again" << "\n" << flush;
+  for(gxListNode<FCRekeySlot> *p = keep.GetHead(); p; p = p->next) {
+    NOTE << "  kept " << (p->data.type == FC_SLOT_RSA ? "RSA key" : "smart card") << " user " << p->data.username.c_str() << "\n" << flush;
+  }
+  if(pw_action == FC_REKEY_PW_KEEP) NOTE << "  the database password is the same (the master key is new: it is derived from the password with a new salt)" << "\n" << flush;
+  if(pw_action == FC_REKEY_PW_NEW) NOTE << "  the database has the new password" << "\n" << flush;
   if(pw_action == FC_REKEY_PW_GENERATE) {
     cerr << "  the database has a generated password, written to "
 	 << (rekey_new_password_file.is_null() ? "the file descriptor" : rekey_new_password_file.c_str()) << "\n" << flush;
   }
-  if(pw_action == FC_REKEY_PW_NONE) cerr << "  the database has no password anyone knows, only the RSA key and smart card users above can open it" << "\n" << flush;
+  if(pw_action == FC_REKEY_PW_NONE) NOTE << "  the database has no password anyone knows, only the RSA key and smart card users above can open it" << "\n" << flush;
   if(keep_backup) {
     cerr << "The original database was saved to " << backup.c_str() << " and " << ReplaceFileExtension(backup, ".ehx").c_str()
 	 << ", delete them when you no longer need them, they open with the old credentials" << "\n" << flush;
@@ -2256,35 +2648,428 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
   return 0;
 }
 
+static int ReadConfig(const gxString &fname, MemoryBuffer &file_key, gxDatabaseConfig &cfg)
+{
+  gxString err;
+  gxDatabase *f = OpenEPDB(fname.c_str(), err);
+  if(!f) return 0;
+  MemoryBuffer saved = DBStringConfig::crypt_key;
+  DBStringConfig::crypt_key = file_key;
+  int ok = cfg.ReadConfig(f);
+  DBStringConfig::crypt_key = saved;
+  f->Close();
+  delete f;
+  return ok;
+}
+
 static int RecordChange(const gxString &fname, MemoryBuffer &file_key)
+// Through the core's atomic record batch: a copy is changed, checked
+// and renamed over the database
 {
   const char *action = (record_op == EPDB_RECORD_ADD) ? "add-record" :
     ((record_op == EPDB_RECORD_UPDATE) ? "update-record" : "delete-record");
-  if(record_op == EPDB_RECORD_DELETE) {
+  if(record_op == EPDB_RECORD_DELETE && !dry_run) {
     gxString q;
     q << "Delete record " << record_name << " from " << fname;
     if(!ConfirmAtTerminal(q.c_str())) {
       cerr << "The record was not deleted" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
       return -1;
     }
   }
-  gxString new_name, err;
-  if(EPDBRecordChange(fname.c_str(), file_key, record_op, record_name, record_fields, new_name, err) != 0) {
+  gxString err;
+  EPDBRecordOp op;
+  op.op = (record_op == EPDB_RECORD_ADD) ? EPDB_OP_ADD : ((record_op == EPDB_RECORD_UPDATE) ? EPDB_OP_UPDATE : EPDB_OP_DELETE);
+  op.name = record_name;
+  if(input_records.GetHead()) op.rec = input_records.GetHead()->data;
+  else if(record_fields.GetHead()) {
+    gxDatabaseConfig cfg;
+    int have_cfg = ReadConfig(fname, file_key, cfg);
+    if(EPDBNameValuesToRecord(record_fields, have_cfg ? &cfg : 0, op.rec, err) != 0) {
+      cerr << "ERROR: " << err.c_str() << ", nothing was changed" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
+      return -1;
+    }
+  }
+  if(op.op == EPDB_OP_UPDATE) {
+    int any = 0;
+    for(int i = 0; i < NumDataMembers; i++) any |= op.rec.given[i];
+    if(!any) {
+      cerr << "ERROR: No fields to update were given on the input" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
+      return -1;
+    }
+  }
+  gxString new_name = op.rec.given[0] ? op.rec.value[0] : record_name;
+  gxList<EPDBRecordOp> ops;
+  ops.Add(op);
+  op.rec.Wipe();
+  unsigned done = 0;
+  int rv = EPDBRecordBatch(fname.c_str(), file_key, ops, dry_run, done, err);
+  ops.GetHead()->data.rec.Wipe();
+  if(rv != EPDB_REC_OK) {
     cerr << "ERROR: " << err.c_str() << "\n" << flush;
-    LogEvent(fname, action, AuthSlotName(), record_name, 0, "not changed", &file_key);
+    SetExit(rv == EPDB_REC_NOT_FOUND ? FC_EXIT_NOT_FOUND : FC_EXIT_USAGE);
+    if(!dry_run) LogEvent(fname, action, AuthSlotName(), record_name, 0, "not changed", &file_key);
     return -1;
   }
-  if(record_op == EPDB_RECORD_ADD) cerr << "Added record " << record_name.c_str() << " to " << fname.c_str() << "\n" << flush;
-  if(record_op == EPDB_RECORD_DELETE) cerr << "Deleted record " << record_name.c_str() << " from " << fname.c_str() << "\n" << flush;
+  if(dry_run) {
+    NOTE << "Dry run: the " << action << " of " << record_name.c_str() << " would work, " << fname.c_str() << " was not changed" << "\n" << flush;
+    return 0;
+  }
+  if(record_op == EPDB_RECORD_ADD) NOTE << "Added record " << record_name.c_str() << " to " << fname.c_str() << "\n" << flush;
+  if(record_op == EPDB_RECORD_DELETE) NOTE << "Deleted record " << record_name.c_str() << " from " << fname.c_str() << "\n" << flush;
   if(record_op == EPDB_RECORD_UPDATE) {
-    cerr << "Updated record " << record_name.c_str();
-    if(new_name != record_name) cerr << " (now " << new_name.c_str() << ")";
-    cerr << " in " << fname.c_str() << "\n" << flush;
+    NOTE << "Updated record " << record_name.c_str();
+    if(new_name != record_name) NOTE << " (now " << new_name.c_str() << ")";
+    NOTE << " in " << fname.c_str() << "\n" << flush;
   }
   gxString detail;
   if(new_name != record_name) detail << "renamed to " << new_name;
   LogEvent(fname, action, AuthSlotName(), record_name, 1, detail.is_null() ? 0 : detail.c_str(), &file_key);
   return 0;
+}
+
+static int WriteOutput(const gxString &data, int is_secret)
+// Requested output to --output-file (a new file only you can read) or
+// stdout. Clear text records at a terminal get a warning on stderr.
+{
+  if(!output_file.is_null()) {
+    gxString err;
+    if(WritePrivateFile(output_file.c_str(), data.c_str(), data.length(), err) != 0) {
+      cerr << "ERROR: " << err.c_str() << "\n" << flush;
+      SetExit(FC_EXIT_IO);
+      return -1;
+    }
+    return 0;
+  }
+#if defined (__UNIX__)
+  int tty = isatty(1);
+#else
+  int tty = _isatty(_fileno(stdout));
+#endif
+  if(is_secret && tty) {
+    NOTE << "WARNING: Writing clear text passwords to the terminal. Use --output-file=file to write a file only you can read." << "\n" << flush;
+  }
+  fwrite(data.c_str(), 1, data.length(), stdout);
+  fflush(stdout);
+  return 0;
+}
+
+static int OpenRead(const gxString &fname, POD **pod)
+{
+  gxString err, name = fname;
+  *pod = OpenEPDB_POD(name, err);
+  if(!*pod) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return 0;
+  }
+  return 1;
+}
+
+static int ShowRecord(const gxString &fname, MemoryBuffer &file_key)
+{
+  POD *pod;
+  if(!OpenRead(fname, &pod)) return -1;
+  EPDBRecord rec;
+  gxString err;
+  int rv = EPDBReadRecord(pod, file_key, show_record_name, rec, err);
+  gxDatabaseConfig cfg;
+  int have_cfg = ReadConfig(fname, file_key, cfg);
+  delete pod;
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(rv == EPDB_REC_NOT_FOUND ? FC_EXIT_NOT_FOUND : FC_EXIT_IO);
+    return -1;
+  }
+  gxString out;
+  if(json_output) out << EPDBRecordJSON(rec) << "\n";
+  else {
+    for(int i = 0; i < NumDataMembers; i++) {
+      char sbuf[DBStringLength];
+      memset(sbuf, 0, sizeof(sbuf));
+      MemoryBuffer saved = DBStringConfig::crypt_key;
+      DBStringConfig::crypt_key = file_key;
+      char *col = have_cfg ? cfg.GetColName(i, sbuf) : 0;
+      DBStringConfig::crypt_key = saved;
+      out << ((col && *col) ? col : epdb_field_names[i]) << ": ";
+      gxString v = rec.value[i];
+      v.ReplaceString("\n", "\n    ");
+      out << v << "\n";
+      SecureWipe(v);
+    }
+  }
+  rv = WriteOutput(out, 1);
+  SecureWipe(out);
+  PerUserLog(fname, "show-record", AuthSlotName(), show_record_name, rv == 0, 0, &file_key, 0);
+  return rv;
+}
+
+static int GetField(const gxString &fname, MemoryBuffer &file_key)
+// Writes only the value, for scripts. The value is never logged.
+{
+  int colon = FC_find_last(get_field.c_str(), ":");
+  gxString name, field;
+  name.SetString(get_field.c_str(), (unsigned)colon);
+  field = get_field.c_str() + colon + 1;
+  gxDatabaseConfig cfg;
+  int have_cfg = ReadConfig(fname, file_key, cfg);
+  int i = EPDBFieldIndex(field, have_cfg ? &cfg : 0);
+  if(i < 0) {
+    cerr << "ERROR: Unknown field " << field.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_USAGE);
+    return -1;
+  }
+  POD *pod;
+  if(!OpenRead(fname, &pod)) return -1;
+  EPDBRecord rec;
+  gxString err;
+  int rv = EPDBReadRecord(pod, file_key, name, rec, err);
+  delete pod;
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(rv == EPDB_REC_NOT_FOUND ? FC_EXIT_NOT_FOUND : FC_EXIT_IO);
+    return -1;
+  }
+  rv = WriteOutput(rec.value[i], 0);
+  gxString detail;
+  detail << "field=" << epdb_field_names[i];
+  PerUserLog(fname, "get-field", AuthSlotName(), name, rv == 0, detail.c_str(), &file_key, 0);
+  return rv;
+}
+
+static int ListRecordsJSON(const gxString &fname, MemoryBuffer &file_key, const gxString *find, int find_all)
+{
+  POD *pod;
+  if(!OpenRead(fname, &pod)) return -1;
+  gxList<EPDBRecord> recs;
+  gxString err;
+  int rv = EPDBReadAllRecords(pod, file_key, recs, err);
+  delete pod;
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  gxString out;
+  out << "[";
+  int n = 0;
+  for(gxListNode<EPDBRecord> *p = recs.GetHead(); p; p = p->next) {
+    if(find) {
+      int match = find_all ? (IFindMatch(p->data.value[0].c_str(), find->c_str(), 0) != -1)
+	: (CaseICmp(p->data.value[0], *find) == 0);
+      if(!match) continue;
+    }
+    if(n++) out << ",\n ";
+    out << EPDBRecordJSON(p->data);
+  }
+  out << "]\n";
+  EPDBWipeRecords(recs);
+  rv = WriteOutput(out, 1);
+  SecureWipe(out);
+  if(find && n == 0) {
+    cerr << "No objects found matching " << find->c_str() << " key name" << "\n" << flush;
+    SetExit(FC_EXIT_NOT_FOUND);
+    return -1;
+  }
+  return rv;
+}
+
+static int ExportDatabase(const gxString &fname, MemoryBuffer &file_key)
+{
+  POD *pod;
+  if(!OpenRead(fname, &pod)) return -1;
+  gxList<EPDBRecord> recs;
+  gxString err;
+  int rv = EPDBReadAllRecords(pod, file_key, recs, err);
+  delete pod;
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  gxString out;
+  unsigned n = 0;
+  if(export_json) {
+    out << "[";
+    for(gxListNode<EPDBRecord> *p = recs.GetHead(); p; p = p->next) {
+      if(n++) out << ",\n ";
+      out << EPDBRecordJSON(p->data);
+    }
+    out << "]\n";
+  }
+  else {
+    gxDatabaseConfig cfg;
+    if(ReadConfig(fname, file_key, cfg)) out << EPDBCSVHeader(cfg, file_key);
+    for(gxListNode<EPDBRecord> *p = recs.GetHead(); p; p = p->next) {
+      out << EPDBCSVRow(p->data);
+      n++;
+    }
+  }
+  EPDBWipeRecords(recs);
+  rv = WriteOutput(out, 1);
+  SecureWipe(out);
+  if(rv == 0) NOTE << "Exported " << n << " records from " << fname.c_str() << "\n" << flush;
+  PerUserLog(fname, "export", AuthSlotName(), gxString(), rv == 0, export_json ? "json" : "csv", &file_key, 0);
+  return rv;
+}
+
+static int ImportOrMerge(const gxString &fname, MemoryBuffer &file_key, gxList<EPDBRecord> &recs, const char *action)
+{
+  unsigned added = 0, replaced = 0, skipped = 0;
+  gxString err;
+  int policy = merge_policy;
+  int rv = EPDBMergeDatabases(fname.c_str(), file_key, recs, policy, dry_run, added, replaced, skipped, err);
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << ". Nothing was changed." << "\n" << flush;
+    SetExit(FC_EXIT_USAGE);
+    if(!dry_run) LogEvent(fname, action, AuthSlotName(), gxString(), 0, "not changed", &file_key);
+    return -1;
+  }
+  gxString detail;
+  detail << added << " added, " << replaced << " replaced, " << skipped << " skipped";
+  if(json_output) {
+    cout << "{\"file\": " << FC_json_string(fname).c_str() << ", \"action\": \"" << action << "\", \"dry_run\": "
+	 << (dry_run ? "true" : "false") << ", \"added\": " << added << ", \"replaced\": " << replaced
+	 << ", \"skipped\": " << skipped << "}" << "\n" << flush;
+  }
+  NOTE << (dry_run ? "Dry run, nothing was changed: " : "") << action << " " << fname.c_str() << ": " << detail.c_str() << "\n" << flush;
+  if(!dry_run) LogEvent(fname, action, AuthSlotName(), gxString(), 1, detail.c_str(), &file_key);
+  return 0;
+}
+
+static int MergeDatabase(const gxString &fname, MemoryBuffer &file_key)
+{
+  gxString src = merge_from;
+  if(!check_if_file_exists(src)) {
+    SetExit(FC_EXIT_NOT_FOUND);
+    return -1;
+  }
+  // The source opens with --merge-password-fd/-file or --merge-key, else
+  // with the password or key file used for the destination
+  MemoryBuffer secret;
+  if(!merge_secret.is_null()) secret.Cat(merge_secret.GetSPtr(), merge_secret.length());
+  else if(use_password || use_key_file) secret = aes_file_decrypt_secret;
+  else {
+    cerr << "ERROR: Give the password of " << src.c_str() << " with --merge-password-fd, --merge-password-file or --merge-key" << "\n" << flush;
+    SetExit(FC_EXIT_USAGE);
+    return -1;
+  }
+  gxString err;
+  gxDatabase *f = OpenEPDB(src.c_str(), err);
+  MemoryBuffer src_key;
+  int aes_error = 0;
+  int ok = f && EPDBUnlock(f, secret, src_key, err, aes_error) == 0;
+  if(f) { f->Close(); delete f; }
+  secret.Clear(1);
+  if(!ok) {
+    cerr << "ERROR: Cannot open " << src.c_str() << ": " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_AUTH);
+    return -1;
+  }
+  POD *pod;
+  if(!OpenRead(src, &pod)) return -1;
+  if(EPDBIsKeyset(src_key) && EPDBVerify(pod, src_key, err) != 0) {
+    delete pod;
+    cerr << "ERROR: " << src.c_str() << ": " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  gxList<EPDBRecord> recs;
+  int rv = EPDBReadAllRecords(pod, src_key, recs, err);
+  delete pod;
+  src_key.Clear(1);
+  DBStringConfig::crypt_key = file_key;
+  if(rv != EPDB_REC_OK) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  rv = ImportOrMerge(fname, file_key, recs, "merge");
+  EPDBWipeRecords(recs);
+  return rv;
+}
+
+static int DatabaseInfo(const gxString &fname, MemoryBuffer &file_key)
+{
+  POD *pod;
+  if(!OpenRead(fname, &pod)) return -1;
+  EPDBInfo info;
+  gxString err;
+  int rv = EPDBGetInfo(fname.c_str(), pod, info, err);
+  delete pod;
+  if(rv != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  if(json_output) {
+    cout << EPDBInfoJSON(fname.c_str(), info).c_str() << "\n" << flush;
+    return 0;
+  }
+  cout << "Database: " << fname.c_str() << "\n";
+  cout << "Format: v" << info.format << "\n";
+  cout << "Records: " << info.records << "\n";
+  if(info.format == 2) {
+    cout << "Database ID: " << info.id.c_str() << "\n";
+    cout << "Key generation: " << info.key_generation;
+    if(info.rekey_time) {
+      char stamp[32];
+      time_t t = (time_t)info.rekey_time;
+      strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%SZ", gmtime(&t));
+      cout << " (last rekey " << stamp << ")";
+    }
+    cout << "\n";
+    cout << "In-file access log: " << ((info.flags & EPDB_EXT_LOG_IN_FILE) ? "on" : "off") << "\n";
+    cout << "Self-destruct: " << (info.sd_on ? "on" : "off");
+    if(info.sd_on) cout << ", " << FC_sd_message(info.sd_failed, info.sd_limit).c_str();
+    cout << "\n";
+  }
+  cout << "RSA key users: " << info.rsa_users << ", smart card users: " << info.smartcard_users << "\n";
+  for(gxListNode<gxString> *p = info.users.GetHead(); p; p = p->next) cout << "  " << p->data.c_str() << "\n";
+  cout << flush;
+  return 0;
+}
+
+int ExtraOps(const gxString &fname, MemoryBuffer &file_key, int is_v2)
+// The GUI features available from the command line. Returns the number
+// of operations, or -1 if one failed.
+{
+  int n = 0;
+  if(import_db) {
+    n++;
+    if(ImportOrMerge(fname, file_key, input_records, "import") != 0) return -1;
+  }
+  if(!merge_from.is_null()) {
+    n++;
+    if(MergeDatabase(fname, file_key) != 0) return -1;
+  }
+  if(!show_record_name.is_null()) {
+    n++;
+    if(ShowRecord(fname, file_key) != 0) return -1;
+  }
+  if(!get_field.is_null()) {
+    n++;
+    if(GetField(fname, file_key) != 0) return -1;
+  }
+  if(db_info) {
+    n++;
+    if(DatabaseInfo(fname, file_key) != 0) return -1;
+  }
+  if(export_db) {
+    n++;
+    if(ExportDatabase(fname, file_key) != 0) return -1;
+  }
+  if(json_output && db_list) {
+    n++;
+    if(ListRecordsJSON(fname, file_key, 0, 0) != 0) return -1;
+  }
+  if(json_output && db_find_key) {
+    n++;
+    if(ListRecordsJSON(fname, file_key, &db_find_key_name, db_find_all) != 0) return -1;
+  }
+  return n;
 }
 
 int KeyManagementOps(const gxString &fname, MemoryBuffer &file_key, int is_v2)

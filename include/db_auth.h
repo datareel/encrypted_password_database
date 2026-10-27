@@ -242,9 +242,12 @@ struct EPDBRekeyUser {
 // Removes the RSA (block_type 1) or smart card (2) block of a user from
 // a v2 database. The database is copied to temporary files, changed,
 // re-sealed and checked, then the originals are kept as a backup
-// (unless keep_backup is 0) and replaced. Returns 0 if successful.
+// (unless keep_backup is 0) and replaced. With dry_run everything is
+// done and checked on the copy, which is then removed. Returns 0 if
+// successful.
 int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 block_type,
-		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err);
+		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err,
+		   int dry_run = 0);
 // Rekey: a new salt, database ID and master key, every field encrypted
 // again, and a new block for each user in keep, wrapped with their
 // public key (sc is used for "card" users and never logs in). new_secret
@@ -255,7 +258,20 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
 // the new keyset in new_keyset.
 int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset, const MemoryBuffer *new_secret,
 	      gxList<EPDBRekeyUser> &keep, SmartCardOB *sc, int keep_backup,
-	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err);
+	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err, int dry_run = 0);
+// Opens the data and index files as a POD
+POD *EPDBOpenPOD(const gxString &data_file, const gxString &index_file, gxDatabaseAccessMode mode, gxString &err);
+// Copies a database to temporary files and renames checked temporary
+// files over the originals, keeping a backup when asked. Return 0 if
+// successful.
+int EPDBCopyDatabase(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+		     const gxString &tifile, gxString &err);
+int EPDBReplaceDatabase(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			const gxString &tifile, int keep_backup, const char *tag,
+			gxString &backup_data_file, gxString &err);
+// Object addresses of every record listed in the index
+int EPDBIndexAddresses(POD *pod, gxList<FAU_t> &addrs, gxString &err);
+
 // Crypto-shreds a database after too many failed opens: every key
 // block, the v2 header keys and salt, the config and every record in
 // the data and index files are overwritten with random data and the
