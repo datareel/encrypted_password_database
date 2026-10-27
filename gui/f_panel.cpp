@@ -92,23 +92,16 @@ void FindPanel::ShowPanel()
     frame->dpanel->ClosePanel();
   }
 
-  if(search_choicebox) delete search_choicebox;
-    wxString search_choices[NumDataMembers];
+  // 10/27/2026: The column names of this database
   char dest[DBStringLength];
-
+  search_choicebox->Clear();
   for(int i = 0; i < NumDataMembers; i++) {
-    search_choices[i] = \
-      child_frame->DBParms()->db_config.GetColName(i, dest);
+    search_choicebox->Append(wxString::FromUTF8(child_frame->DBParms()->db_config.GetColName(i, dest)));
   }
-
-  search_choicebox = new wxChoice(this, ID_FIND_CHOICEBOX1,
-				  wxPoint(17, 110), 
-				  wxSize(200, 30),
-				  NumDataMembers, 
-				  (const wxString *)search_choices);
   search_choicebox->SetSelection(0);
-
-
+  db_input->SetFocus();
+  db_input->SelectAll();
+  CentreOnParent();
   ShowModal();
 }
 
@@ -191,56 +184,42 @@ void FindPanel::StartSearch()
 }
 
 FindPanel *InitFindPanel(wxWindow *parent)
+// 10/27/2026: Sizers; the search box above the grid also filters records
 {
-  int xpos=50; int ypos=50; int width=330; int height=300;
-  FindPanel *panel = new FindPanel(parent, FIND_PANEL_ID,
-				   (char *)"Find Database Object",
-				   xpos, ypos, width, height,
-				   wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-				   (char *)"Find Database Object");
-
+  FindPanel *panel = new FindPanel(parent, FIND_PANEL_ID, (char *)"Find Records", -1, -1, -1, -1,
+				   wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Find Records");
   if(!panel) return 0;
-  
+  panel->SetIcons(EPDBAppIcons());
+  const int pad = panel->FromDIP(12);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  wxFlexGridSizer *g = new wxFlexGridSizer(2, panel->FromDIP(6), panel->FromDIP(8));
+  g->AddGrowableCol(1, 1);
+  g->Add(new wxStaticText(panel, ID_FIND_STATICTEXT1, "Find"), 0, wxALIGN_CENTER_VERTICAL);
+  panel->db_input = new wxTextCtrl(panel, ID_FIND_TEXTCONTROL1, "", wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+  panel->db_input->SetMinSize(wxSize(panel->FromDIP(280), -1));
+  g->Add(panel->db_input, 1, wxEXPAND);
+  g->Add(new wxStaticText(panel, ID_FIND_STATICTEXT2, "In field"), 0, wxALIGN_CENTER_VERTICAL);
   wxString search_choices[NumDataMembers];
-  char dest[DBStringLength];
-
-  for(int i = 0; i < NumDataMembers; i++) {
-    search_choices[i] = \
-      progcfg->global_dbparms.db_config.GetColName(i, dest);
-  }
-  
-  panel->key_name_label = new wxStaticBox(panel, ID_FIND_STATICTEXT1,
-					  "Database Search",
-					  wxPoint(9, 4),
-					  wxSize(300, 60));
-  
-  panel->db_input = new wxTextCtrl(panel, ID_FIND_TEXTCONTROL1,
-				   "",
-				   wxPoint(17, 28),
-				   wxSize(280, 25),
-				   wxTE_PROCESS_ENTER);
-  
-  panel->search_choice_lable = new wxStaticText(panel, ID_FIND_STATICTEXT2,
-						"Search Criteria",
-						wxPoint(17, 83)); 
-
-  panel->search_choicebox = new wxChoice(panel, ID_FIND_CHOICEBOX1,
-					 wxPoint(17, 110), 
-					 wxSize(200, 30),
-					 NumDataMembers, 
-					 (const wxString *)search_choices);
+  for(int i = 0; i < NumDataMembers; i++) search_choices[i] = progcfg->global_dbparms.dbgrid_labels[i].c_str();
+  panel->search_choicebox = new wxChoice(panel, ID_FIND_CHOICEBOX1, wxDefaultPosition, wxDefaultSize,
+					 NumDataMembers, search_choices);
   panel->search_choicebox->SetSelection(0);
-
-  panel->search_btn = new wxButton(panel, ID_FIND_SEARCH, "Search",
-				   wxPoint(17, 200),
-				   wxSize(60, 25));
-
-  panel->close_btn = new wxButton(panel, ID_FIND_CLOSE, "Close",
-				  wxPoint(81, 200),
-				  wxSize(60, 25));
-
+  g->Add(panel->search_choicebox, 0);
+  top->Add(g, 0, wxEXPAND | wxALL, pad);
+  top->Add(EPDBNote(panel, "Finds the records and shows them one at a time. To filter the list, "
+		    "type in the search box above the records (Ctrl+F).", 360), 0, wxLEFT | wxRIGHT, pad);
+  wxBoxSizer *b = new wxBoxSizer(wxHORIZONTAL);
+  b->AddStretchSpacer();
+  panel->close_btn = new wxButton(panel, ID_FIND_CLOSE, "Close");
+  b->Add(panel->close_btn, 0);
+  panel->search_btn = new wxButton(panel, ID_FIND_SEARCH, "Find");
+  panel->search_btn->SetDefault();
+  b->Add(panel->search_btn, 0, wxLEFT, panel->FromDIP(6));
+  top->Add(b, 0, wxEXPAND | wxALL, pad);
+  panel->SetEscapeId(ID_FIND_CLOSE);
+  panel->SetSizerAndFit(top);
+  panel->SetMinSize(panel->GetSize());
   panel->Show(FALSE);
-
   return panel;
 }
 // ----------------------------------------------------------- //

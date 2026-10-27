@@ -35,38 +35,20 @@ Edit panel
 
 #include "app_defs.h"
 
-// --------------------------------------------------------------
-// Window IDs
-// --------------------------------------------------------------
 #define EDIT_TAB_PANEL_ID 990
-// --------------------------------------------------------------
 
-// --------------------------------------------------------------
-// Identification for event handlers, controls, and menu commands
-// --------------------------------------------------------------
-enum { // Main panel IDs 
-  ID_EDITTABPANEL_ACCEPT = 991,
-  ID_EDITTABPANEL_CLOSE,
-  ID_EDITTABPANEL_CANCEL,
-  ID_EDITTABPANEL_DEFAULT,
-  ID_EDITTABPANEL_DIRECTORY,
-  ID_EDITTABPANEL_NOTEBOOK
-};
-// --------------------------------------------------------------
-
+// 10/27/2026: Preferences, rewritten with sizers: File Locations,
+// Security (encryption strength, clipboard clearing, auto-lock, access
+// log) and Appearance tabs
 class EditTabPanel: public wxDialog
 {
 public:
-  EditTabPanel(wxWindow *parent, wxWindowID id, char *title,
-	       int xpos, int ypos, int width, int height,
-	       long style = wxDEFAULT_DIALOG_STYLE,
-	       char* name = (char *)"dialogBox");
+  EditTabPanel(wxWindow *parent);
   ~EditTabPanel();
 
 public: // Event handlers
-  void OnCloseWindow(wxCloseEvent& WXUNUSED(event));
+  void OnCloseWindow(wxCloseEvent &event);
   void OnAccept(wxCommandEvent &event);
-  void OnClose(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
   void OnDefault(wxCommandEvent &event);
   void OnBrowseDirectory(wxCommandEvent &event);
@@ -74,35 +56,20 @@ public: // Event handlers
 public: // Helper functions
   void LoadPanel();
   void ShowPanel();
-  void ClosePanel();
 
 private: // Internal processing functions
   int CommitChanges();
-  int HasChanged();
-  void Init();
 
 public:
-  // Tab member functions
-  wxNotebook* notebook;
-
-  // Panel conrol buttons
-  wxButton *accept_btn;
-  wxButton *close_btn;
-  wxButton *cancel_btn;
-  wxButton *default_btn;
-
-  // Tab panels
-  wxPanel *panel1;
-
-  // Database directory controls
-  wxStaticText *directory_label;
+  wxNotebook *notebook;
   wxTextCtrl *directory_input;
-  wxButton *directory_btn;
-
-  // Security controls
-  wxPanel *panel2;
-  wxStaticText *ekey_label;
   wxRadioBox *mode_radio_box;
+  wxSpinCtrl *clipboard_seconds;
+  wxSpinCtrl *lock_minutes;
+  wxCheckBox *access_log;
+  wxCheckBox *show_passwords;
+  wxCheckBox *show_details;
+  wxCheckBox *show_toolbar;
 
   DECLARE_EVENT_TABLE()
 };

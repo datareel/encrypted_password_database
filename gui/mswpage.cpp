@@ -234,12 +234,10 @@ void MSWPagePanel::OnClose(wxCommandEvent &event)
 }
 
 void MSWPagePanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
-// Define the behaviour for the frame closing. This event handler
-// is called when the user has tried to close a a frame or dialog
-// box using the window manager (X) or system menu (Windows). Must
-// delete all frames except for the main one. 
+// 10/27/2026: The window X cancels like Esc, it does not offer to save
 {
-  ClosePanel();
+  LoadPanel();
+  Show(FALSE);
 }
 
 void MSWPagePanel::OnCancel(wxCommandEvent &event)
@@ -411,39 +409,15 @@ void MSWPagePanel::ShowPanel()
   gxString sbuf;
   char dest[DBStringLength];
 
-  if(change_labels) {
-    start_x = 17;
-    start_y = 28;
-    for(i = 0; i < NumDataMembers; i++) {
-      delete include_fields[i];
-      sbuf << clear << "Field " << (i+1) << ": " 
-	   << progcfg->global_dbparms.dbgrid_labels[i];
-
-      include_fields[i] = new wxCheckBox(panel4, -1,
-					 sbuf.c_str(),
-					 wxPoint(start_x, start_y), 
-					 wxSize(label_width, label_height));
-      start_y += y_offset_checkbox;
-    }
-    change_labels = 0;
-  }
-
-  start_x = 17;
-  start_y = 28;
+  // 10/27/2026: The column names of this database, the check boxes are
+  // kept and only relabeled
   for(i = 0; i < NumDataMembers; i++) {
-    gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);  
-    if(label != progcfg->global_dbparms.dbgrid_labels[i]) {
-      delete include_fields[i];
-      sbuf << clear << "Field " << (i+1) << ": " 
-	   << label;
-      include_fields[i] = new wxCheckBox(panel4, -1,
-					 sbuf.c_str(),
-					 wxPoint(start_x, start_y), 
-					 wxSize(label_width, label_height));
-      change_labels++;
-    }
-    start_y += y_offset_checkbox;
+    gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);
+    if(label.is_null()) label = progcfg->global_dbparms.dbgrid_labels[i];
+    sbuf << clear << "Field " << (i+1) << ": " << label;
+    include_fields[i]->SetLabel(wxString::FromUTF8(sbuf.c_str()));
   }
+  panel4->Layout();
 
   has_new_header_font = 0;
   has_new_header_color = 0;
@@ -830,223 +804,141 @@ void MSWPagePanel::OnFooterColor(wxCommandEvent &event)
 }
 
 void MSWPagePanel::Init()
+// 10/27/2026: Sizers instead of layout constraints and fixed positions
 {
+  const int pad = FromDIP(12);
+  const int gap = FromDIP(8);
+  SetIcons(EPDBAppIcons());
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
   notebook = new wxNotebook(this, ID_MSWPAGEPANEL_NOTEBOOK);
-  wxLayoutConstraints* layout_const = new wxLayoutConstraints;
-  layout_const->left.SameAs(this, wxLeft, 4);
-  layout_const->right.SameAs(this, wxRight, 4);
-  layout_const->top.SameAs(this, wxTop, 4);
-  layout_const->bottom.SameAs(this, wxBottom, 40);
-  notebook->SetConstraints(layout_const);
 
-  accept_btn = new wxButton(this, ID_MSWPAGEPANEL_ACCEPT, 
-			    "Accept", wxPoint(-1, -1), wxSize(80, 25));
-  close_btn = new wxButton(this, ID_MSWPAGEPANEL_CLOSE, 
-			   "Close", wxPoint(-1, -1), wxSize(80, 25));
-  cancel_btn = new wxButton(this, ID_MSWPAGEPANEL_CANCEL, 
-			    "Cancel", wxPoint(-1, -1), wxSize(80, 25));
-  default_btn = new wxButton(this, ID_MSWPAGEPANEL_DEFAULT, 
-			     "Default", wxPoint(-1, -1), wxSize(80, 25));
+  const wxString OrChoiceStrings[2] = { "Landscape", "Portrait" };
+  const wxString PaperChoiceStrings[5] = { "Letter", "Legal", "Tabloid", "A3", "A4" };
 
-  layout_const = new wxLayoutConstraints;
-  layout_const->right.SameAs(this, wxRight, 4);
-  layout_const->bottom.SameAs(this, wxBottom, 4);
-  layout_const->height.AsIs();
-  layout_const->width.AsIs();
-  default_btn->SetConstraints(layout_const);
-
-  layout_const = new wxLayoutConstraints;
-  layout_const->right.SameAs(default_btn, wxLeft, 4);
-  layout_const->bottom.SameAs(this, wxBottom, 4);
-  layout_const->height.AsIs();
-  layout_const->width.AsIs();
-  cancel_btn->SetConstraints(layout_const);
-
-  layout_const = new wxLayoutConstraints;
-  layout_const->right.SameAs(cancel_btn, wxLeft, 4);
-  layout_const->bottom.SameAs(this, wxBottom, 4);
-  layout_const->height.AsIs();
-  layout_const->width.AsIs();
-  close_btn->SetConstraints(layout_const);
-
-  layout_const = new wxLayoutConstraints;
-  layout_const->right.SameAs(close_btn, wxLeft, 4);
-  layout_const->bottom.SameAs(this, wxBottom, 4);
-  layout_const->height.AsIs();
-  layout_const->width.AsIs();
-  accept_btn->SetConstraints(layout_const);
-
-  // Add panels to the tabbed dialog
+  // Page settings
   panel1 = new wxPanel(notebook, -1);
-  // NOTE Add panel object for this tab here
-
-  const wxString OrChoiceStrings[2] = {
-    "Landscape",
-    "Portrait"
-  };
-
-  const wxString PaperChoiceStrings[5] = {
-    "Letter",
-    "Legal",
-    "Tabloid",
-    "A3",
-    "A4"  
-  };
-  
-  orientation_label = new wxStaticText(panel1, -1,
-				       "Orientation",
-				       wxPoint(17, 25),
-				       wxSize(95, 65));
-  orientation_choice = new wxChoice(panel1, -1,
-				    wxPoint(135, 23), 
-				    wxSize(135, 35),
-				    2, OrChoiceStrings);
+  wxFlexGridSizer *g1 = new wxFlexGridSizer(2, gap, FromDIP(12));
+  orientation_label = new wxStaticText(panel1, -1, "Orientation");
+  orientation_choice = new wxChoice(panel1, -1, wxDefaultPosition, wxDefaultSize, 2, OrChoiceStrings);
   orientation_choice->SetSelection(mswpORIENTATION);
-  
-  paper_label = new wxStaticText(panel1, -1,
-				 "Paper Size",
-				 wxPoint(17, 95),
-				 wxSize(95, 65));
-  
-  paper_choice = new wxChoice(panel1, -1,
-			      wxPoint(135, 87), 
-			      wxSize(135, 35),
-			      5, PaperChoiceStrings);
+  paper_label = new wxStaticText(panel1, -1, "Paper size");
+  paper_choice = new wxChoice(panel1, -1, wxDefaultPosition, wxDefaultSize, 5, PaperChoiceStrings);
   paper_choice->SetSelection(mswpPAPERCODE);
-  
-  
-
+  g1->Add(orientation_label, 0, wxALIGN_CENTER_VERTICAL);
+  g1->Add(orientation_choice, 0);
+  g1->Add(paper_label, 0, wxALIGN_CENTER_VERTICAL);
+  g1->Add(paper_choice, 0);
+  wxBoxSizer *b1 = new wxBoxSizer(wxVERTICAL);
+  b1->Add(g1, 0, wxALL, pad);
+  panel1->SetSizer(b1);
   notebook->AddPage(panel1, "Page Settings", TRUE);
 
+  // Document settings
   panel2 = new wxPanel(notebook, -1);
-  // NOTE Add panel object for this tab here
-
-  lm_label = new wxStaticText(panel2, -1,
-			      "Left Margin",
-			      wxPoint(17, 29));
-  
-  lm_slider = new wxSlider(panel2, -1,
-			   mswpLEFT_MARGIN,
-			   1, 20,
-			   wxPoint(75, 27), wxSize(155, -1),
-			   wxSL_LABELS);
-
-  grid_lines_ckbox = new wxCheckBox(panel2, -1,
-				    "Print grid lines",
-				    wxPoint(17, 105), 
-				    wxSize(250, 25));
-  grid_labels_ckbox = new wxCheckBox(panel2, -1,
-				     "Print grid labels",
-				     wxPoint(17, 140), 
-				     wxSize(250, 25));
-  row_numbers_ckbox = new wxCheckBox(panel2, -1,
-				     "Print row numbers",
-				     wxPoint(17, 175), 
-				     wxSize(250, 25));
-
-  doc_name_label = new wxStaticText(panel2, -1,
-				    "Document Name",
-				    wxPoint(17, 225),
-				    wxSize(150, 25));
-  
-  doc_name_input = new wxTextCtrl(panel2, -1,
-				  "",
-				  wxPoint(165, 224),
-				  wxSize(200, 25));
-
+  wxBoxSizer *s2 = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer *lm = new wxBoxSizer(wxHORIZONTAL);
+  lm_label = new wxStaticText(panel2, -1, "Left margin");
+  lm_slider = new wxSlider(panel2, -1, mswpLEFT_MARGIN, 1, 20, wxDefaultPosition, FromDIP(wxSize(200, -1)), wxSL_LABELS);
+  lm->Add(lm_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(12));
+  lm->Add(lm_slider, 1, wxALIGN_CENTER_VERTICAL);
+  s2->Add(lm, 0, wxEXPAND);
+  grid_lines_ckbox = new wxCheckBox(panel2, -1, "Print grid lines");
+  grid_labels_ckbox = new wxCheckBox(panel2, -1, "Print grid labels");
+  row_numbers_ckbox = new wxCheckBox(panel2, -1, "Print row numbers");
+  s2->Add(grid_lines_ckbox, 0, wxTOP, gap * 2);
+  s2->Add(grid_labels_ckbox, 0, wxTOP, gap);
+  s2->Add(row_numbers_ckbox, 0, wxTOP, gap);
+  wxBoxSizer *dn = new wxBoxSizer(wxHORIZONTAL);
+  doc_name_label = new wxStaticText(panel2, -1, "Document name");
+  doc_name_input = new wxTextCtrl(panel2, -1, "");
+  dn->Add(doc_name_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(12));
+  dn->Add(doc_name_input, 1, wxALIGN_CENTER_VERTICAL);
+  s2->Add(dn, 0, wxEXPAND | wxTOP, gap * 2);
+  wxBoxSizer *b2 = new wxBoxSizer(wxVERTICAL);
+  b2->Add(s2, 1, wxEXPAND | wxALL, pad);
+  panel2->SetSizer(b2);
   notebook->AddPage(panel2, "Document Settings");
 
+  // Page headers and footers
   panel3 = new wxPanel(notebook, -1);
-  // NOTE Add panel object for this tab here
+  wxBoxSizer *s3 = new wxBoxSizer(wxVERTICAL);
+  time_date_ckbox = new wxCheckBox(panel3, -1, "Print time and date stamp");
+  s3->Add(time_date_ckbox, 0);
+  print_header_ckbox = new wxCheckBox(panel3, -1, "Print page header");
+  s3->Add(print_header_ckbox, 0, wxTOP, gap * 2);
+  wxBoxSizer *hb = new wxBoxSizer(wxHORIZONTAL);
+  header_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_FONT, "Header Font...");
+  header_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_COLOR, "Header Color...");
+  hb->Add(header_font_btn, 0);
+  hb->Add(header_color_btn, 0, wxLEFT, FromDIP(6));
+  s3->Add(hb, 0, wxTOP | wxLEFT, gap);
+  wxFlexGridSizer *hg = new wxFlexGridSizer(2, gap, FromDIP(12));
+  hg->AddGrowableCol(1, 1);
+  header_name_label = new wxStaticText(panel3, -1, "Custom header");
+  header_name_input = new wxTextCtrl(panel3, -1, "");
+  hg->Add(header_name_label, 0, wxALIGN_CENTER_VERTICAL);
+  hg->Add(header_name_input, 1, wxEXPAND);
+  s3->Add(hg, 0, wxEXPAND | wxTOP | wxLEFT, gap);
+  print_footer_ckbox = new wxCheckBox(panel3, -1, "Print page numbers");
+  s3->Add(print_footer_ckbox, 0, wxTOP, gap * 2);
+  wxBoxSizer *fb = new wxBoxSizer(wxHORIZONTAL);
+  footer_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_FONT, "Footer Font...");
+  footer_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_COLOR, "Footer Color...");
+  fb->Add(footer_font_btn, 0);
+  fb->Add(footer_color_btn, 0, wxLEFT, FromDIP(6));
+  s3->Add(fb, 0, wxTOP | wxLEFT, gap);
+  wxFlexGridSizer *fg = new wxFlexGridSizer(2, gap, FromDIP(12));
+  fg->AddGrowableCol(1, 1);
+  footer_name_label = new wxStaticText(panel3, -1, "Custom footer");
+  footer_name_input = new wxTextCtrl(panel3, -1, "");
+  fg->Add(footer_name_label, 0, wxALIGN_CENTER_VERTICAL);
+  fg->Add(footer_name_input, 1, wxEXPAND);
+  s3->Add(fg, 0, wxEXPAND | wxTOP | wxLEFT, gap);
+  wxBoxSizer *b3 = new wxBoxSizer(wxVERTICAL);
+  b3->Add(s3, 1, wxEXPAND | wxALL, pad);
+  panel3->SetSizer(b3);
+  notebook->AddPage(panel3, "Page Headers");
 
-  time_date_ckbox = new wxCheckBox(panel3, -1,
-				   "Print time and date stamp",
-				   wxPoint(17, 25), wxSize(250, 25));
-
-  print_header_ckbox = new wxCheckBox(panel3, -1,
-				      "Print page header",
-				      wxPoint(17, 50), wxSize(250, 25));
-
-  header_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_FONT, "Header Font",
-				 wxPoint(17, 80),
-				 wxSize(115, 25)); 
-				 
-  header_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_HEADER_COLOR, "Header Color",
-				 wxPoint(155, 80),
-				 wxSize(125, 25)); 
-
-  header_name_label = new wxStaticText(panel3, -1,
-				    "Custom Header",
-				    wxPoint(17, 120),
-				    wxSize(135, 25));
-  
-  header_name_input = new wxTextCtrl(panel3, -1,
-				  "",
-				  wxPoint(162, 120),
-				  wxSize(250, 25));
-
-  print_footer_ckbox = new wxCheckBox(panel3, -1,
-				      "Print page numbers",
-				      wxPoint(17, 155), wxSize(250, 25));
-
-  footer_font_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_FONT, "Footer Font",
-				 wxPoint(17, 185),
-				 wxSize(115, 25)); 
-				 
-  footer_color_btn = new wxButton(panel3, ID_MSWPAGEPANEL_FOOTER_COLOR, "Footer Color",
-				 wxPoint(155, 185),
-				 wxSize(125, 25)); 
-
-  footer_name_label = new wxStaticText(panel3, -1,
-				    "Custom Footer",
-				    wxPoint(17, 225),
-				    wxSize(135, 25));
-  
-  footer_name_input = new wxTextCtrl(panel3, -1,
-				  "",
-				  wxPoint(162, 224),
-				  wxSize(250, 25));
-
-  notebook->AddPage(panel3, "Page headers");
-
+  // Fields to print
   panel4 = new wxPanel(notebook, -1);
-  // NOTE Add panel object for this tab here
-
+  wxBoxSizer *s4 = new wxBoxSizer(wxVERTICAL);
   gxString sbuf;
-
   for(int i = 0; i < NumDataMembers; i++) {
-    sbuf << clear << "Field " << (i+1) << ": " 
-	 << progcfg->global_dbparms.dbgrid_labels[i];
-
-    include_fields[i] = new wxCheckBox(panel4, -1,
-				       sbuf.c_str(),
-				       wxPoint(start_x, start_y), 
-				       wxSize(label_width, label_height));
+    sbuf << clear << "Field " << (i+1) << ": " << progcfg->global_dbparms.dbgrid_labels[i];
+    include_fields[i] = new wxCheckBox(panel4, -1, sbuf.c_str());
     include_fields[i]->SetValue(TRUE);
-    start_y += y_offset_checkbox;
+    s4->Add(include_fields[i], 0, wxTOP, i ? FromDIP(4) : 0);
   }
-
+  wxBoxSizer *b4 = new wxBoxSizer(wxVERTICAL);
+  b4->Add(s4, 1, wxEXPAND | wxALL, pad);
+  panel4->SetSizer(b4);
   notebook->AddPage(panel4, "Include Fields");
-
-  
   notebook->SetSelection(0);
-  SetAutoLayout(TRUE);
-  Layout();
+  top->Add(notebook, 1, wxEXPAND | wxALL, pad);
+
+  wxBoxSizer *bs = new wxBoxSizer(wxHORIZONTAL);
+  default_btn = new wxButton(this, ID_MSWPAGEPANEL_DEFAULT, "Restore Defaults");
+  bs->Add(default_btn, 0);
+  bs->AddStretchSpacer();
+  cancel_btn = new wxButton(this, ID_MSWPAGEPANEL_CANCEL, "Cancel");
+  bs->Add(cancel_btn, 0);
+  close_btn = new wxButton(this, ID_MSWPAGEPANEL_CLOSE, "Close");
+  close_btn->Hide(); // Close asked to save; Cancel and OK are clearer
+  accept_btn = new wxButton(this, ID_MSWPAGEPANEL_ACCEPT, "OK");
+  accept_btn->SetDefault();
+  bs->Add(accept_btn, 0, wxLEFT, FromDIP(6));
+  top->Add(bs, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, pad);
+  SetEscapeId(ID_MSWPAGEPANEL_CANCEL);
+  SetSizerAndFit(top);
+  SetMinSize(GetSize());
   Centre(wxBOTH);
 }
 
 MSWPagePanel *InitMSWPagePanel(wxWindow *parent)
 {
-  int xpos=0; int ypos=0; int width=465; int height=390;
-
-  MSWPagePanel *panel = new MSWPagePanel(parent, MSWPAGE_TAB_PANEL_ID,
-					 (char *)"Page Setup",
-					 xpos, ypos, width, height,
-		  wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-					 (char *)"Page Setup");
-
+  MSWPagePanel *panel = new MSWPagePanel(parent, MSWPAGE_TAB_PANEL_ID, (char *)"Page Setup", -1, -1, -1, -1,
+					 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Page Setup");
   if(!panel) return 0;
-
   panel->Show(FALSE);
   return panel;
 }

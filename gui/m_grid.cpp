@@ -476,7 +476,7 @@ int CryptDBGrid::SetGridLabelTextColor(wxColour *color, int refresh_grid)
 int CryptDBGrid::SetGridLabelFont(int refresh_grid)
 {
   // Set the default font
-  wxFont font(10, wxSWISS, wxNORMAL, wxBOLD);
+  wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold(); // 10/27/2026: System font
 
   // Check to see if the user has set a font
   dbparms.db_config.GetGridLabelFont(&font);
@@ -553,7 +553,7 @@ int CryptDBGrid::SetGridTextColor(wxColour *color, int refresh_grid)
 int CryptDBGrid::SetGridTextFont(int refresh_grid)
 {
   // Set the default font
-  wxFont font(10, wxSWISS, wxNORMAL, wxNORMAL);
+  wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT); // 10/27/2026: System font
 
   // Check to see if the user has set a font
   dbparms.db_config.GetGridTextFont(&font);
@@ -666,7 +666,7 @@ int CryptDBGrid::SetHyperlinkColor(wxColour *color, int refresh_grid)
 int CryptDBGrid::SetHyperlinkFont(int refresh_grid)
 {
   // Set the default font
-  wxFont font(10, wxSWISS, wxNORMAL, wxNORMAL);
+  wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT); // 10/27/2026: System font
 
   // Check to see if the user has set a font
   dbparms.db_config.GetHyperlinkFont(&font);

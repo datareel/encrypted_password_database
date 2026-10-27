@@ -103,6 +103,7 @@ version 2.X
 #include <wx/numdlg.h>
 #include <wx/stdpaths.h>
 #include <wx/gbsizer.h>
+#include <wx/choicdlg.h>
 #include <wx/process.h>
 #include <wx/sstream.h>
 #include <wx/display.h>

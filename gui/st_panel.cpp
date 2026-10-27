@@ -92,48 +92,31 @@ void StatusPanel::ResetPanel()
 }
 
 StatusPanel *InitStatusPanel(wxWindow *parent)
+// 10/27/2026: Sizers, the system GUI font
 {
-  int xpos=50; int ypos=50; int width=350; int height=320;
-  StatusPanel *spanel = new StatusPanel(parent, STATUS_PANEL_ID,
-					(char *)"Database Event Window",
-					xpos, ypos, width, height,
-			wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-					(char *)"Database Event Window");
-
+  StatusPanel *spanel = new StatusPanel(parent, STATUS_PANEL_ID, (char *)"Database Event Window", -1, -1, -1, -1,
+					wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Database Event Window");
   if(!spanel) return 0;
-  
-  spanel->control_label = new wxStaticBox(spanel, -1,
-					  "Progress Monitor",
-					  wxPoint(7, 12),
-					  wxSize(330, 230));
-
-  spanel->status_gauge = new wxGauge(spanel, -1, 1000, wxPoint(16, 30),
-				     wxSize(310, 44),
-				     wxGA_HORIZONTAL|wxNO_BORDER);
-  spanel->status_gauge->SetBackgroundColour(*wxBLUE);
-  spanel->status_gauge->SetForegroundColour(*wxGREEN);
-
-  spanel->status_win = new wxTextCtrl(spanel, -1, "",
-				      wxPoint(16, 82),
-				      wxSize(310, 150),
-				      wxTE_MULTILINE|wxTE_READONLY);
-
-  spanel->text_font = new wxFont(10, wxSWISS, wxNORMAL, wxNORMAL);
-  spanel->status_win->SetFont(*(spanel->text_font));
-  
-  // NOTE: 11/06/2014: Changed Cancel to Close
-  spanel->cancel_btn = new wxButton(spanel, ID_STATUS_CANCEL, "Close",
-				    wxPoint(142, 255),
-				    wxSize(56, 25));
-
+  spanel->SetIcons(EPDBAppIcons());
+  const int pad = spanel->FromDIP(12);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  top->Add(EPDBHeading(spanel, "Progress", 0), 0, wxLEFT | wxRIGHT | wxTOP, pad);
+  spanel->status_gauge = new wxGauge(spanel, -1, 1000, wxDefaultPosition, wxDefaultSize, wxGA_HORIZONTAL);
+  top->Add(spanel->status_gauge, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
+  spanel->status_win = new wxTextCtrl(spanel, -1, "", wxDefaultPosition, spanel->FromDIP(wxSize(400, 160)),
+				      wxTE_MULTILINE | wxTE_READONLY);
+  spanel->text_font = new wxFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+  spanel->status_win->SetFont(*spanel->text_font);
+  top->Add(spanel->status_win, 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
+  wxBoxSizer *b = new wxBoxSizer(wxHORIZONTAL);
+  b->AddStretchSpacer();
+  spanel->cancel_btn = new wxButton(spanel, ID_STATUS_CANCEL, "Close");
+  b->Add(spanel->cancel_btn, 0);
+  top->Add(b, 0, wxEXPAND | wxALL, pad);
+  spanel->SetEscapeId(ID_STATUS_CANCEL);
+  spanel->SetSizerAndFit(top);
   spanel->Show(FALSE);
-
   return spanel;
-}
-
-void StatusPanel::ShowPanel()
-{
-  ShowModal();
 }
 // ----------------------------------------------------------- //
 // ------------------------------- //

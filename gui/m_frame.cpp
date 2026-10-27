@@ -602,36 +602,32 @@ void MainFrame::OnOpenOnlineHelp(wxCommandEvent& WXUNUSED(event))
 }
 
 void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
+// 10/27/2026: wxAboutBox with the program icon, the same build,
+// encryption and smart card information as before
 {
-  gxString msg;
-
-  msg << clear << progcfg->ProgramName << " " << progcfg->VersionString << "\n"
-      << "Copyright (c) " <<  progcfg->produced_by << " " << progcfg->copyright_dates << "\n"
-      << "Produced by: " << progcfg->produced_by << "\n"
-      <<  progcfg->default_url << "\n"
-      << "\n"
-      << "Build: " << progcfg->build_type << "\n"
-      << "Release date: " << progcfg->release_date << "\n"
-      << "\n"
-      << "Designed for " << progcfg->Platform << "\n"
-      << "GUI Framework: " << wxGetLibraryVersionInfo().GetVersionString() << "\n"
-      << "\n"
-      << "Encryption engine: Openssl" << "\n"
-      << "Version string: " << OPENSSL_VERSION_TEXT << "\n"
-      << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n"
+  wxAboutDialogInfo info;
+  info.SetName(progcfg->ProgramName.c_str());
+  info.SetVersion(progcfg->VersionString.c_str());
+  gxString d;
+  d << "Build: " << progcfg->build_type << ", released " << progcfg->release_date << "\n"
+    << "Designed for " << progcfg->Platform << "\n"
+    << "GUI framework: " << (const char *)wxGetLibraryVersionInfo().GetVersionString().utf8_str() << "\n\n"
+    << "Encryption engine: " << OPENSSL_VERSION_TEXT << "\n";
+  char vbuf[32];
+  snprintf(vbuf, sizeof(vbuf), "0x%lx", (unsigned long)OPENSSL_VERSION_NUMBER);
+  d << "OpenSSL version number: " << vbuf << "\n";
 #ifdef __ENABLE_SMART_CARD__
-      << "\n"
-      << "Smart card enabled for " << (SC_uses_engine() ? SC_get_default_engine_ID() : "PKCS#11") << "\n"
-      << "Smart card module: " << progcfg->SC_modulePath.c_str() << "\n"
+  d << "\nSmart card enabled for " << (SC_uses_engine() ? SC_get_default_engine_ID() : "PKCS#11") << "\n"
+    << "Smart card module: " << progcfg->SC_modulePath.c_str();
 #else
-      << "\n"
-      << "Smart card support is not enabled" << "\n"
+  d << "\nSmart card support is not enabled";
 #endif
-      << "\n";
-
-
-
-  wxMessageBox(msg.c_str(), "About Box", wxOK | wxICON_INFORMATION, this);
+  info.SetDescription(wxString::FromUTF8(d.c_str()));
+  info.SetCopyright(wxString::FromUTF8((gxString("Copyright (c) ") + progcfg->produced_by + " " + progcfg->copyright_dates).c_str()));
+  info.SetWebSite(progcfg->default_url.c_str());
+  info.SetLicence("GNU Lesser General Public License, version 3.0 or later");
+  info.SetIcon(wxIcon(EPDBAppIconBundle(64).GetIcon(FromDIP(wxSize(64, 64)))));
+  wxAboutBox(info, this);
 }
 
 void MainFrame::OnAddUsers(wxCommandEvent& event)
@@ -722,12 +718,35 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
     return;
   }
 
-  wxTextEntryDialog dialog(this, "Enter the username to remove", "Remove database access for user", "", wxOK | wxCANCEL);
-  if(dialog.ShowModal() != wxID_OK || dialog.GetValue().IsNull()) {
-    if(dialog.GetValue().IsNull()) ProgramError->Message("You must enter a username");
+  // 10/27/2026: Pick the user from the list of the database's users
+  wxArrayString choices;
+  std::vector<gxString> names;
+  for(list_ptr = db_auth.static_block_list.GetHead(); list_ptr; list_ptr = list_ptr->next) {
+    int t = list_ptr->data.block_header.block_type;
+    if(t != 1 && t != 2) continue;
+    int seen = 0;
+    for(size_t k = 0; k < names.size(); k++) if(names[k] == list_ptr->data.username) seen = 1;
+    if(seen) continue;
+    names.push_back(list_ptr->data.username);
+    wxString kinds;
+    for(gxListNode<StaticDataBlock> *q = db_auth.static_block_list.GetHead(); q; q = q->next) {
+      if(!(q->data.username == list_ptr->data.username)) continue;
+      int qt = q->data.block_header.block_type;
+      if(qt != 1 && qt != 2) continue;
+      if(!kinds.IsEmpty()) kinds << ", ";
+      kinds << (qt == 1 ? "RSA key" : "smart card");
+    }
+    choices.Add(wxString::FromUTF8(list_ptr->data.username.c_str()) + "  (" + kinds + ")");
+  }
+  if(choices.IsEmpty()) {
+    ProgramError->Message("No authorized RSA or smartcard users found in encrypted DB file");
     return;
   }
-  gxString username = (const char *)dialog.GetValue();
+  wxSingleChoiceDialog dialog(this, "Choose the user whose access is removed. A backup copy of the database is kept.",
+			      "Remove User", choices);
+  dialog.SetIcons(EPDBAppIcons());
+  if(dialog.ShowModal() != wxID_OK || dialog.GetSelection() < 0) return;
+  gxString username = names[dialog.GetSelection()];
   int count = 0, found = 0;
   for(list_ptr = db_auth.static_block_list.GetHead(); list_ptr; list_ptr = list_ptr->next) {
     if(list_ptr->data.block_header.block_type != 1 && list_ptr->data.block_header.block_type != 2) continue;

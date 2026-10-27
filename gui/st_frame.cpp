@@ -76,26 +76,23 @@ void StatusFrame::WriteMessage(const wxString &message)
 }
 
 StatusFrame *InitStatusFrame(wxWindow* parent, wxFont *textWindowFont)
+// 10/27/2026: Sized in DIPs, the text fills the frame
 {
-  int xpos=50; int ypos=50; int width=350; int height=320;
   gxString frame_name = progcfg->ProgramName;
   frame_name << " Status Window";
   StatusFrame *sframe = new StatusFrame(parent, STATUS_FRAME_ID,
 					(const wxString)frame_name.c_str(),
-					wxPoint(xpos, ypos), 
-					wxSize(width, height),
-				wxDEFAULT_FRAME_STYLE|wxFRAME_FLOAT_ON_PARENT);
-
+					wxDefaultPosition, wxDefaultSize,
+					wxDEFAULT_FRAME_STYLE|wxFRAME_FLOAT_ON_PARENT);
   if(!sframe) return 0;
-  
-  sframe->status_win = new wxTextCtrl(sframe, -1, "",
-  				      wxPoint(0, 0),
-  				      wxSize(350, 320),
-  				      wxTE_MULTILINE|wxTE_READONLY);
+  sframe->status_win = new wxTextCtrl(sframe, -1, "", wxDefaultPosition, wxDefaultSize,
+				      wxTE_MULTILINE|wxTE_READONLY);
   sframe->status_win->SetFont(*(textWindowFont));
-
+  wxBoxSizer *s = new wxBoxSizer(wxVERTICAL);
+  s->Add(sframe->status_win, 1, wxEXPAND);
+  sframe->SetSizer(s);
+  sframe->SetSize(sframe->FromDIP(wxSize(560, 360)));
   sframe->Show(FALSE);
-
   return sframe;
 }
 // ----------------------------------------------------------- //
