@@ -40,6 +40,8 @@ using namespace std; // Use unqualified names for Standard C++ library
 #endif // __USE_ANSI_CPP__
 
 #include "epdb_functions.h"
+#include "fcfile.h"
+#include "fckeymgmt.h"
 #if defined (__UNIX__)
 #include <unistd.h>
 #else
@@ -111,6 +113,31 @@ int upgrade_db = 0; // 10/25/2026: Upgrade to database format v2
 int reseal_db = 0;  // 10/25/2026: Accept the current contents of a v2 database
 int db_find_all = 0;
 gxString db_find_key_name;
+// 10/27/2026: Key management, records, access log, version check and self-destruct
+int remove_user = 0;
+gxString remove_username;
+gxUINT32 remove_user_type = 0; // 0 = the only block of the user
+int record_op = 0;              // EPDB_RECORD_ADD, _UPDATE or _DELETE
+gxString record_name;
+gxString record_input_fd;
+gxString record_input_file;
+int assume_yes = 0;
+int rekey = 0;
+gxString rekey_input_fd;
+gxString rekey_input_file;
+gxString rekey_new_password_fd;
+gxString rekey_new_password_file;
+int access_log = 0;
+gxString access_log_file;
+int access_log_warned = 0;
+int verify_access_log = 0;
+int show_access_log = 0;
+int access_log_in_file = -1;    // --access-log-in-file=on|off
+int check_version = 0;
+int self_destruct = -1;         // --self-destruct=on|off
+unsigned self_destruct_attempts = 0;
+gxList<FCNameValue> record_fields;
+FCRekeyInput rekey_in;
 
 // Functions
 void DisplayVersion();
@@ -126,6 +153,15 @@ int ExitProgram(int rv = 0, char *exit_message = 0);
 int check_if_file_exists(gxString &fname);
 int check_if_file_exists(char *fname);
 void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char);
+int KeyManagementOps(const gxString &fname, MemoryBuffer &file_key, int is_v2);
+static gxString AuthSlotName();
+int ReadOperationInput();
+int CheckVersions();
+int SelfDestructPrecheck(const gxString &fname);
+void CountFailedOpen(const gxString &fname, const char *what);
+void ResetFailedOpens(const gxString &fname, const MemoryBuffer &file_key);
+void LogEvent(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
+	      int ok, const char *detail, const MemoryBuffer *file_key);
 
 int main(int argc, char **argv)
 {
@@ -195,6 +231,16 @@ int main(int argc, char **argv)
     return ExitProgram(1);
   }
   
+  // 10/27/2026: No credential and no smart card for the version check
+  if(check_version) return ExitProgram(CheckVersions());
+  if(access_log && access_log_file.is_null()) access_log_file = FC_default_log_file(".encrypted_password_database");
+  if(verify_access_log && show_access_log) {
+    cerr << "ERROR: Use --show-access-log and --verify-access-log in separate runs" << "\n";
+    return ExitProgram(1);
+  }
+  // Record fields and rekey input are read once, before any prompt
+  if(!ReadOperationInput()) return ExitProgram(1);
+
   gxString sbuf;
   gxString err_string;
   gxString fname;
@@ -350,6 +396,22 @@ int main(int argc, char **argv)
       continue; 
     }
 
+    // 10/27/2026: A destroyed database, or self-destruct on a file that
+    // cannot be written, is refused before any credential is tried
+    if(!SelfDestructPrecheck(fname)) {
+      LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "refused before trying a credential", 0);
+      ERROR_LEVEL++;
+      ptr = ptr->next;
+      continue;
+    }
+    {
+      FCVersionInfo vi; // 10/27/2026: Warn about v1 databases still in use
+      gxString verr;
+      if(FC_check_version(fname.c_str(), vi, verr) == 0 && vi.is_v1 && !upgrade_db) {
+	cerr << FC_v1_warning(fname.c_str(), vi).c_str() << "\n" << flush;
+      }
+    }
+
     if(use_private_rsa_key) {
       DatabaseUserAuth db_auth;
       gxDatabase *f = OpenEPDB(fname.c_str(), err_string);
@@ -364,11 +426,14 @@ int main(int argc, char **argv)
       if(!rsa_key_passphrase.is_null()) passphrase = (char *)rsa_key_passphrase.GetSPtr();
       if(db_auth.DecryptWithRSAKey(private_key, private_key_len, rsa_key_username, passphrase) != 0) {
 	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
-	ERROR_LEVEL++;
 	f->Close();
 	delete f;
+	f = 0;
+	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "RSA key did not open the database", 0);
+	CountFailedOpen(fname, "The RSA key did not open the database");
+	ERROR_LEVEL++;
 	ptr = ptr->next;
-	continue; 
+	continue;
       }
       file_key = DBStringConfig::crypt_key;
       f->Close();
@@ -407,6 +472,15 @@ int main(int argc, char **argv)
       }
       if(sc_rv != 0) {
 	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
+	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "smart card did not open the database", 0);
+	// 10/27/2026: A wrong PIN, or a card key that does not open the
+	// database, is one failed open. A PIN that was not sent is not.
+	if(sc.error_level == SC_ERROR_PIN_INCORRECT || !SC_is_pin_error(sc.error_level)) {
+	  if(sc.error_level != SC_ERROR || db_auth.err.Find("does not hold") != -1 ||
+	     db_auth.err.Find("authentication failed") != -1) {
+	    CountFailedOpen(fname, "The smart card did not open the database");
+	  }
+	}
 	if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) {
 	  cerr << "Use --smartcard-allow-final-try only if you are sure of the PIN, a wrong PIN locks the card" << "\n" << flush;
 	}
@@ -446,11 +520,14 @@ int main(int argc, char **argv)
 #endif
       if(EPDBUnlock(f, uses_block ? file_key : aes_file_decrypt_secret, unlocked, err_string, aes_error) != 0) {
 	cerr << "ERROR: " << err_string.c_str() << "\n" << flush;
-	ERROR_LEVEL++;
 	f->Close();
 	delete f;
+	f = 0;
+	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "credential did not open the database", 0);
+	if(aes_error) CountFailedOpen(fname, use_key_file ? "The key file did not open the database" : "The password did not open the database");
+	ERROR_LEVEL++;
 	ptr = ptr->next;
-	continue; 
+	continue;
       }
       file_key = unlocked;
       unlocked.Clear(1);
@@ -472,9 +549,11 @@ int main(int argc, char **argv)
       gxString backup_file;
       if(EPDBUpgrade(fname.c_str(), file_key, backup_file, err_string) != 0) {
 	cerr << "ERROR: Upgrade failed, the database was not changed: " << err_string.c_str() << "\n" << flush;
+	LogEvent(fname, "upgrade", AuthSlotName(), gxString(), 0, "not changed", 0);
 	ERROR_LEVEL++;
       }
       else {
+	LogEvent(fname, "upgrade", AuthSlotName(), gxString(), 1, "v1 to v2", 0);
 	cerr << "Upgraded " << fname.c_str() << " to database format v2" << "\n" << flush;
 	cerr << "The v1 database was saved to " << backup_file.c_str() << " and "
 	     << ReplaceFileExtension(backup_file, ".ehx").c_str() << "\n" << flush;
@@ -520,6 +599,19 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue;
       }
+    }
+
+    // 10/27/2026: The open worked, reset the failed open counter and log it
+    ResetFailedOpens(fname, file_key);
+    LogEvent(fname, "open", AuthSlotName(), gxString(), 1, 0, &file_key);
+    {
+      int n = KeyManagementOps(fname, file_key, is_v2);
+      if(n < 0) {
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+      num_operations += n;
     }
 
     if(display_db_config) {
@@ -658,6 +750,8 @@ int ExitProgram(int rv, char *exit_message)
   memset(public_key, 0, sizeof(public_key));
   memset(private_key, 0, sizeof(private_key));
   rsa_key_passphrase.Clear(1);
+  FC_wipe_name_values(record_fields); // 10/27/2026: Record values
+  rekey_in.Wipe();
 
   if(!debug_message.is_null()) DEBUG_m(debug_message.c_str(), debug_level);
 
@@ -759,6 +853,51 @@ void HelpMessage()
 #else
   cout << "          --add-username (Username being added for public RSA key file)" << "\n" << flush;
 #endif // __ENABLE_SMART_CARD__
+  cout << "\n" << flush;
+  cout << "DB remove user and rekey functions (v2 databases):\n" << flush;
+  cout << "          --remove-user=name (Remove the RSA key or smart card access of a user, a backup copy is kept)" << "\n" << flush;
+  cout << "          --remove-user-type=rsa|smartcard (Which access to remove when the user has both)" << "\n" << flush;
+  cout << "                 Removing a user does not revoke a database key the user already recovered, run --rekey after." << "\n" << flush;
+  cout << "                 The last RSA or smart card user can only be removed after opening with the password or key file." << "\n" << flush;
+  cout << "          --rekey (New master key: every field is encrypted again and every kept user is rewrapped)" << "\n" << flush;
+  cout << "          --rekey-file=file (Read the rekey input from a file only you can read, default stdin)" << "\n" << flush;
+  cout << "          --rekey-fd=n (Read the rekey input from open file descriptor n)" << "\n" << flush;
+  cout << "                 Rekey input, one name=value per line:" << "\n" << flush;
+  cout << "                   password=current password (implied when you open with --password or --key)" << "\n" << flush;
+  cout << "                   new-password=new password, or drop-password=yes (only RSA and smart card users can open)" << "\n" << flush;
+  cout << "                   rsa:user=public_key.pem, smartcard:user=cert.pem|cert.cer or smartcard:user=card (no PIN)" << "\n" << flush;
+  cout << "                   drop-rsa:user=yes, drop-smartcard:user=yes" << "\n" << flush;
+  cout << "                 Every RSA and smart card user needs a line, the rekey lists what is missing and changes nothing." << "\n" << flush;
+  cout << "          --rekey-new-password-file=file (Generate a new database password and write it to a new file)" << "\n" << flush;
+  cout << "          --rekey-new-password-fd=n (Generate a new database password and write it to open file descriptor n)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB record functions (field values are read from stdin, never the command line):\n" << flush;
+  cout << "          --add-record=name (Add a record, the fields are read as name=value lines)" << "\n" << flush;
+  cout << "          --update-record=name (Change only the fields given, an empty value clears a field, title= renames)" << "\n" << flush;
+  cout << "          --delete-record=name (Delete a record, asks first at a terminal)" << "\n" << flush;
+  cout << "          --yes (Delete without asking)" << "\n" << flush;
+  cout << "          --record-file=file (Read the fields from a file only you can read instead of stdin)" << "\n" << flush;
+  cout << "          --record-fd=n (Read the fields from open file descriptor n instead of stdin)" << "\n" << flush;
+  cout << "                 Fields: title, username, password, previous-password, security-questions," << "\n" << flush;
+  cout << "                 account-information, website-link, notes (or field1 to field8, or the column name)." << "\n" << flush;
+  cout << "                 In values \\n is a newline, \\t a tab and \\\\ a backslash. Lines starting with # are skipped." << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB access log functions:\n" << flush;
+  cout << "          --access-log[=file] (Log opens and changes, default " << FC_default_log_file(".encrypted_password_database").c_str() << ")" << "\n" << flush;
+  cout << "          --no-access-log (Do not log to the per-user log, the default)" << "\n" << flush;
+  cout << "          --access-log-in-file=on|off (Also keep the last " << EPDB_RING_ENTRIES << " opens and changes, encrypted, in the database file)" << "\n" << flush;
+  cout << "          --show-access-log (List the in-file log and the per-user log entries of the database)" << "\n" << flush;
+  cout << "          --verify-access-log (Check both logs for changed, removed or inserted entries)" << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB self-destruct (off by default, v2 databases):\n" << flush;
+  cout << "          --self-destruct=on|off (Destroy the records after too many failed opens)" << "\n" << flush;
+  cout << "          --self-destruct-attempts=n (Failed opens allowed, 1 to " << FC_SD_MAX_ATTEMPTS << ", default " << FC_SD_DEFAULT_ATTEMPTS << ")" << "\n" << flush;
+  cout << "                 Only guesses made through this program and the GUI are counted. Anyone with a copy of" << "\n" << flush;
+  cout << "                 the file can guess offline or reset the counter. A destroyed database cannot be recovered" << "\n" << flush;
+  cout << "                 except from your own backups. With self-destruct on, a read-only file is not opened." << "\n" << flush;
+  cout << "\n" << flush;
+  cout << "DB format check (no authentication, never uses a smart card):\n" << flush;
+  cout << "          --check-version (Report v1 or v2 for each database, exit 1 if any is v1)" << "\n" << flush;
   cout << "\n" << flush;
   cout << "DB no-auth stat functions:\n" << flush;
   cout << "          --db-stats (Display database stats and exit)" << "\n" << flush;
@@ -1246,6 +1385,104 @@ int ProcessDashDashArg(gxString &arg)
   }
 #endif // __ENABLE_SMART_CARD__ 
 
+  // 10/27/2026: Key management, records, access log, version check and self-destruct
+  if(arg == "remove-user") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --remove-user missing name: --remove-user=name" << "\n" << flush;
+      return 0;
+    }
+    remove_username = equal_arg;
+    remove_user = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "remove-user-type") {
+    gxString t = equal_arg;
+    t.ToLower();
+    if(t == "rsa") remove_user_type = 1;
+    else if(t == "smartcard") remove_user_type = 2;
+    else {
+      cerr << "ERROR: --remove-user-type must be rsa or smartcard" << "\n" << flush;
+      return 0;
+    }
+    has_valid_args = 1;
+  }
+  if((arg == "add-record") || (arg == "update-record") || (arg == "delete-record")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires the record name: --" << arg.c_str() << "=\"Name\"" << "\n" << flush;
+      return 0;
+    }
+    if(record_op) {
+      cerr << "ERROR: Give only one of --add-record, --update-record and --delete-record" << "\n" << flush;
+      return 0;
+    }
+    record_op = (arg == "add-record") ? EPDB_RECORD_ADD : ((arg == "update-record") ? EPDB_RECORD_UPDATE : EPDB_RECORD_DELETE);
+    record_name = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "record-fd" || arg == "record-file" || arg == "rekey-fd" || arg == "rekey-file" ||
+     arg == "rekey-new-password-fd" || arg == "rekey-new-password-file") {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    if(arg == "record-fd") record_input_fd = equal_arg;
+    if(arg == "record-file") { check_if_file_exists(equal_arg); record_input_file = equal_arg; }
+    if(arg == "rekey-fd") rekey_input_fd = equal_arg;
+    if(arg == "rekey-file") { check_if_file_exists(equal_arg); rekey_input_file = equal_arg; }
+    if(arg == "rekey-new-password-fd") rekey_new_password_fd = equal_arg;
+    if(arg == "rekey-new-password-file") rekey_new_password_file = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "yes") {
+    assume_yes = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "rekey") {
+    rekey = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "access-log") {
+    access_log = 1;
+    if(!equal_arg.is_null()) access_log_file = equal_arg;
+    has_valid_args = 1;
+  }
+  if(arg == "no-access-log") {
+    access_log = 0;
+    has_valid_args = 1;
+  }
+  if(arg == "verify-access-log") {
+    verify_access_log = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "show-access-log") {
+    show_access_log = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "access-log-in-file" || arg == "self-destruct") {
+    gxString v = equal_arg;
+    v.ToLower();
+    int on = (v == "on" || v == "yes" || v == "1") ? 1 : ((v == "off" || v == "no" || v == "0") ? 0 : -1);
+    if(on < 0) {
+      cerr << "ERROR: --" << arg.c_str() << " must be on or off" << "\n" << flush;
+      return 0;
+    }
+    if(arg == "access-log-in-file") access_log_in_file = on;
+    else self_destruct = on;
+    has_valid_args = 1;
+  }
+  if(arg == "self-destruct-attempts") {
+    if(equal_arg.Atoi() < 1 || equal_arg.Atoi() > (int)FC_SD_MAX_ATTEMPTS) {
+      cerr << "ERROR: --self-destruct-attempts must be 1 to " << FC_SD_MAX_ATTEMPTS << "\n" << flush;
+      return 0;
+    }
+    self_destruct_attempts = (unsigned)equal_arg.Atoi();
+    has_valid_args = 1;
+  }
+  if(arg == "check-version") {
+    check_version = 1;
+    has_valid_args = 1;
+  }
+
   if(!has_valid_args) {
     cerr << "Unknown or invalid --" << arg.c_str() << "\n" << flush;
     cerr << "Exiting..." << "\n" << flush;
@@ -1365,4 +1602,722 @@ int ConsoleIsInteractive()
 #else
   return _isatty(_fileno(stdin)) && _isatty(_fileno(stderr));
 #endif
+}
+
+// ----------------------------------------------------------- //
+// 10/27/2026: Key management, records, access log, version check and
+// self-destruct
+// ----------------------------------------------------------- //
+static const char *AuthName()
+{
+  if(use_private_rsa_key) return "rsa-key";
+#ifdef __ENABLE_SMART_CARD__
+  if(use_smartcard) return "smartcard";
+#endif
+  if(use_key_file) return "key-file";
+  if(use_password) return "password";
+  return "password";
+}
+
+static int AuthCode()
+{
+  return FC_auth_code(AuthName());
+}
+
+static gxString AuthSlotName()
+{
+  if(use_private_rsa_key) return rsa_key_username;
+#ifdef __ENABLE_SMART_CARD__
+  if(use_smartcard) return smartcard_username;
+#endif
+  return gxString();
+}
+
+static int InFileLogOn(const char *fname)
+{
+  gxDatabase f;
+  if(f.Open(fname, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return 0;
+  EPDBHeaderExt x;
+  int on = EPDBReadExt(&f, x) && (x.flags & EPDB_EXT_LOG_IN_FILE);
+  f.Close();
+  return on;
+}
+
+static void PerUserLog(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
+		       int ok, const char *detail, const MemoryBuffer *file_key, int force)
+{
+  if(!access_log && !force) return;
+  gxString log_file = access_log_file;
+  if(log_file.is_null()) log_file = FC_default_log_file(".encrypted_password_database");
+  FCLogEntry e;
+  e.tool = "epdb_auth_tool";
+  e.file = FC_abs_path(fname.c_str());
+  // The ID of the key used, so an entry written right after a rekey
+  // with the old key carries the old ID
+  if(file_key && EPDBIsKeyset(*file_key)) e.id = FC_hex(EPDBKeysetID(*file_key), EPDB_V2_ID_LEN);
+  else e.id = EPDBIDHex(fname.c_str());
+  e.auth = AuthName();
+  e.slot = slot;
+  e.action = action;
+  e.record = record;
+  e.ok = ok;
+  if(detail) e.detail = detail;
+  unsigned char key[FC_LOG_KEY_LEN];
+  int keyed = 0;
+  if(file_key && EPDBIsKeyset(*file_key) && !e.id.is_null()) {
+    keyed = FC_log_key(EPDBKeysetKey(*file_key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN,
+		       EPDBKeysetID(*file_key), EPDB_V2_ID_LEN, key);
+  }
+  gxString err;
+  if(FC_log_append(log_file.c_str(), e, keyed ? key : 0, err) != 0 && !access_log_warned) {
+    access_log_warned = 1;
+    cerr << "WARNING: " << err.c_str() << ", continuing without the access log" << "\n" << flush;
+  }
+  OPENSSL_cleanse(key, sizeof(key));
+}
+
+void LogEvent(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
+	      int ok, const char *detail, const MemoryBuffer *file_key)
+// Per-user log when --access-log is on. With the in-file log on, the
+// entry also goes in the database file; when that cannot be written
+// (read-only, no key after a failed open) the entry goes to the
+// per-user log even without --access-log, marked as a fallback. A log
+// failure never stops an open or a change.
+{
+  PerUserLog(fname, action, slot, record, ok, detail, file_key, 0);
+  if(!InFileLogOn(fname.c_str())) return;
+  gxString why;
+  if(!file_key || !EPDBIsKeyset(*file_key)) why = "in-file log unavailable (no key)";
+  else {
+    gxString err;
+    gxDatabase *f = OpenEPDB(fname.c_str(), err, gxDBASE_READWRITE);
+    if(!f) why = "in-file log unavailable (read-only)";
+    else {
+      FCRingEntry r;
+      r.action = FC_action_code(action);
+      r.auth = AuthCode();
+      r.result = ok;
+      if(EPDBRingAppend(f, *file_key, r, slot.c_str(), err) != 0) {
+	why << clear << "in-file log unavailable (" << err << ")";
+      }
+      f->Close();
+      delete f;
+    }
+  }
+  if(!why.is_null() && !access_log) {
+    gxString d = why;
+    if(detail) d << "; " << detail;
+    PerUserLog(fname, action, slot, record, ok, d.c_str(), file_key, 1);
+  }
+}
+
+int CheckVersions()
+// Reports v1 or v2 for each file without a credential or smart card.
+// Returns 1 if any file is v1, 2 if any cannot be read, else 0.
+{
+  int any_v1 = 0, any_error = 0;
+  gxListNode<gxString> *ptr = file_list.GetHead();
+  while(ptr) {
+    FCVersionInfo vi;
+    gxString err;
+    if(FC_check_version(ptr->data.c_str(), vi, err) != 0) {
+      cout << ptr->data.c_str() << ": unknown: " << err.c_str() << "\n" << flush;
+      any_error = 1;
+    }
+    else if(vi.is_v1) {
+      cout << ptr->data.c_str() << ": v1: " << vi.version.c_str() << ", upgrade with: " << vi.upgrade.c_str() << "\n" << flush;
+      any_v1 = 1;
+    }
+    else {
+      FCControlBlock c;
+      if(vi.kind == FC_KIND_EPDB && EPDBReadControl(ptr->data.c_str(), c) && c.destroyed) {
+	cout << ptr->data.c_str() << ": destroyed: the records were destroyed after too many failed opens" << "\n" << flush;
+	any_error = 1;
+      }
+      else {
+	cout << ptr->data.c_str() << ": v2: " << vi.version.c_str() << "\n" << flush;
+      }
+    }
+    ptr = ptr->next;
+  }
+  return any_v1 ? 1 : (any_error ? 2 : 0);
+}
+
+int ReadOperationInput()
+// Reads the record fields or rekey input once, before any prompt
+{
+  if(record_op != EPDB_RECORD_ADD && record_op != EPDB_RECORD_UPDATE && !rekey) return 1;
+  gxString &fd = rekey ? rekey_input_fd : record_input_fd;
+  gxString &file = rekey ? rekey_input_file : record_input_file;
+  MemoryBuffer data;
+  gxString err;
+  int rv = 0;
+  if(!file.is_null()) rv = FC_read_input_file(file.c_str(), data, err);
+  else if(!fd.is_null()) rv = FC_read_input_fd(fd.c_str(), data, err);
+  else {
+    if(FC_stdin_is_terminal()) {
+      cerr << "Enter " << (rekey ? "the rekey input" : "the record fields") << ", one name=value per line, end with "
+#if defined (__UNIX__)
+	   << "Ctrl-D"
+#else
+	   << "Ctrl-Z and Enter"
+#endif
+	   << ":" << "\n" << flush;
+    }
+    rv = FC_read_input_fd("0", data, err);
+  }
+  if(rv == 0) rv = FC_parse_name_values(data, record_fields, err);
+  data.Clear(1);
+  if(rv == 0 && rekey) {
+    rv = FC_parse_rekey_input(record_fields, rekey_in, err);
+    FC_wipe_name_values(record_fields);
+  }
+  if(rv != 0) {
+    cerr << "ERROR: " << (rekey ? "Rekey" : "Record") << " input: " << err.c_str() << "\n" << flush;
+    return 0;
+  }
+  return 1;
+}
+
+int SelfDestructPrecheck(const gxString &fname)
+// Before any credential is tried: a destroyed database is reported, and
+// with self-destruct on a file that cannot be written is refused, since
+// otherwise a read-only copy would not count the failed opens
+{
+  FCControlBlock c;
+  if(!EPDBReadControl(fname.c_str(), c)) return 1;
+  if(c.destroyed) {
+    cerr << "ERROR: " << fname.c_str() << " was destroyed after too many failed opens. "
+	 << "It cannot be recovered except from your own backups." << "\n" << flush;
+    return 0;
+  }
+  if(!c.SelfDestruct()) return 1;
+  gxString ifile = ReplaceFileExtension(fname, ".ehx");
+  if(!FC_file_writable(fname.c_str()) || !FC_file_writable(ifile.c_str())) {
+    cerr << "ERROR: " << fname.c_str() << " has self-destruct on and cannot be written (read-only file or media). "
+	 << "No credential was tried, so the failed open counter cannot be bypassed. Copy the database to writable storage." << "\n" << flush;
+    return 0;
+  }
+  if(c.failed > 0) {
+    cerr << "WARNING: " << fname.c_str() << ": " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
+  }
+  return 1;
+}
+
+void CountFailedOpen(const gxString &fname, const char *what)
+// Counts a failed open in the file before the error is returned, and
+// destroys the database at the limit
+{
+  FCControlBlock c;
+  if(!EPDBReadControl(fname.c_str(), c) || !c.SelfDestruct() || c.destroyed) return;
+  c.failed++;
+  gxString err;
+  if(c.failed < c.limit) {
+    if(EPDBWriteControl(fname.c_str(), c, err) != 0) {
+      cerr << "ERROR: " << err.c_str() << "\n" << flush;
+      return;
+    }
+    cerr << "WARNING: " << what << ". " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
+    if(c.failed + 1 == c.limit) {
+      cerr << "WARNING: ONE ATTEMPT LEFT. The next failed open of " << fname.c_str()
+	   << " destroys every record. Stop now if you are not sure of the credential." << "\n" << flush;
+    }
+    return;
+  }
+  cerr << "WARNING: " << what << ". " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
+  if(EPDBDestroy(fname.c_str(), err) != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+  }
+  cerr << "ERROR: " << fname.c_str() << " was destroyed after " << c.limit << " failed opens. "
+       << "It cannot be recovered except from your own backups." << "\n" << flush;
+  PerUserLog(fname, "self-destruct", gxString(), gxString(), 1, "destroyed after too many failed opens", 0, 1);
+}
+
+void ResetFailedOpens(const gxString &fname, const MemoryBuffer &file_key)
+// After a good open: reset the counter and restore the control block
+// from the authenticated header copy if it was changed
+{
+  if(!EPDBIsKeyset(file_key)) return;
+  gxDatabase f;
+  if(f.Open(fname.c_str(), gxDBASE_READONLY) != gxDBASE_NO_ERROR) return;
+  EPDBHeaderExt x;
+  int has_ext = EPDBReadExt(&f, x);
+  FCControlBlock c;
+  int has_ctl = EPDBReadControl(&f, c);
+  f.Close();
+  int want_sd = has_ext && (x.flags & EPDB_EXT_SELF_DESTRUCT);
+  int changed = 0;
+  if(want_sd && (!has_ctl || !c.SelfDestruct() || c.limit != x.sd_limit)) {
+    cerr << "WARNING: The self-destruct settings of " << fname.c_str()
+	 << " were changed outside this program, they were restored" << "\n" << flush;
+    c.flags |= FC_CTL_SELF_DESTRUCT;
+    c.limit = x.sd_limit ? x.sd_limit : FC_SD_DEFAULT_ATTEMPTS;
+    changed = 1;
+  }
+  if(has_ctl && c.failed) {
+    c.failed = 0;
+    changed = 1;
+  }
+  gxString err;
+  if(changed && EPDBWriteControl(fname.c_str(), c, err) != 0) cerr << "WARNING: " << err.c_str() << "\n" << flush;
+}
+
+static int ConfirmAtTerminal(const char *question)
+{
+  if(assume_yes) return 1;
+  if(!ConsoleIsInteractive()) {
+    cerr << "ERROR: Not at a terminal, use --yes to " << question << "\n" << flush;
+    return 0;
+  }
+  cerr << question << "? [y/N]: " << flush;
+  gxString answer;
+  int yes = consoleGetString(answer, 0) && (answer == "y" || answer == "Y" || answer == "yes");
+  cerr << "\n" << flush;
+  return yes;
+}
+
+static void ListLoadedUsers(const gxString &fname, gxList<FCRekeySlot> &users)
+{
+  gxString err;
+  gxDatabase *f = OpenEPDB(fname.c_str(), err);
+  if(!f) return;
+  DatabaseUserAuth db_auth;
+  db_auth.f = f;
+  if(db_auth.LoadStaticDataBlocks() == 0) {
+    for(gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead(); p; p = p->next) {
+      if(p->data.block_header.block_type != 1 && p->data.block_header.block_type != 2) continue;
+      FCRekeySlot r;
+      r.type = (p->data.block_header.block_type == 1) ? FC_SLOT_RSA : FC_SLOT_SMARTCARD;
+      r.username = p->data.username;
+      users.Add(r);
+    }
+  }
+  f->Close();
+  delete f;
+}
+
+static int ShowAccessLog(const gxString &fname, MemoryBuffer &file_key, int verify)
+// Returns 0 if everything verified
+{
+  int rv = 0;
+  gxString err;
+  gxString id = EPDBIDHex(fname.c_str());
+  // In-file log
+  gxDatabase *f = OpenEPDB(fname.c_str(), err);
+  EPDBHeaderExt x;
+  if(f && EPDBReadExt(f, x) && (x.flags & EPDB_EXT_LOG_IN_FILE)) {
+    gxList<FCRingEntry> entries;
+    unsigned long long written = 0;
+    int r = EPDBRingRead(f, file_key, entries, written, err);
+    // Names for the keyed slot hashes: the current users and this user
+    gxList<FCRekeySlot> users;
+    ListLoadedUsers(fname, users);
+    FCRekeySlot me;
+    me.username = AuthSlotName();
+    if(!me.username.is_null()) users.Add(me);
+    cout << "In-file access log of " << fname.c_str() << ": " << written << " entries written, the last "
+	 << EPDB_RING_ENTRIES << " are kept" << "\n" << flush;
+    for(gxListNode<FCRingEntry> *p = entries.GetHead(); p; p = p->next) {
+      char stamp[32];
+      time_t t = (time_t)p->data.when;
+      strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%SZ", gmtime(&t));
+      gxString who = "-";
+      unsigned char zero[8];
+      memset(zero, 0, sizeof(zero));
+      if(memcmp(p->data.slot_hash, zero, 8) != 0) {
+	who << clear << "user#" << FC_hex(p->data.slot_hash, 8);
+	for(gxListNode<FCRekeySlot> *u = users.GetHead(); u; u = u->next) {
+	  unsigned char h[8];
+	  FC_ring_slot_hash(EPDBKeysetKey(file_key, EPDB_KEY_MASTER), EPDBKeysetID(file_key), EPDB_V2_ID_LEN,
+			    u->data.username.c_str(), h);
+	  if(memcmp(h, p->data.slot_hash, 8) == 0) { who = u->data.username; break; }
+	}
+	if(p->data.flags & 0x80) who << clear << "(before rekey)";
+      }
+      if(!verify) {
+	cout << p->data.seq << "\t" << stamp << "\t" << FC_action_name(p->data.action) << "\t"
+	     << FC_auth_name(p->data.auth) << "\t" << who.c_str() << "\t" << (p->data.result ? "ok" : "fail") << "\n" << flush;
+      }
+    }
+    if(r != 0) {
+      cout << "TAMPERED: in-file access log: " << err.c_str() << "\n" << flush;
+      rv = 1;
+    }
+    else if(verify) cout << "OK: in-file access log verified" << "\n" << flush;
+  }
+  else {
+    cout << "The in-file access log is off for " << fname.c_str() << "\n" << flush;
+  }
+  if(f) {
+    f->Close();
+    delete f;
+  }
+  // Per-user log
+  gxString log_file = access_log_file;
+  if(log_file.is_null()) log_file = FC_default_log_file(".encrypted_password_database");
+  if(!futils_exists(log_file.c_str())) {
+    cout << "No per-user access log at " << log_file.c_str() << "\n" << flush;
+    return rv;
+  }
+  if(!verify) {
+    FILE *fp = fopen(log_file.c_str(), "rb");
+    char line[8192];
+    gxString key;
+    key << "\tid=" << id << "\t";
+    cout << "Per-user access log " << log_file.c_str() << " entries for this database:" << "\n" << flush;
+    while(fp && fgets(line, sizeof(line), fp)) {
+      if(!id.is_null() && strstr(line, key.c_str())) cout << line;
+    }
+    if(fp) fclose(fp);
+    cout << flush;
+    return rv;
+  }
+  unsigned char lk[FC_LOG_KEY_LEN];
+  FC_log_key(EPDBKeysetKey(file_key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN, EPDBKeysetID(file_key), EPDB_V2_ID_LEN, lk);
+  FCLogVerifyResult r;
+  int lrv = FC_log_verify(log_file.c_str(), id.c_str(), lk, r, err);
+  OPENSSL_cleanse(lk, sizeof(lk));
+  if(lrv < 0) {
+    cout << "ERROR: " << err.c_str() << "\n" << flush;
+    return 1;
+  }
+  cout << "Per-user access log " << log_file.c_str() << ": " << r.id_lines << " entries, " << r.tagged
+       << " tags verified, " << r.untagged_covered << " untagged entries covered";
+  if(r.trailing_untagged) cout << ", " << r.trailing_untagged << " untagged entries after the last tag (not checked)";
+  cout << "\n" << flush;
+  if(lrv != 0) {
+    cout << "TAMPERED: per-user access log: " << r.bad_lines << " problem(s), first at line " << r.first_bad_line
+	 << ": " << r.first_bad_reason.c_str() << "\n" << flush;
+    return 1;
+  }
+  cout << "OK: per-user access log verified" << "\n" << flush;
+  return rv;
+}
+
+static int SetDatabaseOptions(const gxString &fname, MemoryBuffer &file_key)
+// --access-log-in-file and --self-destruct. Returns 0 if successful.
+{
+  gxString err;
+  gxDatabase *f = OpenEPDB(fname.c_str(), err, gxDBASE_READWRITE);
+  if(!f) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    return -1;
+  }
+  EPDBHeaderExt x;
+  EPDBReadExt(f, x);
+  int rv = 0;
+  if(access_log_in_file == 1) {
+    gxList<FCRingEntry> entries;
+    unsigned long long written = 0;
+    gxString rerr;
+    if(EPDBRingRead(f, file_key, entries, written, rerr) != 0) rv = EPDBRingInit(f, file_key, err);
+    x.flags |= EPDB_EXT_LOG_IN_FILE;
+  }
+  if(access_log_in_file == 0) x.flags &= ~EPDB_EXT_LOG_IN_FILE;
+  FCControlBlock c;
+  EPDBReadControl(f, c);
+  if(self_destruct == 1 || (self_destruct < 0 && self_destruct_attempts && c.SelfDestruct())) {
+    c.flags |= FC_CTL_SELF_DESTRUCT;
+    if(self_destruct_attempts) c.limit = self_destruct_attempts;
+    else if(!c.limit) c.limit = FC_SD_DEFAULT_ATTEMPTS;
+    c.failed = 0;
+    c.destroyed = 0;
+    x.flags |= EPDB_EXT_SELF_DESTRUCT;
+    x.sd_limit = c.limit;
+  }
+  else if(self_destruct == 0) {
+    c.flags &= ~FC_CTL_SELF_DESTRUCT;
+    c.failed = 0;
+    x.flags &= ~EPDB_EXT_SELF_DESTRUCT;
+  }
+  else if(self_destruct_attempts) {
+    cerr << "ERROR: --self-destruct-attempts needs --self-destruct=on" << "\n" << flush;
+    rv = -1;
+  }
+  if(rv == 0 && (self_destruct >= 0 || self_destruct_attempts) && EPDBWriteControl(f, c, err) != 0) rv = -1;
+  if(rv == 0 && EPDBWriteExt(f, x, file_key, err) != 0) rv = -1;
+  f->Close();
+  delete f;
+  if(rv == 0 && FC_fsync_file(fname.c_str()) != 0) {
+    err << clear << "Cannot flush " << fname.c_str();
+    rv = -1;
+  }
+  if(rv != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    return -1;
+  }
+  if(access_log_in_file == 1) {
+    cerr << "The in-file access log is on for " << fname.c_str() << " (last " << EPDB_RING_ENTRIES << " entries)" << "\n" << flush;
+    LogEvent(fname, "access-log-on", AuthSlotName(), gxString(), 1, 0, &file_key);
+  }
+  if(access_log_in_file == 0) {
+    PerUserLog(fname, "access-log-off", AuthSlotName(), gxString(), 1, 0, &file_key, 1);
+    cerr << "The in-file access log is off for " << fname.c_str() << "\n" << flush;
+  }
+  if(c.SelfDestruct() && (self_destruct == 1 || self_destruct_attempts)) {
+    cerr << "Self-destruct is on for " << fname.c_str() << ": the records are destroyed after " << c.limit << " failed opens." << "\n"
+	 << "This only counts guesses made through this program and the GUI: anyone with a copy of the file can guess offline "
+	 << "or reset the counter. A destroyed database cannot be recovered except from your own backups. With self-destruct "
+	 << "on, a read-only copy is not opened, and --remove-user and --rekey keep no backup copy." << "\n" << flush;
+  }
+  if(self_destruct == 0) cerr << "Self-destruct is off for " << fname.c_str() << "\n" << flush;
+  return 0;
+}
+
+static int SelfDestructOn(const gxString &fname)
+{
+  FCControlBlock c;
+  return EPDBReadControl(fname.c_str(), c) && c.SelfDestruct();
+}
+
+static int RemoveUser(const gxString &fname, MemoryBuffer &file_key)
+{
+  gxList<FCRekeySlot> users;
+  ListLoadedUsers(fname, users);
+  int has_rsa = 0, has_sc = 0, count = 0;
+  for(gxListNode<FCRekeySlot> *p = users.GetHead(); p; p = p->next) {
+    count++;
+    if(p->data.username == remove_username) {
+      if(p->data.type == FC_SLOT_RSA) has_rsa = 1;
+      else has_sc = 1;
+    }
+  }
+  gxUINT32 type = remove_user_type;
+  if(!type) {
+    if(has_rsa && has_sc) {
+      cerr << "ERROR: User " << remove_username.c_str() << " has RSA key and smart card access to " << fname.c_str()
+	   << ", give --remove-user-type=rsa or --remove-user-type=smartcard" << "\n" << flush;
+      return -1;
+    }
+    type = has_sc ? 2 : 1;
+  }
+  // A database made with RSA keys or smart cards only has a random
+  // password nobody knows, so the last such user is only removed when
+  // the password or key file was used to open it.
+  if(count == 1 && ((type == 1 && has_rsa) || (type == 2 && has_sc)) && !use_password && !use_key_file) {
+    cerr << "ERROR: " << remove_username.c_str() << " is the last RSA key or smart card user of " << fname.c_str()
+	 << ". The database may have no password anyone knows, so removing it could leave a database nothing can open. "
+	 << "Open it with the database password or key file to remove this user." << "\n" << flush;
+    LogEvent(fname, "remove-user", remove_username, gxString(), 0, "refused, last user", &file_key);
+    return -1;
+  }
+  int keep_backup = !SelfDestructOn(fname);
+  gxString backup, err;
+  if(EPDBRemoveUser(fname.c_str(), file_key, type, remove_username, keep_backup, backup, err) != 0) {
+    cerr << "ERROR: The database was not changed: " << err.c_str() << "\n" << flush;
+    LogEvent(fname, "remove-user", remove_username, gxString(), 0, "not changed", &file_key);
+    return -1;
+  }
+  cerr << "Removed " << (type == 1 ? "RSA key" : "smart card") << " access for user " << remove_username.c_str()
+       << " from " << fname.c_str() << "\n" << flush;
+  if(keep_backup) {
+    cerr << "The original database was saved to " << backup.c_str() << " and " << ReplaceFileExtension(backup, ".ehx").c_str()
+	 << ", delete them when you no longer need them, the removed user can still open them" << "\n" << flush;
+  }
+  else {
+    cerr << "No backup copy was kept because self-destruct is on" << "\n" << flush;
+  }
+  cerr << "NOTE: Removing a user does not revoke a database key the user may already have recovered, or copies "
+       << "of the database made before. Run epdb_auth_tool --rekey to give the database a new master key." << "\n" << flush;
+  LogEvent(fname, "remove-user", remove_username, gxString(), 1, 0, &file_key);
+  return 0;
+}
+
+static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
+{
+  gxList<FCRekeySlot> existing, keep;
+  ListLoadedUsers(fname, existing);
+  int password_supplied = use_password || use_key_file;
+  int generate = !rekey_new_password_file.is_null() || !rekey_new_password_fd.is_null();
+  int pw_action = 0;
+  gxString missing, err;
+  int rv = FC_rekey_plan(existing, 1, password_supplied, generate, rekey_in, keep, pw_action, missing, err);
+  if(rv == 1) {
+    cerr << "ERROR: The rekey of " << fname.c_str() << " needs a choice for every user and the database password, "
+	 << "nothing was changed. Missing from the rekey input:" << "\n" << missing.c_str() << flush;
+    return -1;
+  }
+  if(rv != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    return -1;
+  }
+  MemoryBuffer new_secret;
+  gxString generated;
+  if(pw_action == FC_REKEY_PW_KEEP) {
+    if(password_supplied) new_secret = aes_file_decrypt_secret;
+    else {
+      new_secret.Cat(rekey_in.password.GetSPtr(), rekey_in.password.length());
+      gxDatabase *f = OpenEPDB(fname.c_str(), err);
+      MemoryBuffer ks;
+      int aes_error = 0;
+      int ok = f && EPDBUnlock(f, new_secret, ks, err, aes_error) == 0;
+      ks.Clear(1);
+      if(f) { f->Close(); delete f; }
+      if(!ok) {
+	cerr << "ERROR: The password= in the rekey input is not the database password of " << fname.c_str() << "\n" << flush;
+	new_secret.Clear(1);
+	return -1;
+      }
+    }
+  }
+  else if(pw_action == FC_REKEY_PW_NEW) {
+    if((int)rekey_in.new_password.length() < AES_MIN_SECRET_LEN) {
+      cerr << "ERROR: The new password must be at least " << AES_MIN_SECRET_LEN << " characters long" << "\n" << flush;
+      return -1;
+    }
+    new_secret.Cat(rekey_in.new_password.GetSPtr(), rekey_in.new_password.length());
+  }
+  else if(pw_action == FC_REKEY_PW_GENERATE) {
+    if(!FC_generate_secret(generated)) {
+      cerr << "ERROR: Cannot generate a password" << "\n" << flush;
+      return -1;
+    }
+    gxString werr;
+    int wrv = !rekey_new_password_file.is_null() ?
+      FC_write_secret_file(rekey_new_password_file.c_str(), generated, werr) :
+      FC_write_secret_fd(rekey_new_password_fd.c_str(), generated, werr);
+    if(wrv != 0) {
+      cerr << "ERROR: " << werr.c_str() << ", the database was not changed" << "\n" << flush;
+      generated.Clear(1);
+      return -1;
+    }
+    new_secret.Cat(generated.GetSPtr(), generated.length());
+    generated.Clear(1);
+  }
+  gxList<EPDBRekeyUser> users;
+  for(gxListNode<FCRekeySlot> *p = keep.GetHead(); p; p = p->next) {
+    EPDBRekeyUser u;
+    u.block_type = (p->data.type == FC_SLOT_RSA) ? 1 : 2;
+    u.username = p->data.username;
+    u.source = p->data.source;
+    users.Add(u);
+  }
+  int keep_backup = !SelfDestructOn(fname);
+  MemoryBuffer new_keyset;
+  gxString backup;
+  gxString old_id = EPDBIDHex(fname.c_str());
+  unsigned char old_lk[FC_LOG_KEY_LEN];
+  FC_log_key(EPDBKeysetKey(file_key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN, EPDBKeysetID(file_key), EPDB_V2_ID_LEN, old_lk);
+#ifdef __ENABLE_SMART_CARD__
+  SmartCardOB *scp = &sc;
+#else
+  SmartCardOB *scp = 0;
+#endif
+  rv = EPDBRekey(fname.c_str(), file_key, pw_action == FC_REKEY_PW_NONE ? 0 : &new_secret, users, scp,
+		 keep_backup, new_keyset, backup, err);
+  new_secret.Clear(1);
+  if(rv != 0) {
+    cerr << "ERROR: Rekey of " << fname.c_str() << " failed, the database was not changed: " << err.c_str() << "\n" << flush;
+    if(pw_action == FC_REKEY_PW_GENERATE) {
+      if(!rekey_new_password_file.is_null()) futils_remove(rekey_new_password_file.c_str());
+      cerr << "The generated password was not used" << "\n" << flush;
+    }
+    LogEvent(fname, "rekey", AuthSlotName(), gxString(), 0, "not changed", &file_key);
+    OPENSSL_cleanse(old_lk, sizeof(old_lk));
+    return -1;
+  }
+  cerr << "Rekeyed " << fname.c_str() << ": new master key, every field encrypted again" << "\n" << flush;
+  for(gxListNode<FCRekeySlot> *p = keep.GetHead(); p; p = p->next) {
+    cerr << "  kept " << (p->data.type == FC_SLOT_RSA ? "RSA key" : "smart card") << " user " << p->data.username.c_str() << "\n" << flush;
+  }
+  if(pw_action == FC_REKEY_PW_KEEP) cerr << "  the database password is the same (the master key is new: it is derived from the password with a new salt)" << "\n" << flush;
+  if(pw_action == FC_REKEY_PW_NEW) cerr << "  the database has the new password" << "\n" << flush;
+  if(pw_action == FC_REKEY_PW_GENERATE) {
+    cerr << "  the database has a generated password, written to "
+	 << (rekey_new_password_file.is_null() ? "the file descriptor" : rekey_new_password_file.c_str()) << "\n" << flush;
+  }
+  if(pw_action == FC_REKEY_PW_NONE) cerr << "  the database has no password anyone knows, only the RSA key and smart card users above can open it" << "\n" << flush;
+  if(keep_backup) {
+    cerr << "The original database was saved to " << backup.c_str() << " and " << ReplaceFileExtension(backup, ".ehx").c_str()
+	 << ", delete them when you no longer need them, they open with the old credentials" << "\n" << flush;
+  }
+  else {
+    cerr << "No backup copy was kept because self-destruct is on" << "\n" << flush;
+  }
+  // Access log: close the old chain, then carry it to the new key
+  PerUserLog(fname, "rekey", AuthSlotName(), gxString(), 1, 0, &file_key, 0);
+  if(access_log) {
+    gxString log_file = access_log_file;
+    if(log_file.is_null()) log_file = FC_default_log_file(".encrypted_password_database");
+    unsigned char new_lk[FC_LOG_KEY_LEN];
+    FC_log_key(EPDBKeysetKey(new_keyset, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN, EPDBKeysetID(new_keyset), EPDB_V2_ID_LEN, new_lk);
+    gxString lbackup, lerr;
+    int lrv = FC_log_rekey(log_file.c_str(), old_id.c_str(), old_lk, FC_hex(EPDBKeysetID(new_keyset), EPDB_V2_ID_LEN).c_str(),
+			   new_lk, lbackup, lerr);
+    if(lrv == 1) cerr << "WARNING: " << lerr.c_str() << ". The log was kept as " << lbackup.c_str() << " and a new log started" << "\n" << flush;
+    else if(lrv < 0) cerr << "WARNING: " << lerr.c_str() << "\n" << flush;
+    OPENSSL_cleanse(new_lk, sizeof(new_lk));
+  }
+  file_key = new_keyset;
+  DBStringConfig::crypt_key = new_keyset;
+  new_keyset.Clear(1);
+  LogEvent(fname, "rekey", AuthSlotName(), gxString(), 1, "logs carried over to the new key", &file_key);
+  OPENSSL_cleanse(old_lk, sizeof(old_lk));
+  return 0;
+}
+
+static int RecordChange(const gxString &fname, MemoryBuffer &file_key)
+{
+  const char *action = (record_op == EPDB_RECORD_ADD) ? "add-record" :
+    ((record_op == EPDB_RECORD_UPDATE) ? "update-record" : "delete-record");
+  if(record_op == EPDB_RECORD_DELETE) {
+    gxString q;
+    q << "Delete record " << record_name << " from " << fname;
+    if(!ConfirmAtTerminal(q.c_str())) {
+      cerr << "The record was not deleted" << "\n" << flush;
+      return -1;
+    }
+  }
+  gxString new_name, err;
+  if(EPDBRecordChange(fname.c_str(), file_key, record_op, record_name, record_fields, new_name, err) != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    LogEvent(fname, action, AuthSlotName(), record_name, 0, "not changed", &file_key);
+    return -1;
+  }
+  if(record_op == EPDB_RECORD_ADD) cerr << "Added record " << record_name.c_str() << " to " << fname.c_str() << "\n" << flush;
+  if(record_op == EPDB_RECORD_DELETE) cerr << "Deleted record " << record_name.c_str() << " from " << fname.c_str() << "\n" << flush;
+  if(record_op == EPDB_RECORD_UPDATE) {
+    cerr << "Updated record " << record_name.c_str();
+    if(new_name != record_name) cerr << " (now " << new_name.c_str() << ")";
+    cerr << " in " << fname.c_str() << "\n" << flush;
+  }
+  gxString detail;
+  if(new_name != record_name) detail << "renamed to " << new_name;
+  LogEvent(fname, action, AuthSlotName(), record_name, 1, detail.is_null() ? 0 : detail.c_str(), &file_key);
+  return 0;
+}
+
+int KeyManagementOps(const gxString &fname, MemoryBuffer &file_key, int is_v2)
+// Runs the 10/27/2026 operations on an unlocked and verified database.
+// Returns the number of operations, or -1 if one failed.
+{
+  int n = 0;
+  int needs_v2 = remove_user || rekey || verify_access_log || show_access_log ||
+    access_log_in_file >= 0 || self_destruct >= 0 || self_destruct_attempts;
+  if(needs_v2 && !is_v2) {
+    cerr << "ERROR: " << fname.c_str() << " is a v1 database. --remove-user, --rekey, the access log options and "
+	 << "self-destruct need a v2 database, upgrade it first with: epdb_auth_tool --upgrade-db " << fname.c_str() << "\n" << flush;
+    return -1;
+  }
+  if(access_log_in_file >= 0 || self_destruct >= 0 || self_destruct_attempts) {
+    n++;
+    if(SetDatabaseOptions(fname, file_key) != 0) return -1;
+  }
+  if(remove_user) {
+    n++;
+    if(RemoveUser(fname, file_key) != 0) return -1;
+  }
+  if(rekey) {
+    n++;
+    if(RekeyDatabase(fname, file_key) != 0) return -1;
+  }
+  if(record_op) {
+    n++;
+    if(RecordChange(fname, file_key) != 0) return -1;
+  }
+  if(show_access_log || verify_access_log) {
+    n++;
+    if(ShowAccessLog(fname, file_key, verify_access_log) != 0) return -1;
+  }
+  return n;
 }

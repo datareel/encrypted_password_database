@@ -1869,6 +1869,683 @@ int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
   return -1;
 }
 
+
+// --------------------------------------------------------------
+// 10/27/2026: Key management, access log and self-destruct, see db_auth.h
+// --------------------------------------------------------------
+static const unsigned char EPDB_EXT_MAGIC[4] = { 'E', 'P', 'X', '1' };
+
+static unsigned long long epdb_get64(const unsigned char *p)
+{
+  unsigned long long v = 0;
+  for(int i = 7; i >= 0; i--) v = (v << 8) | p[i];
+  return v;
+}
+
+static FAU_t epdb_config_address(gxDatabase *f, unsigned offset)
+{
+  return (FAU_t)f->FileHeaderSize() + (FAU_t)offset;
+}
+
+int EPDBReadExt(gxDatabase *f, EPDBHeaderExt &x)
+{
+  x = EPDBHeaderExt();
+  unsigned char hdr[EPDB_V2_HEADER_LEN];
+  if(EPDBReadHeader(f, hdr) != 1) return 0;
+  if(memcmp(hdr+EPDB_EXT_OFFSET, EPDB_EXT_MAGIC, 4) != 0) return 0;
+  x.flags = epdb_get32(hdr+EPDB_EXT_OFFSET+4);
+  x.key_generation = epdb_get32(hdr+EPDB_EXT_OFFSET+8);
+  x.rekey_time = epdb_get64(hdr+EPDB_EXT_OFFSET+12);
+  x.sd_limit = epdb_get32(hdr+EPDB_EXT_OFFSET+20);
+  return 1;
+}
+
+static void epdb_put_ext(unsigned char *hdr, const EPDBHeaderExt &x)
+{
+  memmove(hdr+EPDB_EXT_OFFSET, EPDB_EXT_MAGIC, 4);
+  epdb_put32(hdr+EPDB_EXT_OFFSET+4, x.flags);
+  epdb_put32(hdr+EPDB_EXT_OFFSET+8, x.key_generation);
+  epdb_put64(hdr+EPDB_EXT_OFFSET+12, (FAU_t)x.rekey_time);
+  epdb_put32(hdr+EPDB_EXT_OFFSET+20, x.sd_limit);
+}
+
+int EPDBWriteExt(gxDatabase *f, const EPDBHeaderExt &x, const MemoryBuffer &keyset, gxString &err)
+{
+  unsigned char hdr[EPDB_V2_HEADER_LEN];
+  if(EPDBReadHeader(f, hdr) != 1) {
+    err << clear << "The database is not a v2 database";
+    return -1;
+  }
+  epdb_put_ext(hdr, x);
+  if(f->Write(hdr, sizeof(hdr), epdb_header_address(f)) != gxDBASE_NO_ERROR) {
+    err << clear << "Cannot write the database v2 header";
+    return -1;
+  }
+  return EPDBSeal(f, keyset, err);
+}
+
+int EPDBReadControl(gxDatabase *f, FCControlBlock &c)
+{
+  unsigned char buf[FC_CTL_LEN];
+  c = FCControlBlock();
+  if(!f || !EPDBIsV2(f)) return 0;
+  if(f->Read(buf, sizeof(buf), epdb_config_address(f, EPDB_CTL_OFFSET)) != gxDBASE_NO_ERROR) return 0;
+  return FC_ctl_read(buf, c);
+}
+
+int EPDBReadControl(const char *data_file, FCControlBlock &c)
+{
+  gxDatabase f;
+  c = FCControlBlock();
+  if(f.Open(data_file, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return 0;
+  int rv = EPDBReadControl(&f, c);
+  f.Close();
+  return rv;
+}
+
+int EPDBWriteControl(gxDatabase *f, const FCControlBlock &c, gxString &err)
+{
+  unsigned char buf[FC_CTL_LEN];
+  FC_ctl_write(buf, c);
+  if(f->Write(buf, sizeof(buf), epdb_config_address(f, EPDB_CTL_OFFSET)) != gxDBASE_NO_ERROR ||
+     f->Flush() != gxDBASE_NO_ERROR) {
+    err << clear << "Cannot write the database control block";
+    return -1;
+  }
+  return 0;
+}
+
+int EPDBWriteControl(const char *data_file, const FCControlBlock &c, gxString &err)
+// Opens the data file for writing, writes the control block and
+// flushes it to disk
+{
+  gxDatabase f;
+  if(f.Open(data_file, gxDBASE_READWRITE) != gxDBASE_NO_ERROR) {
+    err << clear << "Cannot open " << data_file << " for writing";
+    return -1;
+  }
+  int rv = EPDBWriteControl(&f, c, err);
+  f.Close();
+  if(rv == 0 && FC_fsync_file(data_file) != 0) {
+    err << clear << "Cannot flush " << data_file << " to disk";
+    rv = -1;
+  }
+  return rv;
+}
+
+gxString EPDBIDHex(gxDatabase *f)
+{
+  unsigned char hdr[EPDB_V2_HEADER_LEN];
+  if(!f || EPDBReadHeader(f, hdr) != 1) return gxString();
+  return FC_hex(hdr+64, EPDB_V2_ID_LEN);
+}
+
+gxString EPDBIDHex(const char *data_file)
+{
+  gxDatabase f;
+  if(f.Open(data_file, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return gxString();
+  gxString id = EPDBIDHex(&f);
+  f.Close();
+  return id;
+}
+
+static int epdb_ring_io(gxDatabase *f, unsigned char *ring, int write)
+{
+  unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
+  FAU_t a = epdb_config_address(f, EPDB_RING_OFFSET);
+  if(write) return f->Write(ring, len, a) == gxDBASE_NO_ERROR && f->Flush() == gxDBASE_NO_ERROR;
+  return f->Read(ring, len, a) == gxDBASE_NO_ERROR;
+}
+
+int EPDBRingInit(gxDatabase *f, const MemoryBuffer &keyset, gxString &err)
+{
+  unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
+  unsigned char *ring = new unsigned char[len];
+  int ok = FC_ring_init(ring, len, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset), EPDB_V2_ID_LEN) &&
+    epdb_ring_io(f, ring, 1);
+  delete[] ring;
+  if(!ok) err << clear << "Cannot set up the in-file access log";
+  return ok ? 0 : -1;
+}
+
+int EPDBRingAppend(gxDatabase *f, const MemoryBuffer &keyset, const FCRingEntry &e,
+		   const char *slot_username, gxString &err)
+{
+  unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
+  unsigned char *ring = new unsigned char[len];
+  int ok = epdb_ring_io(f, ring, 0);
+  if(!ok) err << clear << "Cannot read the in-file access log";
+  if(ok) ok = FC_ring_append(ring, len, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset),
+			     EPDB_V2_ID_LEN, e, slot_username, err);
+  if(ok) {
+    ok = epdb_ring_io(f, ring, 1);
+    if(!ok) err << clear << "Cannot write the in-file access log";
+  }
+  delete[] ring;
+  return ok ? 0 : -1;
+}
+
+int EPDBRingRead(gxDatabase *f, const MemoryBuffer &keyset, gxList<FCRingEntry> &entries,
+		 unsigned long long &written, gxString &err)
+{
+  unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
+  unsigned char *ring = new unsigned char[len];
+  int rv = -1;
+  if(epdb_ring_io(f, ring, 0)) {
+    rv = FC_ring_read(ring, len, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset),
+		      EPDB_V2_ID_LEN, entries, written, err);
+  }
+  else {
+    err << clear << "Cannot read the in-file access log";
+  }
+  delete[] ring;
+  return rv;
+}
+
+static int epdb_copy_db(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			const gxString &tifile, gxString &err)
+{
+  if(FC_copy_private(dfile.c_str(), tdfile.c_str(), err) != 0) return -1;
+  if(FC_copy_private(ifile.c_str(), tifile.c_str(), err) != 0) {
+    futils_remove(tdfile.c_str());
+    return -1;
+  }
+  return 0;
+}
+
+static int epdb_replace_db(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			   const gxString &tifile, int keep_backup, const char *tag,
+			   gxString &backup_data_file, gxString &err)
+// Keeps the originals as a backup when asked, then renames the checked
+// temporary files over them, index first
+{
+  backup_data_file.Clear();
+  gxString bdfile, bifile;
+  if(keep_backup) {
+    bdfile = FC_backup_name(dfile.c_str(), tag, ".ehd");
+    bifile = ReplaceFileExtension(bdfile, ".ehx");
+    if(FC_copy_private(dfile.c_str(), bdfile.c_str(), err) != 0) return -1;
+    if(FC_copy_private(ifile.c_str(), bifile.c_str(), err) != 0) {
+      futils_remove(bdfile.c_str());
+      return -1;
+    }
+  }
+  if(FC_replace_file(tifile.c_str(), ifile.c_str(), err) != 0) {
+    if(keep_backup) {
+      futils_remove(bdfile.c_str());
+      futils_remove(bifile.c_str());
+    }
+    return -1;
+  }
+  if(FC_replace_file(tdfile.c_str(), dfile.c_str(), err) != 0) {
+    err << ". The index file was replaced, restore both files from the backup "
+	<< (keep_backup ? bdfile.c_str() : "(none kept)");
+    if(keep_backup) backup_data_file = bdfile;
+    return -1;
+  }
+  if(keep_backup) backup_data_file = bdfile;
+  return 0;
+}
+
+static int epdb_check_db_name(const gxString &dfile, gxString &err)
+{
+  if(dfile.length() < 5 || CaseICmp(gxString(dfile.c_str() + dfile.length() - 4), ".ehd") != 0) {
+    err << clear << "The database file name must end in .ehd";
+    return -1;
+  }
+  return 0;
+}
+
+int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 block_type,
+		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err)
+{
+  err.Clear();
+  backup_data_file.Clear();
+  gxString dfile(data_file);
+  if(epdb_check_db_name(dfile, err) != 0) return -1;
+  if(!EPDBIsKeyset(keyset)) {
+    err << clear << "Removing a user needs a v2 database, upgrade it first with --upgrade-db";
+    return -1;
+  }
+  gxString ifile = ReplaceFileExtension(dfile, ".ehx");
+  gxString tdfile = ReplaceFileExtension(dfile, ".remove-user.ehd");
+  gxString tifile = ReplaceFileExtension(dfile, ".remove-user.ehx");
+  if(futils_exists(tdfile.c_str()) || futils_exists(tifile.c_str())) {
+    err << clear << tdfile.c_str() << " exists from an earlier run that did not finish, check it and remove it";
+    return -1;
+  }
+  if(epdb_copy_db(dfile, ifile, tdfile, tifile, err) != 0) return -1;
+  int rv = 0;
+  {
+    POD *pod = epdb_open_pod(tdfile, tifile, gxDBASE_READWRITE, err);
+    if(!pod) rv = -1;
+    DatabaseUserAuth db_auth;
+    if(rv == 0) {
+      db_auth.f = pod->OpenDataFile();
+      if(db_auth.LoadStaticDataBlocks() != 0) {
+	err = db_auth.err;
+	rv = -1;
+      }
+    }
+    if(rv == 0) {
+      gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead();
+      while(p && !(p->data.username == username && p->data.block_header.block_type == block_type)) p = p->next;
+      if(!p) {
+	err << clear << "User " << username << " has no " << (block_type == 1 ? "RSA key" : "smart card")
+	    << " access to " << data_file;
+	rv = -1;
+      }
+      else {
+	db_auth.static_block_list.Remove(p);
+	if(db_auth.UpdateStaticData() != 0 || db_auth.WriteStaticDataArea() != 0) {
+	  err = db_auth.err;
+	  rv = -1;
+	}
+      }
+    }
+    if(rv == 0 && EPDBSeal(pod->OpenDataFile(), keyset, err) != 0) rv = -1;
+    if(rv == 0) {
+      MemoryBuffer ks2;
+      if(EPDBUnlockMaster(pod->OpenDataFile(), EPDBKeysetKey(keyset, EPDB_KEY_MASTER), ks2, err) != 0 ||
+	 EPDBVerify(pod, ks2, err) != 0) {
+	err << clear << "The changed database does not check: " << err;
+	rv = -1;
+      }
+      ks2.Clear(1);
+    }
+    if(pod) delete pod;
+  }
+  if(rv == 0) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "remove-user-backup",
+				   backup_data_file, err);
+  if(rv != 0) {
+    gxString keep = err;
+    futils_remove(tdfile.c_str());
+    futils_remove(tifile.c_str());
+    err = keep;
+  }
+  return rv;
+}
+
+static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY_LEN], const gxString &username,
+			   const gxString &source, SmartCardOB *sc, StaticDataBlock &block, gxString &err)
+// Builds a v2 user block (OAEP over the salt and master key) for the
+// public key of an RSA user or the cert of a smart card user
+{
+  unsigned char SALT[AES_MAX_SALT_LEN], IV[AES_MAX_IV_LEN], KEY[AES_MAX_KEY_LEN];
+  unsigned char ct[8192], hash[AES_MAX_HMAC_LEN];
+  unsigned ct_len = 0;
+  if(username.is_null() || username.length() > DB_AUTH_MAX_USERNAME_LEN) {
+    err << clear << "The username must be 1 to " << DB_AUTH_MAX_USERNAME_LEN << " characters";
+    return -1;
+  }
+  if(AES_init_salt(SALT, sizeof(SALT)) != AES_NO_ERROR ||
+     AES_derive_key(master, EPDB_V2_KEY_LEN, SALT, sizeof(SALT), KEY, sizeof(KEY), IV, sizeof(IV), 1000) != AES_NO_ERROR) {
+    err << clear << "Cannot derive the user block key";
+    return -1;
+  }
+  MemoryBuffer p_secret;
+  p_secret.Cat(SALT, sizeof(SALT));
+  p_secret.Cat(master, EPDB_V2_KEY_LEN);
+  int rv = -1;
+  if(type == 1) {
+    char pub[RSA_max_keybuf_len];
+    unsigned pub_len = 0;
+    int has_pass = 0;
+    if(RSA_read_key_file(source.c_str(), pub, sizeof(pub), &pub_len, &has_pass) != RSA_NO_ERROR) {
+      err << clear << "Cannot read the public key file " << source << " for user " << username;
+    }
+    else if(RSA_public_key_encrypt((const unsigned char *)pub, pub_len, p_secret.m_buf(), p_secret.length(),
+				   ct, sizeof(ct), &ct_len, RSA_PKCS1_OAEP_PADDING, 0) != RSA_NO_ERROR) {
+      err << clear << "Cannot wrap the key with " << source << " for user " << username << " (it must be a public RSA key)";
+    }
+    else rv = 0;
+    memset(pub, 0, sizeof(pub));
+  }
+#ifdef __ENABLE_SMART_CARD__
+  else if(type == 2) {
+    if(source == "card") {
+      if(!sc) err << clear << "No smart card settings for user " << username;
+      else if(SC_public_key_encrypt(sc, p_secret.m_buf(), p_secret.length(), ct, sizeof(ct), &ct_len,
+				    RSA_PKCS1_OAEP_PADDING) != 0) {
+	err << clear << "Cannot read the cert of user " << username << " from the card: " << sc->err_string;
+      }
+      else rv = 0;
+    }
+    else {
+      SmartCardOB cert;
+      gxString cerr_str;
+      if(EPDBReadSmartCardCertFile(&cert, source.c_str(), cerr_str) != 0) err = cerr_str;
+      else if(SC_cert_file_public_key_encrypt(&cert, p_secret.m_buf(), p_secret.length(), ct, sizeof(ct), &ct_len,
+					      RSA_PKCS1_OAEP_PADDING) != 0) {
+	err << clear << "Cannot wrap the key with the cert " << source << " of user " << username << ": " << cert.err_string;
+      }
+      else rv = 0;
+    }
+  }
+#endif
+  else {
+    err << clear << "Unsupported user type for " << username;
+  }
+  p_secret.Clear(1);
+  if(rv != 0) return -1;
+  if(AES_HMAC(KEY, sizeof(KEY), ct, ct_len, hash, sizeof(hash)) != AES_NO_ERROR) {
+    err << clear << "Cannot compute the user block HMAC";
+    return -1;
+  }
+  OPENSSL_cleanse(KEY, sizeof(KEY));
+  char username_buf[1024];
+  memset(username_buf, 0, sizeof(username_buf));
+  gxsBase64Encode(username.c_str(), username_buf, username.length());
+  block.Clear();
+  block.block_header.FormatHeader();
+  block.block_header.version = STATIC_DATA_BLOCK_VERSION_V2;
+  block.block_header.block_type = type;
+  block.block_header.block_status = DB_AUTH_BLOCK_STATUS_OAEP_MASTER;
+  block.block_header.ciphertext_len = ct_len;
+  block.block_header.block_len = ct_len + sizeof(hash);
+  block.block_header.username_len = strlen(username_buf);
+  block.rsa_ciphertext.Cat(ct, ct_len);
+  block.hmac.Cat(hash, sizeof(hash));
+  block.username = username;
+  block.username_encoded = username_buf;
+  return 0;
+}
+
+static int epdb_rekey_copy(POD *old_pod, POD *new_pod, MemoryBuffer &old_keyset, MemoryBuffer &secret,
+			   gxList<EPDBRekeyUser> &keep, SmartCardOB *sc, MemoryBuffer &keyset, gxString &err)
+// Writes the rekeyed database: static areas, a new v2 header and keys,
+// the new user blocks, the config and the records
+{
+  gxDatabase *of = old_pod->OpenDataFile();
+  gxDatabase *nf = new_pod->OpenDataFile();
+  const unsigned area_size = DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE;
+  unsigned char *area = new unsigned char[area_size];
+  AES_fillrand(area, area_size);
+  int rv = 0;
+  if(nf->Write(area, area_size, (FAU_t)nf->FileHeaderSize()) != gxDBASE_NO_ERROR) {
+    err << clear << "Error writing the static areas";
+    rv = -1;
+  }
+  delete[] area;
+  if(rv != 0) return rv;
+
+  EPDBHeaderExt x;
+  EPDBReadExt(of, x);
+  if(EPDBInitV2(nf, secret, keyset, err) != 0) return -1;
+  x.key_generation++;
+  x.rekey_time = (unsigned long long)time(0);
+  {
+    unsigned char hdr[EPDB_V2_HEADER_LEN];
+    if(EPDBReadHeader(nf, hdr) != 1) return -1;
+    epdb_put_ext(hdr, x);
+    if(nf->Write(hdr, sizeof(hdr), epdb_header_address(nf)) != gxDBASE_NO_ERROR) {
+      err << clear << "Cannot write the database v2 header";
+      return -1;
+    }
+  }
+
+  // Control block and in-file access log ring, re-encrypted under the
+  // new key
+  {
+    unsigned char ctl[FC_CTL_LEN];
+    if(of->Read(ctl, sizeof(ctl), epdb_config_address(of, EPDB_CTL_OFFSET)) == gxDBASE_NO_ERROR) {
+      FCControlBlock c;
+      if(FC_ctl_read(ctl, c)) {
+	c.failed = 0;
+	FC_ctl_write(ctl, c);
+	nf->Write(ctl, sizeof(ctl), epdb_config_address(nf, EPDB_CTL_OFFSET));
+      }
+    }
+    if(x.flags & EPDB_EXT_LOG_IN_FILE) {
+      unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
+      unsigned char *ring = new unsigned char[len];
+      gxString rerr;
+      int ok = epdb_ring_io(of, ring, 0) &&
+	FC_ring_rekey(ring, len, EPDBKeysetKey(old_keyset, EPDB_KEY_MASTER), EPDBKeysetID(old_keyset), EPDB_V2_ID_LEN,
+		      EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset), EPDB_V2_ID_LEN, rerr);
+      if(!ok) ok = FC_ring_init(ring, len, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset), EPDB_V2_ID_LEN);
+      if(ok) epdb_ring_io(nf, ring, 1);
+      delete[] ring;
+    }
+  }
+
+  // New user blocks
+  {
+    DatabaseUserAuth db_auth;
+    db_auth.f = nf;
+    db_auth.static_data = new unsigned char[db_auth.static_data_size];
+    for(gxListNode<EPDBRekeyUser> *p = keep.GetHead(); rv == 0 && p; p = p->next) {
+      StaticDataBlock blk;
+      if(epdb_make_block(p->data.block_type, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), p->data.username,
+			 p->data.source, sc, blk, err) != 0) {
+	rv = -1;
+	break;
+      }
+      db_auth.static_block_list.Add(blk);
+    }
+    if(rv == 0 && (db_auth.UpdateStaticData() != 0 || db_auth.WriteStaticDataArea() != 0)) {
+      err = db_auth.err;
+      rv = -1;
+    }
+    if(rv != 0) return rv;
+  }
+
+  // Config strings
+  gxDatabaseConfig cfg;
+  if(!cfg.ReadConfig(of)) {
+    err << clear << "Error reading the database config";
+    return -1;
+  }
+  DBString *strings[64];
+  int ns = epdb_config_strings(cfg, strings, 64);
+  for(int i = 0; i < ns; i++) {
+    if(epdb_reencrypt(*strings[i], old_keyset, keyset, err) != 0) return -1;
+  }
+  if(!cfg.WriteConfig(nf)) {
+    err << clear << "Error writing the database config";
+    return -1;
+  }
+
+  // Records in data file order
+  EPDBAddressList list;
+  if(epdb_walk_objects(of, epdb_addr_visit, &list, err) != 0) return -1;
+  MemoryBuffer saved_key = DBStringConfig::crypt_key;
+  int saved_case = DBStringConfig::DBStringCaseCompare;
+  DBStringConfig::crypt_key = keyset;
+  DBStringConfig::DBStringCaseCompare = 0;
+  for(unsigned r = 0; rv == 0 && r < list.num; r++) {
+    INFOHOG in(old_pod);
+    if(!in.ReadObject(list.addr[r])) {
+      err << clear << "Error reading a database record";
+      rv = -1;
+      break;
+    }
+    INFOHOG out(new_pod, in.GetNumMembers());
+    for(unsigned i = 0; rv == 0 && i < in.GetNumMembers(); i++) {
+      unsigned len = in.GetMemberLen(i);
+      if(len == 0) continue;
+      if(len == sizeof(DBString)) {
+	DBString s;
+	memmove(s.GetSPtr(), in.GetMember(i), sizeof(DBString));
+	if(epdb_reencrypt(s, old_keyset, keyset, err) != 0) { rv = -1; break; }
+	out.SetMember(&s, sizeof(s), i);
+      }
+      else {
+	out.SetMember(in.GetMember(i), len, i);
+      }
+    }
+    if(rv == 0 && !out.WriteObject()) {
+      err << clear << "Error writing a database record";
+      rv = -1;
+    }
+  }
+  DBStringConfig::crypt_key = saved_key;
+  DBStringConfig::DBStringCaseCompare = saved_case;
+  saved_key.Clear(1);
+  if(rv != 0) return rv;
+  new_pod->Flush();
+  return EPDBSeal(nf, keyset, err);
+}
+
+int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset_in, const MemoryBuffer *new_secret,
+	      gxList<EPDBRekeyUser> &keep, SmartCardOB *sc, int keep_backup,
+	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err)
+{
+  err.Clear();
+  backup_data_file.Clear();
+  new_keyset.Clear(1);
+  gxString dfile(data_file);
+  if(epdb_check_db_name(dfile, err) != 0) return -1;
+  MemoryBuffer old_keyset(old_keyset_in);
+  if(!EPDBIsKeyset(old_keyset)) {
+    err << clear << "A rekey needs a v2 database, upgrade it first with --upgrade-db";
+    return -1;
+  }
+  MemoryBuffer secret;
+  if(new_secret) secret = *new_secret;
+  else {
+    unsigned char rnd[32]; // Nobody knows this secret
+    if(!FC_rand_bytes(rnd, sizeof(rnd), 1)) {
+      err << clear << "Cannot generate random data";
+      return -1;
+    }
+    secret.Cat(rnd, sizeof(rnd));
+    OPENSSL_cleanse(rnd, sizeof(rnd));
+  }
+  if(!new_secret && !keep.GetHead()) {
+    err << clear << "The rekey would leave no password and no RSA or smart card user, nothing could open the database";
+    return -1;
+  }
+  gxString ifile = ReplaceFileExtension(dfile, ".ehx");
+  gxString tdfile = ReplaceFileExtension(dfile, ".rekey.ehd");
+  gxString tifile = ReplaceFileExtension(dfile, ".rekey.ehx");
+  if(futils_exists(tdfile.c_str()) || futils_exists(tifile.c_str())) {
+    err << clear << tdfile.c_str() << " exists from an earlier rekey that did not finish, check it and remove it";
+    return -1;
+  }
+  POD *old_pod = epdb_open_pod(dfile, ifile, gxDBASE_READONLY, err);
+  if(!old_pod) return -1;
+  MemoryBuffer keyset;
+  int rv = 0;
+  {
+    POD *new_pod = epdb_open_pod(tdfile, tifile, gxDBASE_READWRITE, err);
+    if(!new_pod) rv = -1;
+    else {
+#if defined (__UNIX__)
+      chmod(tdfile.c_str(), 0600);
+      chmod(tifile.c_str(), 0600);
+#endif
+      rv = epdb_rekey_copy(old_pod, new_pod, old_keyset, secret, keep, sc, keyset, err);
+      delete new_pod;
+    }
+  }
+  // The new database must open with the new key and hold the same data
+  if(rv == 0) {
+    POD *chk = epdb_open_pod(tdfile, tifile, gxDBASE_READONLY, err);
+    MemoryBuffer keyset2;
+    int aes_error = 0;
+    if(!chk) rv = -1;
+    if(rv == 0 && EPDBUnlock(chk->OpenDataFile(), secret, keyset2, err, aes_error) != 0) rv = -1;
+    if(rv == 0 && EPDBVerify(chk, keyset2, err) != 0) rv = -1;
+    if(rv == 0) {
+      EPDBRecordList a, b;
+      a.key = &old_keyset;
+      b.key = &keyset2;
+      if(epdb_walk_objects(old_pod->OpenDataFile(), epdb_record_text_visit, &a, err) != 0 ||
+	 epdb_walk_objects(chk->OpenDataFile(), epdb_record_text_visit, &b, err) != 0) {
+	err << clear << "Cannot read the records to check the rekey";
+	rv = -1;
+      }
+      gxListNode<gxString> *pa = a.records.GetHead(), *pb = b.records.GetHead();
+      while(rv == 0 && (pa || pb)) {
+	if(!pa || !pb || pa->data != pb->data) {
+	  err << clear << "The rekeyed records do not match the original records";
+	  rv = -1;
+	  break;
+	}
+	pa = pa->next;
+	pb = pb->next;
+      }
+      epdb_wipe_list(a.records);
+      epdb_wipe_list(b.records);
+    }
+    // Each kept user block must be readable and hold the new master key
+    // (checked for the format; the private keys are not available here)
+    keyset2.Clear(1);
+    if(chk) delete chk;
+  }
+  delete old_pod;
+  if(rv == 0) rv = epdb_replace_db(dfile, ifile, tdfile, tifile, keep_backup, "rekey-backup",
+				   backup_data_file, err);
+  secret.Clear(1);
+  old_keyset.Clear(1);
+  if(rv != 0) {
+    gxString keep_err = err;
+    futils_remove(tdfile.c_str());
+    futils_remove(tifile.c_str());
+    err = keep_err;
+    keyset.Clear(1);
+    return -1;
+  }
+  new_keyset = keyset;
+  keyset.Clear(1);
+  return 0;
+}
+
+int EPDBDestroy(const char *data_file, gxString &err)
+{
+  gxString dfile(data_file);
+  gxString ifile = ReplaceFileExtension(dfile, ".ehx");
+  int rv = 0;
+  FAU_t hs = 0;
+  {
+    gxDatabase f;
+    if(f.Open(data_file, gxDBASE_READWRITE) != gxDBASE_NO_ERROR) {
+      err << clear << "Cannot open " << data_file << " for writing";
+      return -1;
+    }
+    hs = (FAU_t)f.FileHeaderSize();
+    FCControlBlock c;
+    EPDBReadControl(&f, c);
+    c.destroyed = 1;
+    c.destroyed_time = (unsigned long long)time(0);
+    f.Close();
+    // Data file: everything after the DataReel file header, except the
+    // v2 header magic and the control block, so the tools can still say
+    // what happened
+    FILE *fp = fopen(data_file, "r+b");
+    if(!fp) {
+      err << clear << "Cannot open " << data_file << " for writing";
+      return -1;
+    }
+    fseek(fp, 0, SEEK_END);
+    FAU_t eof = (FAU_t)ftell(fp);
+    FAU_t v2 = hs + EPDB_V2_HEADER_OFFSET;
+    FAU_t ctl = hs + EPDB_CTL_OFFSET;
+    if(FC_shred_range(fp, hs, v2 - hs) != 0 ||
+       FC_shred_range(fp, v2 + 8, ctl - (v2 + 8)) != 0 ||
+       (eof > ctl + FC_CTL_LEN && FC_shred_range(fp, ctl + FC_CTL_LEN, eof - (ctl + FC_CTL_LEN)) != 0)) {
+      rv = -1;
+    }
+    unsigned char buf[FC_CTL_LEN];
+    FC_ctl_write(buf, c);
+    if(fseek(fp, (long)ctl, SEEK_SET) != 0 || fwrite(buf, 1, sizeof(buf), fp) != sizeof(buf)) rv = -1;
+    if(fclose(fp) != 0) rv = -1;
+    if(FC_fsync_file(data_file) != 0) rv = -1;
+  }
+  // Index file: the keys are encrypted record names
+  FILE *ip = fopen(ifile.c_str(), "r+b");
+  if(ip) {
+    fseek(ip, 0, SEEK_END);
+    FAU_t eof = (FAU_t)ftell(ip);
+    if(eof > hs && FC_shred_range(ip, hs, eof - hs) != 0) rv = -1;
+    if(fclose(ip) != 0) rv = -1;
+    FC_fsync_file(ifile.c_str());
+  }
+  if(rv != 0) err << clear << "Error overwriting " << data_file;
+  return rv;
+}
+
 // ----------------------------------------------------------- // 
 // ------------------------------- //
 // --------- End of File --------- //

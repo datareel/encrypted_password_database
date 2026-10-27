@@ -34,6 +34,7 @@ Encrypted database auth functions
 #define __DB_AUTH_HPP__
 
 #include "m_globals.h"
+#include "fckeymgmt.h"
 
 class DatabaseUserAuth
 {
@@ -174,6 +175,92 @@ int EPDBSeal(gxDatabase *f, const MemoryBuffer &keyset, gxString &err);
 int EPDBVerify(POD *pod, const MemoryBuffer &keyset, gxString &err);
 int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret,
 		gxString &backup_data_file, gxString &err);
+
+// --------------------------------------------------------------
+// 10/27/2026: Key management, access log and self-destruct
+// --------------------------------------------------------------
+// Bytes these features use. None of them are read by 2026.102 and
+// older versions, so their files stay readable by those versions.
+//
+// v2 header reserved bytes (EPDBInitV2() writes zeros, the database
+// MAC covers them, older versions keep them when they re-seal):
+//   144 "EPX1"                      4
+//   148 flags (EPDB_EXT_*)          4
+//   152 key generation              4  (1 after the first rekey)
+//   156 last rekey time, UTC        8
+//   164 self-destruct attempt limit 4
+// Config static area, after the v2 header, random filled when the
+// database is made and not covered by the database MAC, so they can be
+// written without the key:
+//   EPDB_CTL_OFFSET  (49408) self-destruct control block, 64 bytes (fckeymgmt.h)
+//   EPDB_RING_OFFSET (49472) in-file access log ring, 160 entries, 15424 bytes
+const unsigned EPDB_EXT_OFFSET = 144;
+const unsigned EPDB_EXT_LOG_IN_FILE = 0x01;   // Opens and changes are logged in the file
+const unsigned EPDB_EXT_SELF_DESTRUCT = 0x02; // Mirror of the control block flag
+const unsigned EPDB_CTL_OFFSET = EPDB_V2_HEADER_OFFSET + EPDB_V2_HEADER_LEN;
+const unsigned EPDB_RING_OFFSET = EPDB_CTL_OFFSET + 64;
+const unsigned EPDB_RING_ENTRIES = 160;
+
+struct EPDBHeaderExt {
+  EPDBHeaderExt() { flags = key_generation = sd_limit = 0; rekey_time = 0; }
+  unsigned flags;
+  unsigned key_generation;
+  unsigned long long rekey_time;
+  unsigned sd_limit;
+};
+
+// Read and write the header extension. Write re-seals with keyset.
+int EPDBReadExt(gxDatabase *f, EPDBHeaderExt &x);
+int EPDBWriteExt(gxDatabase *f, const EPDBHeaderExt &x, const MemoryBuffer &keyset, gxString &err);
+// Self-destruct control block. Returns 1 if the file has one.
+int EPDBReadControl(gxDatabase *f, FCControlBlock &c);
+int EPDBReadControl(const char *data_file, FCControlBlock &c);
+// Writes the control block and flushes the file to disk
+int EPDBWriteControl(gxDatabase *f, const FCControlBlock &c, gxString &err);
+int EPDBWriteControl(const char *data_file, const FCControlBlock &c, gxString &err);
+// In-file access log ring
+int EPDBRingInit(gxDatabase *f, const MemoryBuffer &keyset, gxString &err);
+int EPDBRingAppend(gxDatabase *f, const MemoryBuffer &keyset, const FCRingEntry &e,
+		   const char *slot_username, gxString &err);
+int EPDBRingRead(gxDatabase *f, const MemoryBuffer &keyset, gxList<FCRingEntry> &entries,
+		 unsigned long long &written, gxString &err);
+// Hex of the database ID, read from the v2 header without the key
+gxString EPDBIDHex(gxDatabase *f);
+gxString EPDBIDHex(const char *data_file);
+
+#ifndef __ENABLE_SMART_CARD__
+struct SmartCardOB;
+#endif
+
+// A user to keep in a rekey
+struct EPDBRekeyUser {
+  gxUINT32 block_type;   // 1 = RSA key, 2 = smart card
+  gxString username;
+  gxString source;       // Public key file, cert file or "card"
+};
+
+// Removes the RSA (block_type 1) or smart card (2) block of a user from
+// a v2 database. The database is copied to temporary files, changed,
+// re-sealed and checked, then the originals are kept as a backup
+// (unless keep_backup is 0) and replaced. Returns 0 if successful.
+int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 block_type,
+		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err);
+// Rekey: a new salt, database ID and master key, every field encrypted
+// again, and a new block for each user in keep, wrapped with their
+// public key (sc is used for "card" users and never logs in). new_secret
+// is the password or key file contents the master key is derived from;
+// null makes a random secret nobody knows (only RSA and smart card users
+// open the database then). The new database must open and hold the same
+// records before it replaces the original. Returns 0 if successful and
+// the new keyset in new_keyset.
+int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset, const MemoryBuffer *new_secret,
+	      gxList<EPDBRekeyUser> &keep, SmartCardOB *sc, int keep_backup,
+	      MemoryBuffer &new_keyset, gxString &backup_data_file, gxString &err);
+// Crypto-shreds a database after too many failed opens: every key
+// block, the v2 header keys and salt, the config and every record in
+// the data and index files are overwritten with random data and the
+// control block is marked destroyed. Returns 0 if successful.
+int EPDBDestroy(const char *data_file, gxString &err);
 
 #endif // __DB_AUTH_HPP__
 // ----------------------------------------------------------- // 

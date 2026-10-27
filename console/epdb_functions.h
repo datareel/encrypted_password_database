@@ -64,6 +64,23 @@ void StoreObjectAddress(BtreeNode *n);
 typedef void (*BtreeVisitFunc)(BtreeNode *Node);
 void gxBtreeWalk(FAU_t t, BtreeVisitFunc Visit, gxBtree *tree);
 
+// 10/27/2026: Add, update and delete records from the command line.
+// Field values come from name=value input (fckeymgmt.h), never argv.
+const int EPDB_RECORD_ADD = 1;
+const int EPDB_RECORD_UPDATE = 2;
+const int EPDB_RECORD_DELETE = 3;
+// Field number (0 to NumDataMembers-1) for a field name: title,
+// username, password, previous-password, security-questions,
+// account-information, website-link, notes, field1 to field8, or the
+// database's own column name. Returns -1 if not found.
+int EPDBRecordFieldIndex(const gxString &name, gxDatabaseConfig *cfg);
+// Applies a record change to an unlocked database (key is the v2
+// keyset or v1 secret). A v2 database is re-sealed. new_name is set to
+// the record name after the change. Returns 0 if successful.
+int EPDBRecordChange(const char *fname, const MemoryBuffer &key, int op, const gxString &record_name,
+		     gxList<FCNameValue> &fields, gxString &new_name, gxString &err);
+extern const char *epdb_record_field_names[NumDataMembers];
+
 // Console based display functions
 int PrintDBConfig(const char *fname, MemoryBuffer &key);
 int PrintDBConfig(gxDatabaseConfig &db_config);
