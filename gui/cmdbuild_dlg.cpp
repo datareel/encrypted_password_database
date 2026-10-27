@@ -299,7 +299,7 @@ CommandBuilderDialog::CommandBuilderDialog(wxWindow *parent, CryptDBDocument *do
   const char *names[3] = { "Bash (Linux)", "PowerShell (Windows)", "cmd.exe (Windows)" };
   for(int i = 0; i < 3; i++) {
     out[i] = new wxTextCtrl(shells, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,
-			    wxTE_MULTILINE | wxTE_READONLY | wxTE_DONTWRAP | wxHSCROLL);
+			    wxTE_MULTILINE | wxTE_READONLY | wxTE_BESTWRAP);
     out[i]->SetFont(EPDBMonoFont());
     shells->AddPage(out[i], names[i]);
   }

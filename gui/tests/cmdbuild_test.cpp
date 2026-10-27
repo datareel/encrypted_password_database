@@ -37,6 +37,7 @@ Windows: cl /EHsc cmdbuild_test.cpp ..\epdb_cmdbuild.cpp && cmdbuild_test.exe
 #define pclose _pclose
 #else
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 static int passed = 0;
@@ -327,6 +328,92 @@ static void CommandTests()
   }
 }
 
+#if !defined (_WIN32)
+static int LiveRun(const EPDBCmdOptions &o, const char *name, int want_rc, std::string &out)
+// Builds the bash command, runs it and checks the exit code
+{
+  EPDBCmdResult r;
+  std::string err;
+  if(EPDBBuildCommand(o, EPDB_SHELL_BASH, r, err) != 0) {
+    Check(name, 0, err);
+    return -1;
+  }
+  std::string sh = WriteTemp("live.sh", EPDBCommandScript(r, EPDB_SHELL_BASH));
+  std::string cmd = "bash " + sh + " 2>&1; echo \"rc=$?\"";
+  out = RunCapture(cmd);
+  remove(sh.c_str());
+  char want[32];
+  snprintf(want, sizeof(want), "rc=%d\n", want_rc);
+  int ok = out.size() >= strlen(want) && out.compare(out.size() - strlen(want), strlen(want), want) == 0;
+  Check(name, ok, "\n" + r.command + "\n" + out);
+  return ok ? 0 : -1;
+}
+
+static void LiveTests(const char *tool, const char *db, const char *pwfile, const char *dir)
+// Runs the commands the builder makes against a throwaway database
+{
+  EPDBCmdOptions o;
+  std::string out;
+  o.tool = tool;
+  o.database = db;
+  o.password.file = pwfile;
+  o.operation = EPDB_OP_DB_INFO;
+  LiveRun(o, "live: db-info", 0, out);
+  std::string rec = std::string(dir) + "/record with spaces.txt";
+  FILE *fp = fopen(rec.c_str(), "w");
+  if(fp) {
+    fprintf(fp, "title=Live Test 'Bank' $HOME\nusername=jdoe\npassword=Pa$$ w0rd `x`\nnotes=one\\ntwo\n");
+    fclose(fp);
+  }
+  chmod(rec.c_str(), 0600);
+  o.operation = EPDB_OP_ADD_RECORD;
+  o.record_name = "Live Test 'Bank' $HOME";
+  o.record_file = rec;
+  o.dry_run = 1;
+  LiveRun(o, "live: add-record --dry-run leaves the database unchanged", 0, out);
+  o.dry_run = 0;
+  LiveRun(o, "live: add-record with a quoted title and a values file", 0, out);
+  o.operation = EPDB_OP_GET_FIELD;
+  o.field_name = "password";
+  o.quiet = 1;
+  if(LiveRun(o, "live: get-field", 0, out) == 0) {
+    Check("live: get-field returns the stored password", out.find("Pa$$ w0rd `x`") == 0, out);
+  }
+  o.quiet = 0;
+  o.operation = EPDB_OP_SHOW_RECORD;
+  if(LiveRun(o, "live: show-record", 0, out) == 0) {
+    Check("live: show-record shows the two note lines", out.find("one") != std::string::npos && out.find("two") != std::string::npos, out);
+  }
+  o.operation = EPDB_OP_EXPORT;
+  o.export_format = "json";
+  o.output_file = std::string(dir) + "/export out.json";
+  remove(o.output_file.c_str());
+  LiveRun(o, "live: export json to a file", 0, out);
+  o.operation = EPDB_OP_LIST_RECORDS;
+  LiveRun(o, "live: db-list", 0, out);
+  o.operation = EPDB_OP_LIST_USERS;
+  LiveRun(o, "live: list-users", 0, out);
+  o.operation = EPDB_OP_CHECK_VERSION;
+  LiveRun(o, "live: check-version (v2 database)", 0, out);
+  o.operation = EPDB_OP_GENERATE_PASSWORD;
+  o.generate_length = 24;
+  if(LiveRun(o, "live: generate-password", 0, out) == 0) {
+    Check("live: the generated password has 24 characters", out.size() > 24 && out[24] == '\n', out);
+  }
+  o.operation = EPDB_OP_DELETE_RECORD;
+  o.dry_run = 1;
+  LiveRun(o, "live: delete-record --dry-run", 0, out);
+  o.dry_run = 0;
+  LiveRun(o, "live: delete-record --yes", 0, out);
+  o.operation = EPDB_OP_GET_FIELD;
+  LiveRun(o, "live: the deleted record is not found (exit 3)", 3, out);
+  o.operation = EPDB_OP_DB_INFO;
+  o.password.file = std::string(dir) + "/no such password file";
+  LiveRun(o, "live: a missing password file is an error (exit 1)", 1, out);
+  remove(rec.c_str());
+}
+#endif
+
 int main(int argc, char **argv)
 {
   if(argc > 1 && strcmp(argv[1], "--print-args") == 0) {
@@ -340,6 +427,12 @@ int main(int argc, char **argv)
   QuotingTests(EPDB_SHELL_POWERSHELL, "PowerShell");
   QuotingTests(EPDB_SHELL_CMD, "cmd.exe");
 #else
+  if(argc == 6 && strcmp(argv[1], "--live") == 0) {
+    // cmdbuild_test --live tool database password_file work_dir
+    LiveTests(argv[2], argv[3], argv[4], argv[5]);
+    printf("\n%d passed, %d failed\n", passed, failed);
+    return failed ? 1 : 0;
+  }
   char buf[4096];
   ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
   if(n > 0) buf[n] = 0;
