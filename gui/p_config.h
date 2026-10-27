@@ -84,6 +84,8 @@ struct wxappfwProgramConfig {
   int auto_lock_minutes;       // 10/25/2026: Close databases after this idle time, 0 is off
   int clipboard_clear_seconds; // 10/25/2026: Clear copied values after this time, 0 is off
   int show_passwords;          // 10/25/2026: Show the password columns in clear text
+  int access_log;              // 10/27/2026: Per-user access log on (AccessLog = 1)
+  gxString access_log_file;    // 10/27/2026: Empty for the default per-user log
   
   // Printer document variables
   gxString document_name;

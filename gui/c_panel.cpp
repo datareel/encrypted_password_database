@@ -188,6 +188,10 @@ void ChangePanel::CommitChanges()
       return;
     }
   }
+  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+  gxString undo_prev = prev_name.c_str(dest);
+  gxString undo_curr = curr_name.c_str(dest);
+  GUIUndoBefore(child_frame, undo_prev, undo_mark);
   if(!prev_object.ChangeObject(curr_object, 0)) {
     *(frame->statusWin) << "Could not update item: "
 			<< db_input[0]->GetValue()
@@ -204,6 +208,7 @@ void ChangePanel::CommitChanges()
     *(frame->statusWin) << "Updated item: " << db_input[0]->GetValue() << "\n";
     // Flush the POD database following each change operation
     child_frame->GetPOD()->Flush(); 
+    GUIUndoAfter(undo_mark, undo_curr, "update-record");
   }
 
   if(change_grid_name) {

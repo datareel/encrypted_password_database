@@ -34,6 +34,7 @@ Document controls
 #define __M_DOCUMENT_HPP__
 
 #include "app_defs.h"
+#include "epdb_core.h"
 
 class CryptDBGrid;
 
@@ -85,6 +86,7 @@ private: // Internal processing functions
 
 public:
   CryptDBGrid *grid_frame;
+  EPDBUndoStack undo_stack; // 10/27/2026: In memory only, wiped when the document closes
 
 private:
   DECLARE_EVENT_TABLE()

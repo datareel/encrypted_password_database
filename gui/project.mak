@@ -66,6 +66,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)open_panel.h \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.h \
 	    $(APP_PATH)$(PATHSEP)a_panel.cpp \
+	    $(APP_PATH)$(PATHSEP)epdb_gui_hooks.cpp $(APP_PATH)$(PATHSEP)epdb_gui_hooks.h \
 	    $(APP_PATH)$(PATHSEP)backup.cpp \
 	    $(APP_PATH)$(PATHSEP)compare.cpp \
 	    $(APP_PATH)$(PATHSEP)c_panel.cpp \

@@ -167,6 +167,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   min_password_length = 8;
   password_aging = 0;
   auto_lock_minutes = 15;
+  access_log = 0; // 10/27/2026: Off unless turned on
   clipboard_clear_seconds = 30;
   show_passwords = 0;
 

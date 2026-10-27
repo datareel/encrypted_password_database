@@ -225,6 +225,7 @@ Exiting the merge operation");
   frame->spanel->WriteMessage(gbuf.c_str());
 
   child_frame->GetGrid()->BeginBatch();
+  GUIUndoGroupGuard undo_group(child_frame, "Merge"); // 10/27/2026: One undo step
   while(1) { 
     if(count >= display_count) {
       if(imports > 0) {
@@ -288,6 +289,9 @@ Exiting the merge operation");
 	    return;
 	  }
 	  infohog.Copy(infohog_new, 0);
+	  GUIUndoMark undo_mark; // 10/27/2026
+	  gxString undo_name = GUIObjectName(infohog);
+	  GUIUndoBefore(child_frame, undo_name, undo_mark);
 	  if(!infohog.FindObject()) { // This object does not exist
 	    // NOTE: This is a safty feature. Using member 0 should always be safe
 	    // provided the call has initialized the infohog object correctly.
@@ -312,6 +316,7 @@ Exiting the merge operation");
 	      child_frame->GridFrame()->RefreshGrid();
 	      return;	      
 	    }
+	    GUIUndoAfter(undo_mark, undo_name, 0);
 	    // Update the database grid
 	    child_frame->GridFrame()->InsertCell(infohog);
 	    imports++;
@@ -369,6 +374,7 @@ Select your choice and click on OK";
 				    << "\n";
 		if(infohog == infohog_new) break; // Object has not changed
 		infohog.ChangeObject(infohog_new);
+		GUIUndoAfter(undo_mark, undo_name, 0);
 		grid_position = child_frame->GridFrame()->FindGridInsertPosition(infohog);
 		child_frame->GridFrame()->LoadCell(infohog, grid_position);
 		break;
@@ -415,6 +421,7 @@ Select your choice and click on OK";
 				    << "\n";
 		if(infohog == infohog_new) break; // Object has not changed
 		infohog.ChangeObject(infohog_new);
+		GUIUndoAfter(undo_mark, undo_name, 0);
 		grid_position = child_frame->GridFrame()->FindGridInsertPosition(infohog);
 		child_frame->GridFrame()->LoadCell(infohog, grid_position);
 		break;
@@ -452,6 +459,7 @@ Select your choice and click on OK";
   child_frame->GetPOD()->Flush(); 
 
   *(frame->statusWin) << "Merged " << imports << " objects." << "\n";
+  GUILog(child_frame, "merge", gxString(), 1, 0);
   if(updates) {
     *(frame->statusWin) << "Updated " << updates << " objects." << "\n";
   }

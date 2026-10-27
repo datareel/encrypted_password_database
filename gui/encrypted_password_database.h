@@ -256,7 +256,14 @@ enum {
   WXAPPFW_USERS_LIST,
 
   // Extra features
-  WXAPPFW_CLEAR_CLIPBOARD
+  WXAPPFW_CLEAR_CLIPBOARD,
+
+  // 10/27/2026: Security menu
+  WXAPPFW_SECURITY_ACCESS_LOG,     // Per-user access log on or off
+  WXAPPFW_SECURITY_IN_FILE_LOG,    // In-file access log of the open database
+  WXAPPFW_SECURITY_SELF_DESTRUCT,  // Self-destruct settings of the open database
+  WXAPPFW_SECURITY_SHOW_LOG,       // Show the access logs
+  WXAPPFW_SECURITY_VERIFY_LOG      // Verify the access logs
 };
 // --------------------------------------------------------------
 
@@ -328,6 +335,7 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "new_panel.h"      // New DB panel
 #include "open_panel.h"     // Open DB panel
 #include "add_user_panel.h" // Add user access panel
+#include "epdb_gui_hooks.h" // 10/27/2026: Logs, self-destruct, v1 warning and undo for the GUI
 #include "p_config.h"       // Program configuration data
 #include "m_frame.h"        // Main frame for this application
 

@@ -148,12 +148,16 @@ void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
     }
   }
 
+  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+  gxString undo_name = (const char *)key_name.c_str();
+  GUIUndoBefore(child_frame, undo_name, undo_mark);
   if(!infohog.WriteObject()) {
     ProgramError->Message("Could not add object to the database\n");
     return;
   }
   else {
     child_frame->GetPOD()->Flush(); // Flush the POD database following each insert
+    GUIUndoAfter(undo_mark, undo_name, "add-record");
     frame->statusWin->WriteText("Added entry ");
     frame->statusWin->WriteText(key_name.c_str());
     frame->statusWin->WriteText(" to the database\n");

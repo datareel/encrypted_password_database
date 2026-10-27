@@ -59,6 +59,7 @@ OpenDatabasePanel::OpenDatabasePanel(wxWindow *parent, wxWindowID id,
 {
   ok_btn = cancel_btn = 0;
   is_ok = 0;
+  open_failed = 0;
   password_label = 0;
   password_input = 0;
   password_box = 0;
@@ -246,7 +247,17 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
     }
   }
   OPENSSL_cleanse(sc.pin, sizeof(sc.pin));
+  gui_last_auth.auth = "smartcard";
+  gui_last_auth.slot = smartcard_username;
   if(rv != 0) {
+    // 10/27/2026: A wrong PIN, or a card key that does not open the
+    // database, is a failed open for self-destruct. A PIN that was not
+    // sent is not.
+    if(sc.error_level == SC_ERROR_PIN_INCORRECT ||
+       (!SC_is_pin_error(sc.error_level) && (sc.error_level != SC_ERROR || db_auth.err.Find("does not hold") != -1 ||
+					     db_auth.err.Find("authentication failed") != -1))) {
+      open_failed = "The smart card did not open the database";
+    }
     gxString msg;
     msg << clear << db_auth.err.c_str();
     if(SC_login_blocked()) {
@@ -350,7 +361,10 @@ int OpenDatabasePanel::RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxS
   db_auth.f = &f; // Set the file pointer
 
   rv = db_auth.DecryptWithRSAKey(private_key,  private_key_len, rsa_key_username, passphrase);
+  gui_last_auth.auth = "rsa-key";
+  gui_last_auth.slot = rsa_key_username;
   if(rv != 0) {
+    open_failed = "The RSA key did not open the database"; // 10/27/2026
     ProgramError->Message(db_auth.err.c_str());   
     is_ok = 0;
     return 0;
@@ -422,7 +436,10 @@ int OpenDatabasePanel::AESKeyOpenDatabase()
     urv = EPDBUnlock(&f, key, keyset, uerr, aes_error);
     f.Close();
   }
+  gui_last_auth.auth = "key-file";
+  gui_last_auth.slot.Clear();
   if(urv != 0) {
+    if(aes_error) open_failed = "The key file did not open the database"; // 10/27/2026
     sbuf << clear << "Error decrypting database hash with key provided" << "\n" << uerr.c_str();
     ProgramError->Message(sbuf.c_str());   
     is_ok = 0;
@@ -492,7 +509,10 @@ int OpenDatabasePanel::PasswordOpenDatabase(gxString &pass_buf)
     f.Close();
   }
   secret.Clear(1);
+  gui_last_auth.auth = "password";
+  gui_last_auth.slot.Clear();
   if(urv != 0) {
+    if(aes_error) open_failed = "The password did not open the database"; // 10/27/2026
     sbuf << clear << "Error decrypting database hash with password provided" << "\n" << uerr.c_str();
     ProgramError->Message(sbuf.c_str());   
     is_ok = 0;
@@ -507,6 +527,24 @@ int OpenDatabasePanel::PasswordOpenDatabase(gxString &pass_buf)
 }
 
 int OpenDatabasePanel::TestInput()
+// 10/27/2026: Self-destruct and the access log around the open. With
+// self-destruct on, a destroyed or read-only database is refused before
+// any credential is tried, and each failed open is counted in the file.
+{
+  open_failed = 0;
+  if(!GUISelfDestructPrecheck(curr_fname.c_str())) {
+    password_input->Clear();
+    is_ok = 0;
+    return 0;
+  }
+  int rv = TestInputMethods();
+  if(open_failed) GUIFailedOpen(curr_fname.c_str(), open_failed);
+  else if(rv && is_ok) GUIGoodOpen(curr_fname.c_str(), progcfg->global_dbparms.crypt_key);
+  open_failed = 0;
+  return rv;
+}
+
+int OpenDatabasePanel::TestInputMethods()
 {
   use_key = 0;
   use_password = 0;

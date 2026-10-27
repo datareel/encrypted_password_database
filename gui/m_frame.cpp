@@ -132,6 +132,17 @@ BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
   EVT_MENU(WXAPPFW_USERS_REMOVE, MainFrame::OnRemoveUsers)
   EVT_MENU(WXAPPFW_USERS_LIST, MainFrame::OnListUsers)
 
+  // 10/27/2026: Undo/redo and the Security menu
+  EVT_MENU(WXAPPFW_EDIT_UNDO, MainFrame::OnUndo)
+  EVT_MENU(WXAPPFW_EDIT_REDO, MainFrame::OnRedo)
+  EVT_UPDATE_UI(WXAPPFW_EDIT_UNDO, MainFrame::OnUpdateUndo)
+  EVT_UPDATE_UI(WXAPPFW_EDIT_REDO, MainFrame::OnUpdateRedo)
+  EVT_MENU(WXAPPFW_SECURITY_ACCESS_LOG, MainFrame::OnAccessLog)
+  EVT_MENU(WXAPPFW_SECURITY_IN_FILE_LOG, MainFrame::OnInFileLog)
+  EVT_MENU(WXAPPFW_SECURITY_SELF_DESTRUCT, MainFrame::OnSelfDestruct)
+  EVT_MENU(WXAPPFW_SECURITY_SHOW_LOG, MainFrame::OnShowAccessLog)
+  EVT_MENU(WXAPPFW_SECURITY_VERIFY_LOG, MainFrame::OnVerifyAccessLog)
+
   EVT_MENU(WXAPPFW_HELP_ONLINE, MainFrame::OnOpenOnlineHelp)
 
 END_EVENT_TABLE()
@@ -198,6 +209,10 @@ MainFrame::MainFrame(wxWindow *parent,
 
   // Edit menu
   wxMenu *edit_menu = new wxMenu("", wxMENU_TEAROFF);
+  // 10/27/2026: Undo and redo of record changes, Ctrl+Shift+Z also redoes
+  edit_menu->Append(WXAPPFW_EDIT_UNDO, "Undo\tCtrl-Z", "Undo the last record change");
+  edit_menu->Append(WXAPPFW_EDIT_REDO, "Redo\tCtrl-Y", "Redo the last undone record change");
+  edit_menu->AppendSeparator();
 #ifdef __USE_CLIPBOARD_FUNCTIONS__
   edit_menu->Append(WXAPPFW_EDIT_COPY, "Copy Cell\tCtrl-C", 
 		    "Copy cell to clipboard");
@@ -206,7 +221,7 @@ MainFrame::MainFrame(wxWindow *parent,
   edit_menu->Append(WXAPPFW_EDIT_PASTE, "Paste Cell\tCtrl-V", 
 		    "Paste cell from clipboard");
   edit_menu->AppendSeparator();
-  edit_menu->Append(WXAPPFW_CLEAR_CLIPBOARD, "Clear Clipboard\tCtrl-Z", 
+  edit_menu->Append(WXAPPFW_CLEAR_CLIPBOARD, "Clear Clipboard\tCtrl-L", 
 		    "Clear all text from the clipboard");
   edit_menu->AppendSeparator();
 #endif
@@ -332,6 +347,19 @@ MainFrame::MainFrame(wxWindow *parent,
   users_menu->Append(WXAPPFW_USERS_REMOVE, "Remove Users", "Removed user access");
   users_menu->Append(WXAPPFW_USERS_LIST, "List Users", "Display list of users with access");
   
+  // 10/27/2026: Security menu
+  wxMenu *security_menu = new wxMenu;
+  security_menu->AppendCheckItem(WXAPPFW_SECURITY_ACCESS_LOG, "Access Log",
+				 "Log opens and changes to the per-user access log");
+  security_menu->Check(WXAPPFW_SECURITY_ACCESS_LOG, progcfg->access_log != 0);
+  security_menu->Append(WXAPPFW_SECURITY_IN_FILE_LOG, "In-File Access Log On/Off...",
+			"Keep the last opens and changes, encrypted, in the open database file");
+  security_menu->Append(WXAPPFW_SECURITY_SHOW_LOG, "Show Access Log", "List the access log entries of the open database");
+  security_menu->Append(WXAPPFW_SECURITY_VERIFY_LOG, "Verify Access Log", "Check the access logs of the open database");
+  security_menu->AppendSeparator();
+  security_menu->Append(WXAPPFW_SECURITY_SELF_DESTRUCT, "Self-Destruct Settings...",
+			"Destroy the records of the open database after too many failed opens");
+
   wxMenuBar *menu_bar = new wxMenuBar;
 
   menu_bar->Append(file_menu, "File");
@@ -340,10 +368,17 @@ MainFrame::MainFrame(wxWindow *parent,
   menu_bar->Append(view_menu, "View");
   menu_bar->Append(print_menu, "Print");
   menu_bar->Append(users_menu, "Users");
+  menu_bar->Append(security_menu, "Security");
   menu_bar->Append(help_menu, "Help");
   
   // Associate the menu bar with the frame
   SetMenuBar(menu_bar);
+
+  // 10/27/2026: Ctrl+Shift+Z also redoes
+  wxAcceleratorEntry accel_entries[1];
+  accel_entries[0].Set(wxACCEL_CTRL | wxACCEL_SHIFT, (int)'Z', WXAPPFW_EDIT_REDO);
+  wxAcceleratorTable accel(1, accel_entries);
+  SetAcceleratorTable(accel);
 
   // Set the menu defaults
   if(progcfg->ViewToolBar == 1) {
@@ -603,6 +638,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 
   add_user_panel->ShowPanel();
 
+  if(add_user_panel->IsOK() && !GUIConfirmClearUndo(child_frame, "Adding a user")) return;
   if(add_user_panel->IsOK()) {
     if(add_user_panel->use_rsa_key) {
       db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
@@ -616,6 +652,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 
       sbuf << clear << "Added RSA key access for user " << add_user_panel->rsa_key_username;
       ProgramError->Message(sbuf.c_str());
+      GUILog(child_frame, "add-user", gxString(), 1, add_user_panel->rsa_key_username.c_str());
     }
 #ifdef __ENABLE_SMART_CARD__
     if(add_user_panel->use_smartcard) {
@@ -629,6 +666,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
        }
        sbuf << clear << "Added smart card access for user " << add_user_panel->smartcard_username; // 10/25/2026: Was rsa_key_username
       ProgramError->Message(sbuf.c_str());
+      GUILog(child_frame, "add-user", gxString(), 1, add_user_panel->smartcard_username.c_str());
     }
 #endif // __ENABLE_SMART_CARD__
     
@@ -638,11 +676,12 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 }
 
 void MainFrame::OnRemoveUsers(wxCommandEvent& event)
+// 10/27/2026: Through the core (EPDBRemoveUserInPlace()): the v2 database
+// MAC is updated, the last RSA or smart card user is only removed after
+// opening with the password or key file, and the change is logged.
 {
   gxString sbuf;
   DatabaseUserAuth db_auth;
-  int rv;
-  unsigned i;
   
   if(!TestDatabase(1, 1, 1)) return;
   CryptDBDocument *child_frame = ActiveChild();
@@ -672,37 +711,283 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
   }
 
   wxTextEntryDialog dialog(this, "Enter the username to remove", "Remove database access for user", "", wxOK | wxCANCEL);
-  if(dialog.ShowModal() == wxID_OK) {
+  if(dialog.ShowModal() != wxID_OK || dialog.GetValue().IsNull()) {
+    if(dialog.GetValue().IsNull()) ProgramError->Message("You must enter a username");
+    return;
+  }
+  gxString username = (const char *)dialog.GetValue();
+  int count = 0, found = 0;
+  for(list_ptr = db_auth.static_block_list.GetHead(); list_ptr; list_ptr = list_ptr->next) {
+    if(list_ptr->data.block_header.block_type != 1 && list_ptr->data.block_header.block_type != 2) continue;
+    count++;
+    if(list_ptr->data.username == username) found++;
+  }
+  if(!found) {
+    sbuf << clear << "User " << username << " has no RSA key or smart card access to this database";
+    ProgramError->Message(sbuf.c_str());
+    return;
+  }
+  // A database made with RSA keys or smart cards only has a random
+  // password nobody knows
+  if(count == found && gui_last_auth.auth != "password" && gui_last_auth.auth != "key-file") {
+    sbuf << clear << username << " is the last RSA key or smart card user. The database may have no password "
+	 << "anyone knows, so removing it could leave a database nothing can open.\n\n"
+	 << "Open the database with its password or key file to remove this user.";
+    ProgramError->Message(sbuf.c_str());
+    GUILog(child_frame, "remove-user", gxString(), 0, "refused, last user");
+    return;
+  }
+  if(!GUIConfirmClearUndo(child_frame, "Removing a user")) return;
+  gxString err;
+  if(EPDBRemoveUserInPlace(child_frame->DBParms()->pod->OpenDataFile(), child_frame->DBParms()->crypt_key,
+			   0, username, err) != 0) {
+    sbuf << clear << "ERROR: User " << username << " was not removed\n" << err;
+    ProgramError->Message(sbuf.c_str());
+    GUILog(child_frame, "remove-user", gxString(), 0, username.c_str());
+    return;
+  }
+  child_frame->DBParms()->v2_dirty = 0; // Sealed by EPDBRemoveUserInPlace()
+  GUILog(child_frame, "remove-user", gxString(), 1, username.c_str());
+  sbuf << clear << "Access for user " << username << " was removed.\n\n"
+       << "Removing a user does not revoke a database key the user may already have recovered, "
+       << "or copies of the database made before. To give the database a new master key run:\n"
+       << "epdb_auth_tool --rekey " << child_frame->DBParms()->data_file;
+  ProgramError->Message(sbuf.c_str());
+}
 
-    if(dialog.GetValue().IsNull()) {
-      ProgramError->Message("You must enter a username");
-      return;
+#include <wx/numdlg.h>
+// ----------------------------------------------------------- //
+// 10/27/2026: Undo/redo and the Security menu. The work is done by the
+// core, see epdb_gui_hooks.cpp.
+// ----------------------------------------------------------- //
+void MainFrame::OnUndo(wxCommandEvent& event)
+{
+  GUIUndo(ActiveChild(), 0);
+}
+
+void MainFrame::OnRedo(wxCommandEvent& event)
+{
+  GUIUndo(ActiveChild(), 1);
+}
+
+void MainFrame::OnUpdateUndo(wxUpdateUIEvent& event)
+{
+  CryptDBDocument *doc = ActiveChild();
+  int can = doc && doc->undo_stack.CanUndo();
+  event.Enable(can != 0);
+  gxString label = "Undo";
+  if(can) label << " " << doc->undo_stack.UndoLabel();
+  label << "\tCtrl-Z";
+  event.SetText(label.c_str());
+}
+
+void MainFrame::OnUpdateRedo(wxUpdateUIEvent& event)
+{
+  CryptDBDocument *doc = ActiveChild();
+  int can = doc && doc->undo_stack.CanRedo();
+  event.Enable(can != 0);
+  gxString label = "Redo";
+  if(can) label << " " << doc->undo_stack.RedoLabel();
+  label << "\tCtrl-Y";
+  event.SetText(label.c_str());
+}
+
+void MainFrame::OnAccessLog(wxCommandEvent& event)
+{
+  progcfg->access_log = event.IsChecked() ? 1 : 0;
+  GUISaveConfigValue("AccessLog", progcfg->access_log ? "1" : "0");
+  gxString m;
+  gxString f = progcfg->access_log_file.is_null() ? FC_default_log_file(".encrypted_password_database") : progcfg->access_log_file;
+  m << "Access log " << (progcfg->access_log ? "on: " : "off: ") << f;
+  *(statusWin) << m.c_str() << "\n";
+}
+
+void MainFrame::OnInFileLog(wxCommandEvent& event)
+{
+  if(!TestDatabase(0, 1, 1)) return;
+  CryptDBDocument *doc = ActiveChild();
+  if(!doc) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+  if(!EPDBIsKeyset(doc->DBParms()->crypt_key)) {
+    ProgramError->Message("The in-file access log needs a v2 database. Upgrade it with File > Upgrade Database Format.");
+    return;
+  }
+  gxDatabase *f = doc->GetPOD()->OpenDataFile();
+  EPDBHeaderExt x;
+  EPDBReadExt(f, x);
+  int on = (x.flags & EPDB_EXT_LOG_IN_FILE) != 0;
+  gxString q;
+  q << "The in-file access log is " << (on ? "on" : "off") << " for this database. It keeps the last "
+    << EPDB_RING_ENTRIES << " opens and changes, encrypted, in the database file.\n\nTurn it "
+    << (on ? "off" : "on") << "?";
+  if(wxMessageBox(q.c_str(), "In-File Access Log", wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION) != wxYES) return;
+  gxString err;
+  int rv = 0;
+  if(!on) {
+    gxList<FCRingEntry> entries;
+    unsigned long long written = 0;
+    if(EPDBRingRead(f, doc->DBParms()->crypt_key, entries, written, err) != 0) {
+      err.Clear();
+      rv = EPDBRingInit(f, doc->DBParms()->crypt_key, err);
     }
-    sbuf = (const char *)dialog.GetValue();
-    for(i = 0; i < NUM_DB_AUTH_TYPES; i++) { // Check for all user auth types
-      list_ptr = db_auth.static_block_list.GetHead();
-      while(list_ptr) {
-	if(list_ptr->data.username == sbuf) break;
-	list_ptr = list_ptr->next;
-      }
-      db_auth.static_block_list.Remove(list_ptr);
+    x.flags |= EPDB_EXT_LOG_IN_FILE;
+  }
+  else {
+    x.flags &= ~EPDB_EXT_LOG_IN_FILE;
+  }
+  if(rv == 0) rv = EPDBWriteExt(f, x, doc->DBParms()->crypt_key, err);
+  doc->DBParms()->v2_dirty = 0;
+  if(rv != 0) {
+    ProgramError->Message(err.c_str());
+    return;
+  }
+  GUILog(doc, on ? "access-log-off" : "access-log-on", gxString(), 1);
+  *(statusWin) << "In-file access log " << (on ? "off" : "on") << " for " << doc->DBParms()->data_file.c_str() << "\n";
+}
+
+void MainFrame::OnSelfDestruct(wxCommandEvent& event)
+{
+  if(!TestDatabase(0, 1, 1)) return;
+  CryptDBDocument *doc = ActiveChild();
+  if(!doc) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+  if(!EPDBIsKeyset(doc->DBParms()->crypt_key)) {
+    ProgramError->Message("Self-destruct needs a v2 database. Upgrade it with File > Upgrade Database Format.");
+    return;
+  }
+  gxDatabase *f = doc->GetPOD()->OpenDataFile();
+  FCControlBlock c;
+  EPDBReadControl(f, c);
+  gxString m;
+  m << "Self-destruct destroys every record of this database after too many failed opens. It is "
+    << (c.SelfDestruct() ? "ON" : "off") << " now";
+  if(c.SelfDestruct()) m << ", " << c.limit << " attempts";
+  m << ".\n\nIt only counts guesses made through this program and epdb_auth_tool: anyone with a copy of the "
+    << "file can guess offline or reset the counter. A destroyed database cannot be recovered except from your "
+    << "own backups. With self-destruct on, a read-only copy is not opened.\n\n"
+    << "Enter the number of failed opens allowed (1 to " << FC_SD_MAX_ATTEMPTS << "), or 0 to turn self-destruct off:";
+  long n = wxGetNumberFromUser(m.c_str(), "Attempts", "Self-Destruct Settings",
+			       c.SelfDestruct() ? (long)c.limit : (long)FC_SD_DEFAULT_ATTEMPTS, 0, FC_SD_MAX_ATTEMPTS, this);
+  if(n < 0) return; // Canceled
+  if(!GUIConfirmClearUndo(doc, "Changing self-destruct")) return;
+  EPDBHeaderExt x;
+  EPDBReadExt(f, x);
+  if(n == 0) {
+    c.flags &= ~FC_CTL_SELF_DESTRUCT;
+    x.flags &= ~EPDB_EXT_SELF_DESTRUCT;
+  }
+  else {
+    c.flags |= FC_CTL_SELF_DESTRUCT;
+    c.limit = (unsigned)n;
+    x.flags |= EPDB_EXT_SELF_DESTRUCT;
+    x.sd_limit = (unsigned)n;
+  }
+  c.failed = 0;
+  gxString err;
+  int rv = EPDBWriteControl(f, c, err);
+  if(rv == 0) rv = EPDBWriteExt(f, x, doc->DBParms()->crypt_key, err);
+  doc->DBParms()->v2_dirty = 0;
+  if(rv != 0) {
+    ProgramError->Message(err.c_str());
+    return;
+  }
+  gxString detail;
+  if(n) detail << "self-destruct on, " << n << " attempts";
+  else detail << "self-destruct off";
+  GUILog(doc, "settings", gxString(), 1, detail.c_str());
+  *(statusWin) << "Self-destruct: " << detail.c_str() << "\n";
+}
+
+static void GUIShowLog(MainFrame *mf, int verify)
+{
+  if(!TestDatabase(0, 1, 1)) return;
+  CryptDBDocument *doc = mf->ActiveChild();
+  if(!doc) {
+    ProgramError->Message("No database is currently open\n");
+    return;
+  }
+  MemoryBuffer &key = doc->DBParms()->crypt_key;
+  if(!EPDBIsKeyset(key)) {
+    ProgramError->Message("The access logs of a v1 database have no tags to verify. Upgrade it with File > Upgrade Database Format.");
+    return;
+  }
+  mf->sframe->status_win->Clear();
+  mf->sframe->Show(TRUE);
+  wxTextCtrl *w = frame->statusWin;
+  gxString err;
+  gxDatabase *f = doc->GetPOD()->OpenDataFile();
+  EPDBHeaderExt x;
+  int bad = 0;
+  if(EPDBReadExt(f, x) && (x.flags & EPDB_EXT_LOG_IN_FILE)) {
+    gxList<FCRingEntry> entries;
+    unsigned long long written = 0;
+    int r = EPDBRingRead(f, key, entries, written, err);
+    gxString hdr;
+    hdr << "In-file access log: " << (unsigned long)written << " entries written, the last " << EPDB_RING_ENTRIES << " are kept\n";
+    *w << hdr.c_str();
+    for(gxListNode<FCRingEntry> *p = entries.GetHead(); p && !verify; p = p->next) {
+      char stamp[32];
+      time_t t = (time_t)p->data.when;
+      strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%SZ", gmtime(&t));
+      gxString ln;
+      ln << (unsigned long)p->data.seq << "  " << stamp << "  " << FC_action_name(p->data.action) << "  "
+	 << FC_auth_name(p->data.auth) << "  " << (p->data.result ? "ok" : "fail") << "\n";
+      *w << ln.c_str();
     }
-    db_auth.UpdateStaticData();
-    if(db_auth.WriteStaticDataArea() != 0) {
-      sbuf << clear << "ERROR: User " << (const char *)dialog.GetValue() << " was not removed" << "\n" << db_auth.err;
-      ProgramError->Message(sbuf.c_str());
-    }
+    if(r != 0) { *w << "TAMPERED: " << err.c_str() << "\n"; bad = 1; }
+    else if(verify) *w << "OK: in-file access log verified\n";
+  }
+  else {
+    *w << "The in-file access log is off for this database\n";
+  }
+  gxString log_file = progcfg->access_log_file.is_null() ? FC_default_log_file(".encrypted_password_database") : progcfg->access_log_file;
+  if(!futils_exists(log_file.c_str())) {
+    *w << "No per-user access log at " << log_file.c_str() << "\n";
+  }
+  else if(verify) {
+    unsigned char lk[FC_LOG_KEY_LEN];
+    FC_log_key(EPDBKeysetKey(key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN, EPDBKeysetID(key), EPDB_V2_ID_LEN, lk);
+    FCLogVerifyResult r;
+    int lrv = FC_log_verify(log_file.c_str(), FC_hex(EPDBKeysetID(key), EPDB_V2_ID_LEN).c_str(), lk, r, err);
+    OPENSSL_cleanse(lk, sizeof(lk));
+    if(lrv < 0) *w << "ERROR: " << err.c_str() << "\n";
     else {
-      sbuf << clear << "Access for User " << (const char *)dialog.GetValue() << " was removed";
-      ProgramError->Message(sbuf.c_str());
+      gxString ln;
+      ln << "Per-user access log " << log_file << ": " << r.id_lines << " entries, " << r.tagged << " tags verified\n";
+      *w << ln.c_str();
+      if(lrv != 0) {
+	ln << clear << "TAMPERED: first problem at line " << r.first_bad_line << ": " << r.first_bad_reason << "\n";
+	*w << ln.c_str();
+	bad = 1;
+      }
+      else *w << "OK: per-user access log verified\n";
     }
   }
   else {
-    sbuf << clear << "User " << (const char *)dialog.GetValue() << " was not removed";
-    ProgramError->Message(sbuf.c_str());
+    gxString id = FC_hex(EPDBKeysetID(key), EPDB_V2_ID_LEN), tag;
+    tag << "\tid=" << id << "\t";
+    *w << "Per-user access log " << log_file.c_str() << ":\n";
+    FILE *fp = fopen(log_file.c_str(), "rb");
+    char line[8192];
+    while(fp && fgets(line, sizeof(line), fp)) if(strstr(line, tag.c_str())) *w << line;
+    if(fp) fclose(fp);
   }
-  
-  return;
+  if(verify && bad) wxMessageBox("The access log check found changed, removed or inserted entries. See the status window.",
+				 "Access Log", wxOK | wxICON_WARNING);
+}
+
+void MainFrame::OnShowAccessLog(wxCommandEvent& event)
+{
+  GUIShowLog(this, 0);
+}
+
+void MainFrame::OnVerifyAccessLog(wxCommandEvent& event)
+{
+  GUIShowLog(this, 1);
 }
 
 void MainFrame::OnListUsers(wxCommandEvent& event)
@@ -911,6 +1196,7 @@ void MainFrame::OnUpgrade(wxCommandEvent& WXUNUSED(event))
     return;
   }
 
+  if(!GUIConfirmClearUndo(child_frame, "The upgrade")) return; // 10/27/2026
   // The v1 key is the database secret
   MemoryBuffer secret(child_frame->DBParms()->crypt_key);
   ResealDocument(child_frame);
@@ -926,8 +1212,10 @@ void MainFrame::OnUpgrade(wxCommandEvent& WXUNUSED(event))
     *(statusWin) << "Upgrade of " << data_file.c_str() << " failed: " << err.c_str() << "\n";
     mbuf << clear << "The upgrade failed and the database was not changed.\n\n" << err.c_str();
     ProgramError->Message(mbuf.c_str());
+    GUILog(data_file.c_str(), "upgrade", gxString(), 0, "not changed", 0);
     return;
   }
+  GUILog(data_file.c_str(), "upgrade", gxString(), 1, "v1 to v2", 0);
   gxString index_backup = ReplaceFileExtension(backup_file, ".ehx");
   *(statusWin) << "Upgraded " << data_file.c_str() << " to database format v2" << "\n";
   *(statusWin) << "The v1 database was saved to " << backup_file.c_str() << " and "
@@ -1024,6 +1312,9 @@ void MainFrame::OnCut(wxCommandEvent& event)
     return;
   }
   
+  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+  gxString undo_name = (const char *)child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0).c_str();
+  GUIUndoBefore(child_frame, undo_name, undo_mark);
   wxString blank_text = "";
   child_frame->GridFrame()->m_grid->SetCellValue(child_frame->GridFrame()->dbparms.current_row,
 						 child_frame->GridFrame()->dbparms.current_col,
@@ -1034,6 +1325,7 @@ void MainFrame::OnCut(wxCommandEvent& event)
   infohog.ChangeMember(&memeber_update, sizeof(memeber_update), child_frame->GridFrame()->dbparms.current_col), 0;
   
   child_frame->GetPOD()->Flush(); 
+  GUIUndoAfter(undo_mark, undo_name, "update-record");
   return;
 }
 
@@ -1087,6 +1379,9 @@ void MainFrame::OnPaste(wxCommandEvent& event)
       wxTheClipboard->Close();
       return;
     }
+    GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+    gxString undo_name = (const char *)new_data.GetText().c_str();
+    GUIUndoBefore(child_frame, undo_name, undo_mark);
     if(!infohog.WriteObject()) {
       ProgramError->Message("Could not add object to the database\n");
       wxTheClipboard->Close();
@@ -1094,6 +1389,7 @@ void MainFrame::OnPaste(wxCommandEvent& event)
     }
     else {
       child_frame->GetPOD()->Flush(); // Flush the POD database following each insert
+      GUIUndoAfter(undo_mark, undo_name, "add-record");
       statusWin->WriteText("Added entry ");
       statusWin->WriteText(new_data.GetText().c_str());
       statusWin->WriteText(" to the database\n");
@@ -1123,6 +1419,9 @@ void MainFrame::OnPaste(wxCommandEvent& event)
 
   wxTextDataObject data;
   wxTheClipboard->GetData(data);
+  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+  gxString undo_name = (const char *)child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0).c_str();
+  GUIUndoBefore(child_frame, undo_name, undo_mark);
   
   child_frame->GridFrame()->m_grid->SetCellValue(child_frame->GridFrame()->dbparms.current_row,
 						 child_frame->GridFrame()->dbparms.current_col,
@@ -1145,6 +1444,7 @@ void MainFrame::OnPaste(wxCommandEvent& event)
   
   wxTheClipboard->Close();
   child_frame->GetPOD()->Flush(); 
+  GUIUndoAfter(undo_mark, gxString((const char *)child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0).c_str()), "update-record");
   
   return;
 }
@@ -1502,12 +1802,16 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
     yn = wxMessageBox("Delete the selected items?\n", "Program Message",
 		      wxYES_NO | wxCENTRE | wxICON_QUESTION, this);
     if(yn == wxNO) return;
+    child_frame->undo_stack.BeginGroup("Delete the selected items"); // 10/27/2026
     child_frame->GridFrame()->m_grid->BeginBatch();
     for(int n = 0; n < child_frame->GridFrame()->m_grid->GetNumberRows();) {
       if(child_frame->GridFrame()->m_grid->IsInSelection(n , 0)) {
 	if(child_frame->GridFrame()->m_grid->GetCellValue(n, 0) != "") {
 	  key = child_frame->GridFrame()->m_grid->GetCellValue(n, 0);
 	  infohog.SetMember(&key, sizeof(key), 0);
+	  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+	  gxString undo_name = (const char *)child_frame->GridFrame()->m_grid->GetCellValue(n, 0).c_str();
+	  GUIUndoBefore(child_frame, undo_name, undo_mark);
 	  if(!infohog.DeleteObject()) {
 	    *(statusWin) << "Could not find item: "
 			 << child_frame->GridFrame()->m_grid->GetCellValue(n, 0)
@@ -1518,6 +1822,7 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
 	    // Update the status window
 	    *(statusWin) << "Deleted item: " << child_frame->GridFrame()->m_grid->GetCellValue(n, 0)
 			 << "\n";
+	    GUIUndoAfter(undo_mark, undo_name, "delete-record");
 	  }
 	}
 	child_frame->GridFrame()->m_grid->DeleteRows(n, 1);
@@ -1527,6 +1832,7 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
       }
     }
     child_frame->GridFrame()->m_grid->EndBatch();
+    child_frame->undo_stack.EndGroup();
     child_frame->GridFrame()->dbparms.current_row = 0;
     child_frame->GridFrame()->dbparms.current_col = 0;
 
@@ -1557,6 +1863,9 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
   if(yn == wxNO) return;
 
   if(child_frame->GridFrame()->dbparms.current_name != "") {
+    GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+    gxString undo_name = (const char *)child_frame->GridFrame()->dbparms.current_name.c_str();
+    GUIUndoBefore(child_frame, undo_name, undo_mark);
     if(!infohog.DeleteObject()) {
       *(statusWin) << "Could not find item: " << child_frame->GridFrame()->dbparms.current_name
 		   << " in the database" << "\n";
@@ -1567,6 +1876,7 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
       // Update the status window
       *(statusWin) << "Deleted item: " << child_frame->GridFrame()->dbparms.current_name << "\n";
       infohog.Flush(); // Flush the POD database
+      GUIUndoAfter(undo_mark, undo_name, "delete-record");
     }
   }
 

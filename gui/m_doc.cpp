@@ -587,12 +587,16 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 	ProgramError->Message("Could not add new object to the database\n");
 	return 0;
       }
+      GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+      gxString undo_name = (const char *)curr_val.c_str();
+      GUIUndoBefore(this, undo_name, undo_mark);
       if(!infohog.WriteObject()) {
 	ProgramError->Message("Could not write new object to the database\n");
 	return 0;
       }
       else {
 	DBParms()->pod->Flush();
+	GUIUndoAfter(undo_mark, undo_name, "add-record");
 	*(frame->statusWin) << "Added new object : " 
 			    << curr_val
 			    << " to the database" << "\n";
@@ -652,6 +656,9 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
       INFOHOG curr_object(DBParms()->pod, NumDataMembers);
       LoadGridObject(curr_object);
       INFOHOG_t *dbstring = (INFOHOG_t *)curr_object.GetMember(0);
+      GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+      gxString undo_prev = (const char *)DBParms()->prev_name.c_str();
+      GUIUndoBefore(this, undo_prev, undo_mark);
       
       if(!infohog.ChangeObject(curr_object, 0)) {
 	*(frame->statusWin) << "Could not change " << DBParms()->prev_name
@@ -691,6 +698,7 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 			    << " to " <<  dbstring->c_str(dest) << "\n";
 	// Flush the POD database following each change operation
 	DBParms()->pod->Flush();
+	GUIUndoAfter(undo_mark, gxString(dbstring->c_str(dest)), "update-record");
 	gbuf = dbstring->c_str(dest);
 	if(IsHyperlink(gbuf)) {
 	  if(DBParms()->db_config.GetHyperlinkColor(&color)) {
@@ -757,6 +765,9 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
     gxString ssbuf = (const char *)sbuf.c_str();
     member = ssbuf.c_str();
 
+    GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+    gxString undo_name = (const char *)my_current_name.c_str();
+    GUIUndoBefore(this, undo_name, undo_mark);
     if(!infohog.ChangeMember(&member, sizeof(member), my_current_col)) {
       *(frame->statusWin) << "Could not update item: "
 			  << grid_frame->m_grid->GetCellValue(my_current_row, 
@@ -797,6 +808,7 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 							      0)
 			  << "\n";
       DBParms()->pod->Flush();
+      GUIUndoAfter(undo_mark, undo_name, "update-record");
       gbuf = (const char *)grid_frame->m_grid->GetCellValue(my_current_row, my_current_col).c_str();
       if(IsHyperlink(gbuf)) {
 	if(DBParms()->db_config.GetHyperlinkColor(&color)) {

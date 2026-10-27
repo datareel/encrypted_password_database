@@ -228,6 +228,7 @@ Exiting the import operation");
   frame->spanel->WriteMessage(gbuf.c_str());
 
   child_frame->GetGrid()->BeginBatch();
+  GUIUndoGroupGuard undo_group(child_frame, "Import"); // 10/27/2026: One undo step
   csv_array = 0;
   while(!stream.df_EOF()) { // Read in file line by line
     if(count >= display_count) {
@@ -323,6 +324,9 @@ Exiting the import operation");
 	infohog_a.SetMember(infohog.GetMember(0), 
 			    infohog.GetMemberLen(0),
 			    0);
+	GUIUndoMark undo_mark; // 10/27/2026
+	gxString undo_name = GUIObjectName(infohog);
+	GUIUndoBefore(child_frame, undo_name, undo_mark);
 	if(!infohog_a.FindObject()) { // This object does not exist
 	  dbstring = (DBString *)infohog.GetMember(0);
 	  ob = dbstring->c_str(dest);
@@ -334,6 +338,7 @@ Exiting the import operation");
 				<< " to the database" << "\n";
 	    continue;
 	  }
+	  GUIUndoAfter(undo_mark, undo_name, 0);
 	  // Update the database grid
 	  child_frame->GridFrame()->InsertCell(infohog);
 	  imports++;
@@ -376,6 +381,7 @@ Exiting the import operation");
 	      if(infohog == infohog_a) continue; 
 
 	      infohog_a.ChangeObject(infohog);
+	      GUIUndoAfter(undo_mark, undo_name, 0);
 	      grid_position = child_frame->GridFrame()->FindGridInsertPosition(infohog);
 	      child_frame->GridFrame()->LoadCell(infohog, grid_position);
 	      break;
@@ -405,6 +411,7 @@ Exiting the import operation");
 	      // The object has not changed
 	      if(infohog == infohog_a) continue; 
 	      infohog_a.ChangeObject(infohog);
+	      GUIUndoAfter(undo_mark, undo_name, 0);
 	      grid_position = child_frame->GridFrame()->FindGridInsertPosition(infohog);
 	      child_frame->GridFrame()->LoadCell(infohog, grid_position);
 	      break;
@@ -444,6 +451,11 @@ Exiting the import operation");
   child_frame->GridFrame()->RefreshGrid();
   
   *(frame->statusWin) << "Imported " << imports << " objects." << "\n";
+  {
+    gxString detail;
+    detail << imports << " added, " << updates << " updated";
+    GUILog(child_frame, "import", gxString(), 1, detail.c_str());
+  }
   if(updates) {
     *(frame->statusWin) << "Updated " << updates << " objects." << "\n";
   }

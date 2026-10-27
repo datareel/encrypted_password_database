@@ -2196,6 +2196,38 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
   return rv;
 }
 
+int EPDBRemoveUserInPlace(gxDatabase *f, const MemoryBuffer &key, gxUINT32 block_type,
+			  const gxString &username, gxString &err)
+{
+  DatabaseUserAuth db_auth;
+  db_auth.f = f;
+  if(db_auth.LoadStaticDataBlocks() != 0) {
+    err = db_auth.err;
+    return -1;
+  }
+  int removed = 0;
+  gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead();
+  while(p) {
+    gxListNode<StaticDataBlock> *next = p->next;
+    if(p->data.username == username && (block_type == 0 || p->data.block_header.block_type == block_type)) {
+      db_auth.static_block_list.Remove(p);
+      removed++;
+    }
+    p = next;
+  }
+  if(!removed) {
+    err << clear << "User " << username << " has no RSA key or smart card access";
+    return -1;
+  }
+  if(db_auth.UpdateStaticData() != 0 || db_auth.WriteStaticDataArea() != 0) {
+    err = db_auth.err;
+    return -1;
+  }
+  if(EPDBIsKeyset(key) && EPDBSeal(f, key, err) != 0) return -1;
+  f->Flush();
+  return 0;
+}
+
 static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY_LEN], const gxString &username,
 			   const gxString &source, SmartCardOB *sc, StaticDataBlock &block, gxString &err)
 // Builds a v2 user block (OAEP over the salt and master key) for the

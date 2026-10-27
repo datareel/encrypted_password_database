@@ -138,7 +138,7 @@ static int EPDBMemberString(INFOHOG &ih, unsigned i, const MemoryBuffer &key, gx
   return 1;
 }
 
-static int EPDBLoadRecord(INFOHOG &ih, const MemoryBuffer &key, EPDBRecord &rec, gxString &err)
+int EPDBLoadRecord(INFOHOG &ih, const MemoryBuffer &key, EPDBRecord &rec, gxString &err)
 {
   rec.Wipe();
   for(int i = 0; i < NumDataMembers; i++) {
@@ -953,6 +953,24 @@ void EPDBUndoStack::RecordDelete(const EPDBRecord &before)
   s->undo_ops.Add(u);
   s->redo_ops.Add(r);
   Add(s);
+}
+
+int EPDBUndoStack::Snapshot(POD *pod, const MemoryBuffer &key, const gxString &name, EPDBRecord &rec)
+{
+  rec.Wipe();
+  gxString err;
+  return EPDBReadRecord(pod, key, name, rec, err) == EPDB_REC_OK;
+}
+
+void EPDBUndoStack::Changed(POD *pod, const MemoryBuffer &key, int before_exists, const EPDBRecord &before,
+			    const gxString &after_name)
+{
+  EPDBRecord after;
+  int after_exists = Snapshot(pod, key, after_name, after);
+  if(!before_exists && after_exists) RecordAdd(after);
+  else if(before_exists && after_exists) RecordUpdate(before, after);
+  else if(before_exists && !after_exists) RecordDelete(before);
+  after.Wipe();
 }
 
 void EPDBUndoStack::BeginGroup(const char *label)

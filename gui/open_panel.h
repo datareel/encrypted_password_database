@@ -95,6 +95,7 @@ public: // Event handlers
 public: // Memeber functions
   void ShowPanel(gxString &fname);
   int TestInput();
+  int TestInputMethods(); // 10/27/2026: TestInput() without the self-destruct and log checks
   int RSAOpenDatabase();
   int RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxString &pbuf);
 
@@ -140,6 +141,7 @@ public: // Control objects
 
 private: // Data members
   int is_ok;
+  const char *open_failed; // 10/27/2026: Why the credential did not open the database
   gxString curr_fname;
   int use_key;
   int use_password;

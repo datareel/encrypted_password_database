@@ -229,11 +229,16 @@ void DisplayPanel::OnRemove(wxCommandEvent &WXUNUSED(event))
 			wxYES_NO | wxCENTRE | wxICON_QUESTION, this);
   if(yn == wxNO) return;
 
+  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
+  gxString undo_name = object_name.c_str(dest);
+  GUIUndoBefore(child_frame, undo_name, undo_mark);
   if(!infohog.DeleteObject()) {
     *(frame->statusWin) << "Could not find item: " << object_name.c_str(dest)
 			<< " in the database" << "\n";
     return;
   }
+  child_frame->GetPOD()->Flush();
+  GUIUndoAfter(undo_mark, undo_name, "delete-record");
 
   *(frame->statusWin) << "Deleted item: " << object_name.c_str(dest) << "\n";
 

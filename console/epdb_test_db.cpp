@@ -38,6 +38,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 #include <stdio.h>
 #include "epdb_functions.h"
+#include "epdb_core.h"
 
 #if defined (__UNIX__)
 #include <unistd.h>
@@ -313,11 +314,108 @@ static int AddRSA(const char *fname, const char *password, const char *pubkey_fi
   return rv != 0;
 }
 
+static int UndoTest(const char *fname, const char *password)
+// 10/27/2026: Tests the toolkit independent undo/redo model the GUI uses
+{
+  gxString err, name = fname;
+  MemoryBuffer key;
+  key.Cat(password, strlen(password));
+  gxDatabase *f = OpenEPDB(fname, err);
+  if(!f || UnlockEPDB(f, key, err) != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n";
+    return 1;
+  }
+  f->Close();
+  delete f;
+  MemoryBuffer ks = DBStringConfig::crypt_key;
+  POD *pod = OpenEPDB_POD(name, err, gxDBASE_READWRITE);
+  if(!pod) {
+    cerr << "ERROR: " << err.c_str() << "\n";
+    return 1;
+  }
+  int fails = 0;
+  EPDBUndoStack u;
+  EPDBRecord b, a, chk;
+  // A change made the way a GUI does: snapshot, write, record
+  EPDBRecordOp op;
+  op.op = EPDB_OP_ADD; op.name = "U1"; op.rec.value[1] = "user1"; op.rec.given[1] = 1;
+  int ex = EPDBUndoStack::Snapshot(pod, ks, "U1", b);
+  EPDBApplyRecordOp(pod, ks, op, 0, err);
+  u.Changed(pod, ks, ex, b, "U1");
+  op.op = EPDB_OP_UPDATE; op.rec.Clear(); op.rec.value[0] = "U2"; op.rec.given[0] = 1;
+  op.rec.value[2] = "pw2"; op.rec.given[2] = 1;
+  ex = EPDBUndoStack::Snapshot(pod, ks, "U1", b);
+  EPDBApplyRecordOp(pod, ks, op, 0, err);
+  u.Changed(pod, ks, ex, b, "U2");
+  if(u.Depth() != 2 || u.UndoLabel() != gxString("Change U1")) { cerr << "FAIL: two steps recorded" << "\n"; fails++; }
+  // Undo the rename and update, then the add
+  if(u.Undo(pod, ks, err) != EPDB_REC_OK || EPDBReadRecord(pod, ks, "U1", chk, err) != EPDB_REC_OK ||
+     chk.value[1] != gxString("user1") || !chk.value[2].is_null() || EPDBReadRecord(pod, ks, "U2", chk, err) == EPDB_REC_OK) {
+    cerr << "FAIL: undo of the change restores U1" << "\n"; fails++;
+  }
+  if(u.Undo(pod, ks, err) != EPDB_REC_OK || EPDBReadRecord(pod, ks, "U1", chk, err) == EPDB_REC_OK) {
+    cerr << "FAIL: undo of the add removes U1" << "\n"; fails++;
+  }
+  if(u.CanUndo() || !u.CanRedo()) { cerr << "FAIL: nothing left to undo, redo available" << "\n"; fails++; }
+  // Redo both
+  if(u.Redo(pod, ks, err) != EPDB_REC_OK || u.Redo(pod, ks, err) != EPDB_REC_OK ||
+     EPDBReadRecord(pod, ks, "U2", chk, err) != EPDB_REC_OK || chk.value[2] != gxString("pw2")) {
+    cerr << "FAIL: redo twice gives U2 with pw2" << "\n"; fails++;
+  }
+  // Delete and undo
+  ex = EPDBUndoStack::Snapshot(pod, ks, "U2", b);
+  op.op = EPDB_OP_DELETE; op.name = "U2"; op.rec.Clear();
+  EPDBApplyRecordOp(pod, ks, op, 0, err);
+  u.Changed(pod, ks, ex, b, "U2");
+  if(u.CanRedo()) { cerr << "FAIL: a new change clears redo" << "\n"; fails++; }
+  if(u.Undo(pod, ks, err) != EPDB_REC_OK || EPDBReadRecord(pod, ks, "U2", chk, err) != EPDB_REC_OK ||
+     chk.value[1] != gxString("user1")) {
+    cerr << "FAIL: undo of the delete restores U2" << "\n"; fails++;
+  }
+  // A group (import) is one step
+  u.BeginGroup("Import");
+  for(int i = 0; i < 5; i++) {
+    gxString n;
+    n << "G" << i;
+    ex = EPDBUndoStack::Snapshot(pod, ks, n, b);
+    op.op = EPDB_OP_ADD; op.name = n; op.rec.Clear();
+    EPDBApplyRecordOp(pod, ks, op, 0, err);
+    u.Changed(pod, ks, ex, b, n);
+  }
+  u.EndGroup();
+  if(u.UndoLabel() != gxString("Import") || u.Undo(pod, ks, err) != EPDB_REC_OK ||
+     EPDBReadRecord(pod, ks, "G3", chk, err) == EPDB_REC_OK) {
+    cerr << "FAIL: undo of a group removes every record of the group" << "\n"; fails++;
+  }
+  // The depth is capped
+  u.Clear();
+  u.SetDepth(3);
+  for(int i = 0; i < 5; i++) {
+    gxString n;
+    n << "D" << i;
+    ex = EPDBUndoStack::Snapshot(pod, ks, n, b);
+    op.op = EPDB_OP_ADD; op.name = n; op.rec.Clear();
+    EPDBApplyRecordOp(pod, ks, op, 0, err);
+    u.Changed(pod, ks, ex, b, n);
+  }
+  if(u.Depth() != 3) { cerr << "FAIL: depth capped at 3" << "\n"; fails++; }
+  u.Clear();
+  if(u.CanUndo() || u.CanRedo()) { cerr << "FAIL: Clear() empties both stacks" << "\n"; fails++; }
+  pod->Flush();
+  if(EPDBIsKeyset(ks) && EPDBSeal(pod->OpenDataFile(), ks, err) != 0) { cerr << "FAIL: seal" << "\n"; fails++; }
+  delete pod;
+  cout << (fails ? "UNDOTEST FAIL" : "UNDOTEST PASS") << "\n";
+  return fails ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
   AES_openssl_init();
   if(argc == 7 && strcmp(argv[1], "addrsa") == 0) {
     return AddRSA(argv[2], argv[3], argv[4], argv[5], strcmp(argv[6], "oaep") == 0);
+  }
+  if(argc == 4 && strcmp(argv[1], "undotest") == 0) {
+    return UndoTest(argv[2], argv[3]);
   }
   if(argc == 3 && strcmp(argv[1], "selftest") == 0) {
     return SelfTest(argv[2]);
@@ -335,6 +433,7 @@ int main(int argc, char **argv)
   cerr << "       " << argv[0] << " create-v1 dbfile.ehd password num_records" << "\n";
   cerr << "       " << argv[0] << " dump dbfile.ehd password" << "\n";
   cerr << "       " << argv[0] << " selftest dir" << "\n";
+  cerr << "       " << argv[0] << " undotest dbfile.ehd password (undo/redo model test)" << "\n";
   cerr << "       " << argv[0] << " addrsa dbfile.ehd password public_key.pem username oaep|pkcs1" << "\n";
   return 1;
 }

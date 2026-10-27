@@ -94,6 +94,8 @@ const int EPDB_REC_EXISTS = -4;
 // Reads a record by name from an open database (DBStringConfig::crypt_key
 // is not used, key is). Returns EPDB_REC_OK or EPDB_REC_NOT_FOUND.
 int EPDBReadRecord(POD *pod, const MemoryBuffer &key, const gxString &name, EPDBRecord &rec, gxString &err);
+// Decrypts the fields of a record read with INFOHOG::ReadObject()
+int EPDBLoadRecord(INFOHOG &ih, const MemoryBuffer &key, EPDBRecord &rec, gxString &err);
 // Every record, in index order
 int EPDBReadAllRecords(POD *pod, const MemoryBuffer &key, gxList<EPDBRecord> &recs, gxString &err);
 void EPDBWipeRecords(gxList<EPDBRecord> &recs);
@@ -220,6 +222,12 @@ public:
   void RecordAdd(const EPDBRecord &after);
   void RecordUpdate(const EPDBRecord &before, const EPDBRecord &after);
   void RecordDelete(const EPDBRecord &before);
+  // For GUIs with many write paths: Snapshot() reads a record before a
+  // change (returns 1 if it exists), Changed() reads it after the change
+  // and records an add, update or delete from the two states.
+  static int Snapshot(POD *pod, const MemoryBuffer &key, const gxString &name, EPDBRecord &rec);
+  void Changed(POD *pod, const MemoryBuffer &key, int before_exists, const EPDBRecord &before,
+	       const gxString &after_name);
   // Several changes undone in one step, such as an import or merge
   void BeginGroup(const char *label);
   void EndGroup();

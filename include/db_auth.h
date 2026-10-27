@@ -248,6 +248,10 @@ struct EPDBRekeyUser {
 int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 block_type,
 		   const gxString &username, int keep_backup, gxString &backup_data_file, gxString &err,
 		   int dry_run = 0);
+// The same, in place on a database that is open (the GUI). block_type
+// 0 removes every block of the user. The v2 database MAC is updated.
+int EPDBRemoveUserInPlace(gxDatabase *f, const MemoryBuffer &key, gxUINT32 block_type,
+			  const gxString &username, gxString &err);
 // Rekey: a new salt, database ID and master key, every field encrypted
 // again, and a new block for each user in keep, wrapped with their
 // public key (sc is used for "card" users and never logs in). new_secret

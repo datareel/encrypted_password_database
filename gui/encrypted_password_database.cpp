@@ -278,6 +278,10 @@ void InitProgramConfig(int argc, char *argv[])
       dfile << "AutoLockMinutes = " << progcfg->auto_lock_minutes << "\n";
       dfile << "# Clear a value copied to the clipboard after this many seconds, 0 turns it off" << "\n";
       dfile << "ClipboardClearSeconds = " << progcfg->clipboard_clear_seconds << "\n";
+      dfile << "# Log opens and changes to the per-user access log: 1 on, 0 off" << "\n";
+      dfile << "AccessLog = " << progcfg->access_log << "\n";
+      dfile << "# Access log file, empty for the default (.encrypted_password_database/logs/access.log)" << "\n";
+      dfile << "AccessLogFile = " << progcfg->access_log_file.c_str() << "\n";
       dfile << "\n";
       dfile << "# Default applications" << "\n";
       dfile << "web_browser = " << progcfg->default_web_browser.c_str() << "\n";
@@ -314,6 +318,11 @@ void InitProgramConfig(int argc, char *argv[])
       progcfg->auto_lock_minutes = atoi(s_lock);
       if(progcfg->auto_lock_minutes < 0) progcfg->auto_lock_minutes = 0;
     }
+    // 10/27/2026: Access log
+    char *s_alog = CfgData->GetStrValue("AccessLog");
+    if(s_alog) progcfg->access_log = (atoi(s_alog) != 0);
+    char *s_alogf = CfgData->GetStrValue("AccessLogFile");
+    if(s_alogf) progcfg->access_log_file = s_alogf;
     char *s_clip = CfgData->GetStrValue("ClipboardClearSeconds");
     if(s_clip) {
       progcfg->clipboard_clear_seconds = atoi(s_clip);
@@ -964,6 +973,7 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "open_panel.cpp"
 #include "add_user_panel.cpp"
 #include "m_frame.cpp"
+#include "epdb_gui_hooks.cpp" // 10/27/2026
 // --------------------------------------------------------------
 
 // ----------------------------------------------------------- //

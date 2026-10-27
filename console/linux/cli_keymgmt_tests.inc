@@ -353,6 +353,12 @@ ${TOOL} ${A} --db-info --json ks3.ehd 2>/dev/null | python3 -I -c "import json,s
 ${TOOL} --rsa-key=k_alice.pem --rsa-key-username=alice --non-interactive --db-list ks3.ehd 2>&1 | grep -q "attempts used"
 check $? "a wrong RSA key counts as a failed open"
 
+# ---- Undo/redo model the GUI uses ----
+newdb ku 0
+${TESTDB} undotest ku.ehd "${PW}" > out.txt 2>&1
+[ $? -eq 0 ] && grep -q "UNDOTEST PASS" out.txt && ${TOOL} ${A} --db-list ku.ehd >/dev/null 2>&1
+check $? "undo/redo model: add, rename, delete, redo, groups, depth cap, the database still checks"
+
 # ---- AWS KMS / Secrets Manager pipe syntax, with a local stand-in ----
 fake_kms() { printf '%s' "${PW}" | base64; }
 fake_kms | base64 -d | ${TOOL} --password-fd=0 --non-interactive --db-list known.ehd >/dev/null 2>&1

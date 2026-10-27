@@ -139,6 +139,17 @@ public: // Event handlers
   void OnAddUsers(wxCommandEvent& event);
   void OnRemoveUsers(wxCommandEvent& event);
   void OnListUsers(wxCommandEvent& event);
+
+  // 10/27/2026: Undo/redo and the Security menu
+  void OnUndo(wxCommandEvent& event);
+  void OnRedo(wxCommandEvent& event);
+  void OnUpdateUndo(wxUpdateUIEvent& event);
+  void OnUpdateRedo(wxUpdateUIEvent& event);
+  void OnAccessLog(wxCommandEvent& event);
+  void OnInFileLog(wxCommandEvent& event);
+  void OnSelfDestruct(wxCommandEvent& event);
+  void OnShowAccessLog(wxCommandEvent& event);
+  void OnVerifyAccessLog(wxCommandEvent& event);
   
 public: // Public member functions
   CryptDBDocument *ActiveChild() { return set_active_child(); }
