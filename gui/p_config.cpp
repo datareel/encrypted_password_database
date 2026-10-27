@@ -141,7 +141,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 
   envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
-  VersionString = "2026.102";
+  VersionString = "2026.103";
   build_type = "Release";
 #ifdef __APP_DEBUG_VERSION__
     build_type = "Debug";
@@ -150,7 +150,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   produced_by = "Datareel Open Source";
   copyright = "Copyright (c) Datareel Open Source"; 
   copyright_dates = "2001-2026";
-  release_date = "10/26/2026";
+  release_date = "10/27/2026";
   default_url = "https://datareel.com";
   support_email = "datareel@datareel.com";
   online_help_page = "https://datareel.com/encrypted_password_database/help";

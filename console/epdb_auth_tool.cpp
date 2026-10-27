@@ -57,12 +57,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 // Global vars
 gxString program_name = "Encrypted Password Database Auth Tool";
-gxString version_str = "2026.102";
+gxString version_str = "2026.103";
 gxString copyright = "Copyright (c) Datareel Open Source";
 gxString copyright_dates = "2003-2026";
 gxString produced_by = "Datareel Open Source";
 gxString default_url = "https://datareel.com";
-gxString release_date = "10/26/2026";
+gxString release_date = "10/27/2026";
 gxString debug_message;
 int debug_mode = 0;
 int debug_level = 1;

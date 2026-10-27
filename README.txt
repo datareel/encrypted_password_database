@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.102
+Release 2026.103
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -8,6 +8,246 @@ Supports Red Hat Enterprise Linux 8, 9, and 10
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
+
+RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
+-------------------------------------------------------------
+* --remove-user=name removes an RSA key or smart card user (GUI: Users
+  > Remove Users). The command line rewrites the database atomically:
+  a copy is changed, re-sealed and checked, then renamed over the
+  original, and a backup copy is kept (none with self-destruct on).
+  The last RSA or smart card user is only removed after opening with
+  the password or key file, since a database made with RSA keys or
+  smart cards only has a random password nobody knows. Removing a user
+  does not revoke a key the user already recovered: run --rekey after.
+* --rekey gives the database a new master key: a new salt and database
+  ID, every field encrypted again, every kept RSA and smart card user
+  rewrapped with their public key (no card login). Nothing is dropped
+  silently: a user or password without a choice in the rekey input
+  stops the rekey with a list of what is missing. The new database
+  must open and hold the same records before it replaces the original.
+  See REKEY below.
+* --add-record, --update-record and --delete-record. The record name
+  may be given on the command line, the field values are read from
+  stdin, --record-fd or --record-file as name=value lines or JSON, never
+  from argv. See RECORDS FROM THE COMMAND LINE below.
+* Access logs: a per-user log (--access-log, GUI Security > Access Log,
+  off by default) and an encrypted in-file log of the last 160 entries
+  (--access-log-in-file=on, GUI Security > In-File Access Log), both
+  tamper evident, --show-access-log and --verify-access-log. See ACCESS
+  LOG below.
+* --check-version reports v1 or v2 for each database without a
+  credential or smart card and exits 5 if any is v1. Opening a v1
+  database warns on stderr (GUI: a dialog once per file per session)
+  and names the upgrade command.
+* Optional self-destruct after too many failed opens (off by default),
+  see SELF-DESTRUCT below.
+* GUI undo and redo of record changes: Edit > Undo (Ctrl+Z) and Redo
+  (Ctrl+Y or Ctrl+Shift+Z) for adds, changes, deletes, cut and paste,
+  grid edits, import and merge (each one step), up to 100 steps, in
+  memory only, wiped when the database closes (lock, auto-lock, close,
+  exit). Each undo is saved at once and logged as an undo. Key
+  management (add or remove users, upgrade, self-destruct settings)
+  cannot be undone and asks before it clears the history. Clear
+  Clipboard moved from Ctrl+Z to Ctrl+L.
+* Command line versions of GUI features: --show-record, --get-field,
+  --db-info, --export (GUI CSV format or JSON), --import (JSON or CSV,
+  all or nothing), --merge-from, --change-password and
+  --generate-password, plus the automation options, see AUTOMATION AND
+  PRODUCTION USE below.
+* The record, undo, log, rekey and self-destruct logic is in
+  src/epdb_core.cpp, src/db_auth.cpp and fcrypt's fckeymgmt.cpp, which
+  the GUI and epdb_auth_tool share; the GUI only wires menus and
+  dialogs to it.
+* GUI fixes: Remove Users re-seals a v2 database (the database
+  integrity check failed after it), and new config files get their
+  numeric settings (they were written as spaces).
+* Built with fcrypt 2026.106 and DataReel 6.1. The database format is
+  unchanged: the new settings use bytes 2026.102 and older never read
+  (see db_auth.h) and 2026.102 opens databases written by this release.
+
+BEHAVIOR CHANGES IN RELEASE 2026.103
+------------------------------------
+* epdb_auth_tool exit codes: 2 when the credential does not open the
+  database and 3 when the database, record or user is not found, where
+  2026.102 exited 1 for every error. Scripts that test for exit code 1
+  should test for non-zero. All codes are listed under AUTOMATION AND
+  PRODUCTION USE.
+
+RECORDS FROM THE COMMAND LINE
+-----------------------------
+Field values are read from stdin, --record-fd=n or --record-file=file
+(a file only you can read), never from the command line:
+
+$ printf 'username=alice\npassword=S3cret\nnotes=line 1\\nline 2\n' | ./epdb_auth_tool --password-file=pw --add-record="My Bank" db.ehd
+$ printf 'password=N3w\n' | ./epdb_auth_tool --password-file=pw --update-record="My Bank" db.ehd
+$ ./epdb_auth_tool --password-file=pw --delete-record="My Bank" --yes db.ehd
+
+name=value format: one field per line. Field names are title, username,
+password, previous-password, security-questions, account-information,
+website-link and notes (also field1 to field8, or the database's own
+column name; case, spaces and _ do not matter). In values \n is a
+newline, \t a tab and \\ a backslash. Blank lines and lines starting
+with # are skipped. An update changes only the fields given, an empty
+value clears a field and title= renames the record. A delete asks at a
+terminal unless --yes is given. Each works with every way of opening
+the database (password, key file, RSA key, smart card).
+
+JSON format (also the --json output, so an export imports back exactly):
+
+  {"title": "My Bank", "username": "alice", "password": "S3cret",
+   "previous-password": "", "security-questions": "",
+   "account-information": "", "website-link": "", "notes": ""}
+
+Every key is optional except title; values are strings. --add-record
+and --update-record take one object, --import takes an object or an
+array and applies it as one atomic change (all or nothing, --dry-run
+to check it). JSON is detected by a leading { or [, or with
+--input-format=json; --import also reads the GUI's CSV format. Unknown
+keys, duplicate keys, values that are not strings and input over 1 MB
+are refused with the position of the problem, and nothing is changed.
+JSON is parsed with cJSON 1.7.18 (fcrypt/3plibs/cjson, MIT license).
+
+REKEY
+-----
+--rekey reads name=value lines from stdin, --rekey-fd or --rekey-file:
+
+  password=<current password>     Keep the database password (implied when
+                                  opening with --password-file/-fd or --key)
+  new-password=<password>         Give the database a new password
+  drop-password=yes               Random secret nobody knows: only the RSA
+                                  key and smart card users can open it
+  rsa:<user>=<public key file>    Keep and rewrap an RSA user
+  smartcard:<user>=<cert file>    Keep and rewrap a smart card user (PEM or DER)
+  smartcard:<user>=card           Read the cert from the card in the reader, no PIN
+  drop-rsa:<user>=yes             Remove an RSA user
+  drop-smartcard:<user>=yes       Remove a smart card user
+
+--rekey-new-password-file=file or --rekey-new-password-fd=n makes a
+random new database password (64 hex digits) and writes it there first;
+it is never printed. --change-password is a rekey with a new password
+from --new-password-fd or --new-password-file (it needs rsa: and
+smartcard: lines for the database's RSA and smart card users, since
+their key blocks are rewrapped).
+
+The database password derives the master key (PBKDF2 with the
+database's salt), there is no separate password slot. Keeping the
+password still gives a new master key because the salt is new, which
+revokes users who only recovered the old master key. Someone who knows
+the password can still open the database: use new-password to revoke
+them too. A rekey that would leave nothing to open the database is
+refused, and the original files are kept as a backup
+(name.rekey-backup-YYYYMMDD-HHMMSS.ehd/.ehx) that opens with the old
+credentials.
+
+ACCESS LOG
+----------
+Per-user log, off by default: epdb_auth_tool --access-log[=file] or the
+GUI's Security > Access Log (AccessLog = 1 and AccessLogFile in the
+config file, .cfg on Linux, .ini on Windows). The default file is
+~/.encrypted_password_database/logs/access.log
+(%USERPROFILE%\.encrypted_password_database\logs\access.log on
+Windows), directory mode 700, file mode 600. One file is shared by
+every database: each entry has the database path and ID. Format, one
+line per entry, tab separated:
+
+  FCLOG1 time= user= host= pid= tool= file= id= auth= slot= action=
+  record= result= detail= mac=
+
+time is UTC; auth is password, key-file, rsa-key or smartcard; action
+is open, add-record, update-record, delete-record, add-user,
+remove-user, rekey, upgrade, undo, redo, import, merge, export,
+show-record, get-field, settings, access-log-on, access-log-off or
+self-destruct; record is the record name; result is ok or fail. No
+password, PIN or record value is ever logged. mac is an HMAC-SHA256
+chain per database keyed from the master key (fcrypt include/
+fckeymgmt.h), so --verify-access-log finds changed, removed, reordered
+or inserted entries; entries of failed opens are covered by the next
+tagged entry; removing whole entries from the end cannot be detected.
+After a rekey the entries are checked with the old key and tagged again
+with the new one. If the log cannot be written the program warns once
+and goes on.
+
+In-file log: --access-log-in-file=on|off (GUI Security > In-File Access
+Log) keeps the last 160 entries in the database file, encrypted and
+authenticated with keys derived from the master key: time, action,
+auth method, result and a keyed hash of the user name, no host or name
+in the clear. When it is on and the database cannot be written
+(read-only), the entry goes to the per-user log instead, marked "in-file
+log unavailable (read-only)". An open never fails because of logging.
+After a rekey the entries are re-encrypted under the new key.
+--show-access-log lists both logs, --verify-access-log checks both.
+
+SELF-DESTRUCT
+-------------
+--self-destruct=on --self-destruct-attempts=n (1 to 99, default 5), or
+the GUI's Security > Self-Destruct Settings. Off by default, per
+database, v2 only. Each failed open (wrong password, key file, RSA key
+or passphrase, a wrong smart card PIN, a card key that does not match)
+is counted in the database file before the error is shown: "N of M
+attempts used, the records will be destroyed after M", with a stronger
+warning when one attempt is left. A good open resets the count. A PIN
+that is not sent (the PIN safeguards) is not counted, and the PIN is
+never retried. At the limit the key blocks, the salt and keys of the v2
+header, the config and every record in both files are overwritten with
+random data, the file is kept and marked destroyed, and --check-version
+and every open report it (exit code 6).
+
+With self-destruct on, a database that cannot be written (read-only
+file or media) is refused before any credential is tried, so a
+read-only copy cannot be used to skip the counter (copy it to writable
+storage), and --remove-user and --rekey keep no backup copy.
+
+Self-destruct only stops guesses made through epdb_auth_tool and the
+GUI. Anyone with a copy of the file can attack it offline, or reset the
+counter by editing the file (the counter cannot be protected without
+the key). A destroyed database cannot be recovered except from your own
+backups.
+
+AUTOMATION AND PRODUCTION USE
+-----------------------------
+* --non-interactive (or --batch): never prompt. A missing password,
+  passphrase, PIN or input is an error. --yes confirms a delete.
+* --quiet: only errors and the requested output.
+* --json: --db-list, --db-find-key, --show-record, --db-info,
+  --list-users, --check-version, --export=json, --import and
+  --merge-from.
+* --get-field=record:field writes only that value to stdout (or
+  --output-file), with no trailing newline; the value is never logged.
+* --dry-run: --remove-user, --rekey, --add-record, --update-record,
+  --delete-record, --import and --merge-from are done and checked on a
+  copy that is then removed.
+* --lock-timeout=seconds: every write takes an advisory lock on
+  db.ehd.lock (flock on Linux, LockFileEx on Windows) and waits this
+  long (default 10) for another writer, then exits 4. Record changes,
+  imports and merges are atomic (a checked copy renamed over the
+  database).
+* --output-file=file writes the requested output to a new file only
+  you can read; clear text records written to a terminal get a warning.
+* Errors go to stderr and requested output to stdout.
+* Exit codes: 0 ok, 1 usage or other error, 2 the credential did not
+  open the database, 3 database, record or user not found, 4 locked by
+  another writer, 5 --check-version found a v1 database, 6 destroyed by
+  self-destruct, 7 read or write error (also a read-only database with
+  self-destruct on).
+
+Using AWS KMS and Secrets Manager
+
+There is no AWS code in this release. Pipe the secret into a -fd option.
+Linux (bash):
+
+$ aws kms decrypt --ciphertext-blob fileb://pw.enc --query Plaintext --output text | base64 -d | ./epdb_auth_tool --password-fd=0 --non-interactive --db-list db.ehd
+$ aws secretsmanager get-secret-value --secret-id epdb/pw --query SecretString --output text | ./epdb_auth_tool --password-fd=0 --non-interactive --get-field="My Bank:password" db.ehd
+$ aws secretsmanager get-secret-value --secret-id epdb/rsa-pass --query SecretString --output text | ./epdb_auth_tool --rsa-key=$HOME/.keys/id_rsa.pem --rsa-key-username=$USER --rsa-key-passphrase-fd=0 --non-interactive --db-list db.ehd
+
+Windows (PowerShell):
+
+PS> aws secretsmanager get-secret-value --secret-id epdb/pw --query SecretString --output text | .\epdb_auth_tool.exe --password-fd=0 --non-interactive --db-list db.ehd
+PS> [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((aws kms decrypt --ciphertext-blob fileb://pw.enc --query Plaintext --output text))) | .\epdb_auth_tool.exe --password-fd=0 --non-interactive --db-list db.ehd
+
+The secret never lands in argv, shell history or a temp file this way.
+When stdin carries the password, give record input with --record-fd or
+--record-file. AWS CloudHSM's PKCS#11 library may work with
+--smartcard-provider, but it is untested.
 
 RELEASE 2026.102: SMART CARDS ON RHEL 10 AND WINDOWS
 ----------------------------------------------------
