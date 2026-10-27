@@ -114,6 +114,11 @@ CryptDBDocument::CryptDBDocument(wxMDIParentFrame *parent,
   s->Add(bar, 0, wxEXPAND | wxALL, FromDIP(6));
   s->Add(splitter, 1, wxEXPAND);
   SetSizer(s);
+#ifdef __WXMSW__
+  // 10/27/2026: Database windows fill the main window on Windows, as
+  // the GTK tabs do. The window is still restored with its own button.
+  Maximize(true);
+#endif
 }
 
 void CryptDBDocument::ApplySearch()
