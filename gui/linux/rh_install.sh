@@ -93,6 +93,17 @@ echo "Installing Desktop files"
 chmod 755 ${HOME}/.local/share/applications/encrypted_password_database.desktop
 /bin/cp -fv common/encrypted_password_database.png ${HOME}/.local/share/icons/.
 chmod 644 ${HOME}/.local/share/icons/encrypted_password_database.png
+# 10/27/2026: Icons at every size for the desktop icon theme
+if [ -d common/icons ]; then
+    for f in common/icons/*x*.png; do
+	n=$(basename ${f} .png)
+	/bin/mkdir -p ${HOME}/.local/share/icons/hicolor/${n}/apps
+	/bin/cp -f ${f} ${HOME}/.local/share/icons/hicolor/${n}/apps/encrypted_password_database.png
+    done
+    /bin/mkdir -p ${HOME}/.local/share/icons/hicolor/scalable/apps
+    /bin/cp -f common/icons/scalable.svg ${HOME}/.local/share/icons/hicolor/scalable/apps/encrypted_password_database.svg
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t ${HOME}/.local/share/icons/hicolor 2>/dev/null
+fi
 sed -i s,'${HOME}',"${HOME}",g ${HOME}/.local/share/applications/encrypted_password_database.desktop
 
 if [ -d ${HOME}/Desktop ]; then

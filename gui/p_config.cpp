@@ -33,6 +33,7 @@ the default values will effect all parts of the program.
 */
 // ----------------------------------------------------------- //   
 #include "app_defs.h"
+#include "epdb_version.h"
 
 wxappfwProgramConfig::wxappfwProgramConfig()
 {
@@ -141,7 +142,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
 
   envSetting = "EPDB_CFG";
   ProgramName = "Encrypted Password Database";
-  VersionString = "2026.103";
+  VersionString = EPDB_VERSION_STRING; // 10/27/2026: epdb_version.h
   build_type = "Release";
 #ifdef __APP_DEBUG_VERSION__
     build_type = "Debug";
@@ -169,6 +170,9 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   auto_lock_minutes = 15;
   access_log = 0; // 10/27/2026: Off unless turned on
   clipboard_clear_seconds = 30;
+  main_width_dip = main_height_dip = 0; // 10/27/2026: A share of the screen
+  details_width_dip = 340;
+  show_details = 1;
   show_passwords = 0;
 
   // Colors and font init
