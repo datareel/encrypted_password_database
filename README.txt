@@ -102,11 +102,14 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
   login until the program is restarted, and when the card is low on
   tries or has one try left a warning comes first with Cancel as the
   default (the PIN is not sent unless you choose Send the PIN).
-  Planned for the next release: the database format does not yet record
-  which card certificate each smart card user was added with, so the
-  card is matched as above. The next release adds the SHA-256 of the
-  certificate's public key (SPKI) to each smart card user, so the exact
-  card is picked with no PIN. This release does not change the format.
+  Planned for the next release (DBv3), two database format changes:
+  - each smart card user gets the SHA-256 of its certificate's public
+    key (SPKI), so the exact card is picked with no PIN (today the card
+    is matched as above);
+  - longer multi-line record fields (today 255 bytes each, at least a
+    longer Notes field), carried through CSV import and export,
+    printing and epdb_auth_tool.
+  This release does not change the database format.
 * Create Database: name and folder (the full path is shown), and the
   ways it can be unlocked: master password (with a strength meter and
   Generate), or a key file, RSA public keys and smart cards (no PIN is
