@@ -49,6 +49,7 @@ public: // Event handlers
   // File menu functions event handlers
   void OnNew(wxCommandEvent& event);
   void OnOpen(wxCommandEvent& event);
+  void OpenDatabaseFile(const wxString &start_file); // 10/27/2026
   void OnImport(wxCommandEvent& event);
   void OnExport(wxCommandEvent& event);
   void OnTemplate(wxCommandEvent& event);
@@ -191,7 +192,7 @@ public: // Public data members
   // Tabbed panel functions
   EditTabPanel *e_tab_panel;
 
-  OpenDatabasePanel *open_db_panel;
+  UnlockDialog *unlock_dlg; // 10/27/2026: Replaces the Open Database panel
 
   AdduserPanel *add_user_panel;
   

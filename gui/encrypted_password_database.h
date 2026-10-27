@@ -333,9 +333,14 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "st_panel.h"   // Status panel
 #include "winapp.h"     // wxWindows application class
 #include "new_panel.h"      // New DB panel
-#include "open_panel.h"     // Open DB panel
 #include "add_user_panel.h" // Add user access panel
 #include "epdb_gui_hooks.h" // 10/27/2026: Logs, self-destruct, v1 warning and undo for the GUI
+#include "epdb_art.h"       // 10/27/2026: Icons and DPI helpers
+#include "epdb_widgets.h"   // 10/27/2026: Password field and strength meter
+#include "epdb_recent.h"    // 10/27/2026: Recent databases and their unlock method
+#include "epdb_cmdbuild.h"  // 10/27/2026: Command builder
+#include "sc_picker.h"      // 10/27/2026: Smart card picker, no login
+#include "unlock_dlg.h"     // 10/27/2026: Unlock Database dialog
 #include "p_config.h"       // Program configuration data
 #include "m_frame.h"        // Main frame for this application
 

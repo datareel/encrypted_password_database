@@ -76,6 +76,33 @@ version 2.X
 #include <wx/cmdproc.h>
 #include <wx/docview.h>
 #include <wx/txtstrm.h>
+// 10/27/2026: Phase 3 GUI
+#include <wx/bmpbndl.h>
+#include <wx/settings.h>
+#include <wx/sizer.h>
+#include <wx/statline.h>
+#include <wx/simplebook.h>
+#include <wx/collpane.h>
+#include <wx/listctrl.h>
+#include <wx/radiobox.h>
+#include <wx/combobox.h>
+#include <wx/gauge.h>
+#include <wx/spinctrl.h>
+#include <wx/splitter.h>
+#include <wx/srchctrl.h>
+#include <wx/aboutdlg.h>
+#include <wx/display.h>
+#include <wx/filename.h>
+#include <wx/file.h>
+#include <wx/tokenzr.h>
+#include <wx/hyperlink.h>
+#include <wx/wrapsizer.h>
+#include <wx/notebook.h>
+#include <wx/checkbox.h>
+#include <wx/scrolwin.h>
+#include <wx/numdlg.h>
+#include <string>
+#include <vector>
 
 // define this to 1 to use wxToolBarSimple instead of the native one
 #define USE_GENERIC_TBAR 0

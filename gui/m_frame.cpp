@@ -422,7 +422,7 @@ MainFrame::MainFrame(wxWindow *parent,
 #endif
   e_tab_panel = InitEditTabPanel(this);
 
-  open_db_panel = InitOpenDatabasePanel(this);
+  unlock_dlg = new UnlockDialog(this);
 
 #ifdef __USE_MSW_PRINTING__
   mswpage = InitMSWPagePanel(this);
@@ -1455,7 +1455,14 @@ void MainFrame::OnPreferences(wxCommandEvent& event)
   e_tab_panel->ShowPanel();
 }
 
-void MainFrame::OnOpen(wxCommandEvent& event)
+void MainFrame::OnOpen(wxCommandEvent& WXUNUSED(event))
+{
+  OpenDatabaseFile(wxString());
+}
+
+void MainFrame::OpenDatabaseFile(const wxString &start_file)
+// 10/27/2026: The Unlock Database dialog asks for the file and the
+// unlock method, and unlocks the database
 {
 #ifdef __APP_DEBUG_VERSION__
   *(statusWin) << "Opening an existing database" << "\n";
@@ -1464,40 +1471,8 @@ void MainFrame::OnOpen(wxCommandEvent& event)
   gxString work_dir = (const char *)::wxGetCwd().c_str();
   ::wxSetWorkingDirectory(progcfg->docDir.c_str());
 
-  gxDatabaseParms def_parms;
-
-  wxString sbuf("*");
-  sbuf += def_parms.data_file_extension.c_str();
-  wxFileDialog dialog(this, "Open an existing database:",
-		      progcfg->docDir.c_str(), "",
-		      sbuf,
-		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
-  
-  if(dialog.ShowModal() == wxID_OK) {
-    // Set the config file name of the programs main database
-    gxString database_file((const char *)dialog.GetPath().c_str());
-    database_file = ReplaceFileExtension(database_file, def_parms.data_file_extension.c_str()); // 10/25/2026
-
-    if(DatabaseIsOpen(database_file)) {
-      ProgramError->Message("The database is already open");
-      ::wxSetWorkingDirectory(work_dir.c_str());
-      return;
-    }
-
-    if(!futils_exists(database_file.c_str())) {
-      ProgramError->Message("The database file does not exist");
-      ::wxSetWorkingDirectory(work_dir.c_str());
-      return;
-    }
-
-    // OpenDatabasePanel code is in the x_panel.h and x_panel.cpp modules
-    open_db_panel->ShowPanel(database_file);
-
-    if(!open_db_panel->IsOK()) {
-      ::wxSetWorkingDirectory(work_dir.c_str());
-      return;
-    }
-
+  gxString database_file;
+  if(unlock_dlg->ShowPanel(database_file, start_file)) {
     // Make another frame, containing a canvas
     CryptDBDocument *subframe = new CryptDBDocument(frame, progcfg->ProgramName.c_str(),
 						    wxPoint(-1, -1), 
@@ -1555,9 +1530,6 @@ void MainFrame::OnOpen(wxCommandEvent& event)
     subframe->grid_frame->ReloadGrid(0);
   }
   else {
-    if(!futils_exists(dialog.GetPath())) {
-      ProgramError->Message("The database file does not exist");
-    }
     ::wxSetWorkingDirectory(work_dir.c_str());
     return;
   }

@@ -973,7 +973,12 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "txtprint.cpp"
 #include "winapp.cpp"
 #include "new_panel.cpp"
-#include "open_panel.cpp"
+#include "epdb_art.cpp"
+#include "epdb_widgets.cpp"
+#include "epdb_recent.cpp"
+#include "epdb_cmdbuild.cpp"
+#include "sc_picker.cpp"
+#include "unlock_dlg.cpp"
 #include "add_user_panel.cpp"
 #include "m_frame.cpp"
 #include "epdb_gui_hooks.cpp" // 10/27/2026

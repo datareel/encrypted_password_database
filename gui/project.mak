@@ -63,7 +63,10 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)winapp.h \
 	    $(APP_PATH)$(PATHSEP)wx_incs.h \
 	    $(APP_PATH)$(PATHSEP)new_panel.h \
-	    $(APP_PATH)$(PATHSEP)open_panel.h \
+	    $(APP_PATH)$(PATHSEP)epdb_art.h $(APP_PATH)$(PATHSEP)epdb_icons.h \
+	    $(APP_PATH)$(PATHSEP)epdb_widgets.h $(APP_PATH)$(PATHSEP)epdb_recent.h \
+	    $(APP_PATH)$(PATHSEP)epdb_cmdbuild.h $(APP_PATH)$(PATHSEP)sc_picker.h \
+	    $(APP_PATH)$(PATHSEP)unlock_dlg.h \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.h \
 	    $(APP_PATH)$(PATHSEP)a_panel.cpp \
 	    $(APP_PATH)$(PATHSEP)epdb_gui_hooks.cpp $(APP_PATH)$(PATHSEP)epdb_gui_hooks.h \
@@ -100,7 +103,9 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)txtprint.cpp \
 	    $(APP_PATH)$(PATHSEP)winapp.cpp \
 	    $(APP_PATH)$(PATHSEP)new_panel.cpp \
-	    $(APP_PATH)$(PATHSEP)open_panel.cpp \
+	    $(APP_PATH)$(PATHSEP)epdb_art.cpp $(APP_PATH)$(PATHSEP)epdb_widgets.cpp \
+	    $(APP_PATH)$(PATHSEP)epdb_recent.cpp $(APP_PATH)$(PATHSEP)epdb_cmdbuild.cpp \
+	    $(APP_PATH)$(PATHSEP)sc_picker.cpp $(APP_PATH)$(PATHSEP)unlock_dlg.cpp \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.cpp
 
 # ===============================================================
