@@ -600,6 +600,9 @@ void mswPrintout::DrawTextPage(wxDC *dc, int page)
 	  }
 	}
 	if(gxbuf1.is_null()) gxbuf1 = " ";
+	// 10/27/2026: One line per record, line breaks print as " / "
+	gxbuf1.ReplaceString("\r\n", " / ");
+	gxbuf1.ReplaceString("\n", " / ");
 	if(IsHyperlink(gxbuf1)) {
 	  current_text_color = dc->GetTextForeground();
 	  current_text_font = dc->GetFont();
