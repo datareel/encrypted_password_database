@@ -129,7 +129,29 @@ https://datareel.com/encrypted_password_database/help/
 
 INSTALLING ON WINDOWS
 ---------------------
-Download and unzip the 64-bit Windows binaries:
+Windows installer (64-bit, administrator install):
+
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_windows_setup.exe
+
+The setup installs the GUI, epdb_auth_tool.exe, smartcard_list.bat and
+the README files to C:\Program Files\DataReel\Encrypted Password
+Database, adds Start Menu shortcuts, installs the Microsoft Visual C++
+x64 runtime if it is missing, and can add the program folder to the
+system PATH (optional task) and a desktop shortcut. Silent install:
+
+encrypted_password_database_2026_102_windows_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS="addpath"
+
+Upgrading: releases before 2026.102 were zip files with no installer.
+Install the setup, then delete the old unzipped EXE files (or keep
+them, they are not used by the installed program). Your databases,
+keys and settings are in %USERPROFILE%\.encrypted_password_database
+and are used by the installed program as they are. The setup and the
+uninstaller never change or delete that folder. Later setups upgrade
+the installed program in place. The installer is not code signed, so
+Windows SmartScreen may warn about an unknown publisher: choose More
+info, then Run anyway.
+
+Or download and unzip the 64-bit Windows binaries:
 
 https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_windows_binaries.zip
 
@@ -358,7 +380,11 @@ builds still use the pkcs11 engine. The PKCS#11 module is:
 Set a different module with --smartcard-provider=path in
 epdb_auth_tool, or with SC_modulePath in the GUI configuration file
 (.encrypted_password_database/encrypted_password_database.cfg in your
-home directory, %USERPROFILE% on Windows). A YubiKey is often not seen
+home directory on Linux, %USERPROFILE%\.encrypted_password_database\
+encrypted_password_database.ini on Windows). An existing configuration
+file is kept as it is: an SC_modulePath that no longer exists falls
+back to the default module, SC_enginePath is ignored by OpenSSL 3
+builds, and SC_cert_id is only the default shown in the dialogs. A YubiKey is often not seen
 by ActivClient, use the OpenSC module for it.
 
 Finding the slot and the cert ID without a PIN:
@@ -448,3 +474,15 @@ the reader" and the cert ID. Open the database with the Use Smart Card
 fields of the open dialog: username, PIN, cert ID and, with more than
 one card inserted, the Smart Card Slot. Creating a database and adding
 a card do not use the PIN.
+
+BUILDING THE WINDOWS INSTALLER
+------------------------------
+gui\msvc\installer\epdb.iss (Inno Setup 6) packs the files of the
+Windows release zip into encrypted_password_database_<v_v>_windows_setup.exe.
+Build the release zip first, unzip it, then:
+
+> cd gui\msvc\installer
+> build_installer.bat <unzipped zip folder> "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Redist\MSVC\14.52.37025\vc_redist.x64.exe"
+
+The setup is written to gui\msvc\installer\output. Keep the AppId in
+epdb.iss for every release so new setups upgrade in place.
