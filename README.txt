@@ -374,7 +374,7 @@ INSTALLING ON WINDOWS
 ---------------------
 Windows installer (64-bit, administrator install):
 
-https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_windows_setup.exe
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_windows_setup.exe
 
 The setup installs the GUI, epdb_auth_tool.exe, smartcard_list.bat and
 the README files to C:\Program Files\DataReel\Encrypted Password
@@ -382,7 +382,7 @@ Database, adds Start Menu shortcuts, installs the Microsoft Visual C++
 x64 runtime if it is missing, and can add the program folder to the
 system PATH (optional task) and a desktop shortcut. Silent install:
 
-encrypted_password_database_2026_102_windows_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS="addpath"
+encrypted_password_database_2026_103_windows_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS="addpath"
 
 Upgrading: releases before 2026.102 were zip files with no installer.
 Install the setup, then delete the old unzipped EXE files (or keep
@@ -396,7 +396,7 @@ info, then Run anyway.
 
 Or download and unzip the 64-bit Windows binaries:
 
-https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_windows_binaries.zip
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_windows_binaries.zip
 
 The "encrypted_password_database.exe" and "epdb_auth_tool.exe" are
 standalone EXE files that can be run with no installer needed. They
@@ -415,9 +415,9 @@ to your user account without root access. To install from the command
 line:
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_rhel_8_9_10_binaries.tar.gz
-tar xvfz encrypted_password_database_2026_102_rhel_8_9_10_binaries.tar.gz
-cd encrypted_password_database_2026_102_rhel_8_9_10_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_rhel_8_9_10_binaries.tar.gz
+tar xvfz encrypted_password_database_2026_103_rhel_8_9_10_binaries.tar.gz
+cd encrypted_password_database_2026_103_rhel_8_9_10_binaries
 ./rh_install.sh
 
 The installer lists any system libraries that are missing. Most
