@@ -914,6 +914,7 @@ void MSWPagePanel::Init()
   panel4->SetSizer(b4);
   notebook->AddPage(panel4, "Include Fields");
   notebook->SetSelection(0);
+  notebook->SetMinSize(wxSize(FromDIP(480), -1)); // Room for every tab
   top->Add(notebook, 1, wxEXPAND | wxALL, pad);
 
   wxBoxSizer *bs = new wxBoxSizer(wxHORIZONTAL);

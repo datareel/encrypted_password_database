@@ -65,8 +65,8 @@ static wxPanel *EPDBSection(wxWindow *parent, wxSizer *top, wxCheckBox *&check, 
   if(!note.IsEmpty()) h->Add(EPDBNote(parent, note), 1, wxLEFT | wxALIGN_CENTER_VERTICAL, parent->FromDIP(8));
   top->Add(h, 0, wxEXPAND | wxTOP, parent->FromDIP(10));
   wxPanel *p = new wxPanel(parent);
-  top->Add(p, 0, wxEXPAND | wxLEFT | wxTOP, parent->FromDIP(4));
-  top->GetItem(p)->SetBorder(parent->FromDIP(28));
+  top->AddSpacer(parent->FromDIP(4));
+  top->Add(p, 0, wxEXPAND | wxLEFT, parent->FromDIP(28));
   return p;
 }
 
@@ -230,7 +230,7 @@ void NewDatabasePanel::UpdateState()
   // A database has a password or a key file, not both
   key_check->Enable(!pw);
   if(pw && key_check->GetValue()) key_check->SetValue(false);
-  key_note->SetLabel(pw ? "A database uses a password or a key file, not both. Clear Master password to use a key file."
+  key_note->SetLabel(pw ? "A database uses a password or a key file, not both.\nClear Master password to use a key file."
 		     : "The key file must be readable only by you.");
   password_panel->Enable(pw);
   key_panel->Enable(key_check->GetValue());

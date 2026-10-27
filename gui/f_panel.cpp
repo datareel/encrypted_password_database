@@ -96,7 +96,9 @@ void FindPanel::ShowPanel()
   char dest[DBStringLength];
   search_choicebox->Clear();
   for(int i = 0; i < NumDataMembers; i++) {
-    search_choicebox->Append(wxString::FromUTF8(child_frame->DBParms()->db_config.GetColName(i, dest)));
+    gxString name = child_frame->DBParms()->db_config.GetColName(i, dest);
+    if(name.is_null()) name = progcfg->global_dbparms.dbgrid_labels[i];
+    search_choicebox->Append(wxString::FromUTF8(name.c_str()));
   }
   search_choicebox->SetSelection(0);
   db_input->SetFocus();

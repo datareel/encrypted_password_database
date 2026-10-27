@@ -57,7 +57,7 @@ RecordFieldCtrl::RecordFieldCtrl(wxWindow *parent, int m, int ro) : wxPanel(pare
     long style = ro ? wxTE_READONLY : 0;
     if(IsMultiLineField(m)) style |= wxTE_MULTILINE;
     text = new wxTextCtrl(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, style);
-    if(IsMultiLineField(m)) text->SetMinSize(wxSize(FromDIP(260), text->GetCharHeight() * 4 + FromDIP(10)));
+    if(IsMultiLineField(m)) text->SetMinSize(wxSize(FromDIP(260), text->GetCharHeight() * 3 + FromDIP(10)));
     else text->SetMinSize(wxSize(FromDIP(260), -1));
     s->Add(text, 1, wxEXPAND);
     text->Bind(wxEVT_TEXT, &RecordFieldCtrl::OnText, this);

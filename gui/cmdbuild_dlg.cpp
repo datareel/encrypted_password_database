@@ -498,7 +498,8 @@ void CommandBuilderDialog::Rebuild()
     std::string err;
     if(EPDBBuildCommand(o, sh, last[sh], err) != 0) {
       last_ok = 0;
-      out[sh]->ChangeValue("");
+      out[sh]->ChangeValue(wxString::FromUTF8(((sh == EPDB_SHELL_CMD ? "REM " : "# ") +
+						std::string("Complete the options: ") + err + "\n").c_str()));
       if(err_text.IsEmpty()) err_text = wxString::FromUTF8(err.c_str());
       continue;
     }

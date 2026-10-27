@@ -267,6 +267,8 @@ void CryptDBGrid::MakeGridColLabels()
   m_grid->SetColLabelAlignment(wxCENTRE, -1);
   for(i = 0; i < NumDataMembers; i++) {
     char *p = dbparms.db_config.GetColName(i, dest);
+    // 10/27/2026: The default names for a database with none stored
+    if(!p || !*p) p = (char *)progcfg->global_dbparms.dbgrid_labels[i].c_str();
 #ifdef __WXWIN2_GRID__
     m_grid->SetLabelValue(wxHORIZONTAL, p, i);
 #else

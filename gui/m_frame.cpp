@@ -332,7 +332,8 @@ MainFrame::MainFrame(wxWindow *parent,
   help_menu->Append(WXAPPFW_HELP_ABOUT, "&About\tF1");
 
   wxMenuBar *menu_bar = new wxMenuBar;
-  menu_bar->Append(file_menu, "&File");
+  // 10/27/2026: No mnemonic, Alt+F stays Records > Find as before
+  menu_bar->Append(file_menu, "File");
   menu_bar->Append(edit_menu, "&Edit");
   menu_bar->Append(database_menu, "&Records");
   menu_bar->Append(view_menu, "&View");
@@ -1547,6 +1548,12 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     // NOTE: 11/06/2014: So the ReloadGrid() call was changed not to test the database
     //subframe->grid_frame->ReloadGrid(1);
     subframe->grid_frame->ReloadGrid(0);
+    // 10/27/2026: The first record is selected and shown in the details pane
+    if(subframe->GetGrid()->GetNumberRows() > 0) {
+      subframe->GetGrid()->SetFocus();
+      subframe->GetGrid()->SetGridCursor(0, 0);
+      subframe->details->ShowRow(0);
+    }
   }
   else {
     ::wxSetWorkingDirectory(work_dir.c_str());
