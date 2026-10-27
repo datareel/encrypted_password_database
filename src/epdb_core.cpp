@@ -674,6 +674,158 @@ int EPDBGeneratePassword(unsigned length, int symbols, gxString &password)
 }
 
 // ----------------------------------------------------------- //
+// Access log and self-destruct
+// ----------------------------------------------------------- //
+int EPDBInFileLogOn(const char *data_file)
+{
+  gxDatabase f;
+  if(f.Open(data_file, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return 0;
+  EPDBHeaderExt x;
+  int on = EPDBReadExt(&f, x) && (x.flags & EPDB_EXT_LOG_IN_FILE);
+  f.Close();
+  return on;
+}
+
+void EPDBPerUserLog(EPDBLogContext &ctx, const char *data_file, const char *action, const gxString &slot,
+			      const gxString &record, int ok, const char *detail, const MemoryBuffer *key)
+{
+  gxString log_file = ctx.log_file;
+  if(log_file.is_null()) log_file = FC_default_log_file(".encrypted_password_database");
+  FCLogEntry e;
+  e.tool = ctx.tool;
+  e.file = FC_abs_path(data_file);
+  // The ID of the key used, so an entry written right after a rekey
+  // with the old key carries the old ID
+  if(key && EPDBIsKeyset(*key)) e.id = FC_hex(EPDBKeysetID(*key), EPDB_V2_ID_LEN);
+  else e.id = EPDBIDHex(data_file);
+  e.auth = ctx.auth;
+  e.slot = slot;
+  e.action = action;
+  e.record = record;
+  e.ok = ok;
+  if(detail) e.detail = detail;
+  unsigned char lk[FC_LOG_KEY_LEN];
+  int keyed = 0;
+  if(key && EPDBIsKeyset(*key) && !e.id.is_null()) {
+    keyed = FC_log_key(EPDBKeysetKey(*key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN, EPDBKeysetID(*key), EPDB_V2_ID_LEN, lk);
+  }
+  gxString err;
+  if(FC_log_append(log_file.c_str(), e, keyed ? lk : 0, err) != 0 && !ctx.warned) {
+    ctx.warned = 1;
+    ctx.warning << clear << err << ", continuing without the access log";
+  }
+  OPENSSL_cleanse(lk, sizeof(lk));
+}
+
+void EPDBLog(EPDBLogContext &ctx, const char *data_file, const char *action, const gxString &slot,
+	     const gxString &record, int ok, const char *detail, const MemoryBuffer *key, int force_per_user)
+{
+  if(ctx.per_user || force_per_user) EPDBPerUserLog(ctx, data_file, action, slot, record, ok, detail, key);
+  if(!EPDBInFileLogOn(data_file)) return;
+  int code = FC_action_code(action);
+  if(code == FC_ACTION_NONE) return; // Not kept in the file, such as export or get-field
+  gxString why;
+  if(!key || !EPDBIsKeyset(*key)) why = "in-file log unavailable (no key)";
+  else {
+    gxDatabase f;
+    if(!FC_file_writable(data_file) || f.Open(data_file, gxDBASE_READWRITE) != gxDBASE_NO_ERROR) {
+      why = "in-file log unavailable (read-only)";
+    }
+    else {
+      FCRingEntry r;
+      r.action = code;
+      r.auth = FC_auth_code(ctx.auth.c_str());
+      r.result = ok;
+      gxString err;
+      if(EPDBRingAppend(&f, *key, r, slot.c_str(), err) != 0) why << clear << "in-file log unavailable (" << err << ")";
+      f.Close();
+    }
+  }
+  if(!why.is_null() && !ctx.per_user) {
+    gxString d = why;
+    if(detail) d << "; " << detail;
+    EPDBPerUserLog(ctx, data_file, action, slot, record, ok, d.c_str(), key);
+  }
+}
+
+int EPDBSelfDestructPrecheck(const char *data_file, gxString &msg)
+{
+  msg.Clear();
+  FCControlBlock c;
+  if(!EPDBReadControl(data_file, c)) return 0;
+  if(c.destroyed) {
+    msg << clear << data_file << " was destroyed after too many failed opens. "
+	<< "It cannot be recovered except from your own backups.";
+    return FC_EXIT_DESTROYED;
+  }
+  if(!c.SelfDestruct()) return 0;
+  gxString ifile = ReplaceFileExtension(gxString(data_file), ".ehx");
+  if(!FC_file_writable(data_file) || !FC_file_writable(ifile.c_str())) {
+    msg << clear << data_file << " has self-destruct on and cannot be written (read-only file or media). "
+	<< "No credential was tried, so the failed open counter cannot be bypassed. Copy the database to writable storage.";
+    return FC_EXIT_IO;
+  }
+  if(c.failed > 0) msg << clear << data_file << ": " << FC_sd_message(c.failed, c.limit);
+  return 0;
+}
+
+int EPDBSelfDestructFailedOpen(const char *data_file, const char *what, gxString &msg,
+			       int &last_try, int &destroyed)
+{
+  msg.Clear();
+  last_try = destroyed = 0;
+  FCControlBlock c;
+  if(!EPDBReadControl(data_file, c) || !c.SelfDestruct() || c.destroyed) return 0;
+  c.failed++;
+  gxString err;
+  msg << clear << what << ". " << FC_sd_message(c.failed, c.limit);
+  if(c.failed < c.limit) {
+    if(EPDBWriteControl(data_file, c, err) != 0) {
+      msg << ". " << err;
+      return -1;
+    }
+    if(c.failed + 1 == c.limit) {
+      last_try = 1;
+      msg << ". ONE ATTEMPT LEFT: the next failed open of " << data_file
+	  << " destroys every record. Stop now if you are not sure of the credential.";
+    }
+    return 0;
+  }
+  int rv = EPDBDestroy(data_file, err);
+  destroyed = 1;
+  msg << ". " << data_file << " was destroyed after " << c.limit << " failed opens. "
+      << "It cannot be recovered except from your own backups.";
+  if(rv != 0) msg << " " << err;
+  return rv;
+}
+
+void EPDBSelfDestructReset(const char *data_file, const MemoryBuffer &key, gxString &msg)
+{
+  msg.Clear();
+  if(!EPDBIsKeyset(key)) return;
+  gxDatabase f;
+  if(f.Open(data_file, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return;
+  EPDBHeaderExt x;
+  int has_ext = EPDBReadExt(&f, x);
+  FCControlBlock c;
+  int has_ctl = EPDBReadControl(&f, c);
+  f.Close();
+  int changed = 0;
+  if(has_ext && (x.flags & EPDB_EXT_SELF_DESTRUCT) && (!has_ctl || !c.SelfDestruct() || c.limit != x.sd_limit)) {
+    msg << clear << "The self-destruct settings of " << data_file << " were changed outside this program, they were restored";
+    c.flags |= FC_CTL_SELF_DESTRUCT;
+    c.limit = x.sd_limit ? x.sd_limit : FC_SD_DEFAULT_ATTEMPTS;
+    changed = 1;
+  }
+  if(has_ctl && c.failed) {
+    c.failed = 0;
+    changed = 1;
+  }
+  gxString err;
+  if(changed && EPDBWriteControl(data_file, c, err) != 0) msg << " " << err;
+}
+
+// ----------------------------------------------------------- //
 // Undo and redo
 // ----------------------------------------------------------- //
 EPDBUndoStep *EPDBUndoStack::NewStep(const char *label)

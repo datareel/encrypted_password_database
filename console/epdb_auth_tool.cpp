@@ -1928,82 +1928,42 @@ static gxString AuthSlotName()
   return gxString();
 }
 
-static int InFileLogOn(const char *fname)
+static EPDBLogContext log_ctx;
+
+static void SetupLog()
 {
-  gxDatabase f;
-  if(f.Open(fname, gxDBASE_READONLY) != gxDBASE_NO_ERROR) return 0;
-  EPDBHeaderExt x;
-  int on = EPDBReadExt(&f, x) && (x.flags & EPDB_EXT_LOG_IN_FILE);
-  f.Close();
-  return on;
+  log_ctx.per_user = access_log;
+  log_ctx.log_file = access_log_file;
+  log_ctx.tool = "epdb_auth_tool";
+  log_ctx.auth = AuthName();
+}
+
+static void ShowLogWarning()
+{
+  if(!log_ctx.warning.is_null()) {
+    cerr << "WARNING: " << log_ctx.warning.c_str() << "\n" << flush;
+    log_ctx.warning.Clear();
+  }
 }
 
 static void PerUserLog(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
 		       int ok, const char *detail, const MemoryBuffer *file_key, int force)
+// Per-user log only, for actions the in-file log does not keep
 {
+  SetupLog();
   if(!access_log && !force) return;
-  gxString log_file = access_log_file;
-  if(log_file.is_null()) log_file = FC_default_log_file(".encrypted_password_database");
-  FCLogEntry e;
-  e.tool = "epdb_auth_tool";
-  e.file = FC_abs_path(fname.c_str());
-  // The ID of the key used, so an entry written right after a rekey
-  // with the old key carries the old ID
-  if(file_key && EPDBIsKeyset(*file_key)) e.id = FC_hex(EPDBKeysetID(*file_key), EPDB_V2_ID_LEN);
-  else e.id = EPDBIDHex(fname.c_str());
-  e.auth = AuthName();
-  e.slot = slot;
-  e.action = action;
-  e.record = record;
-  e.ok = ok;
-  if(detail) e.detail = detail;
-  unsigned char key[FC_LOG_KEY_LEN];
-  int keyed = 0;
-  if(file_key && EPDBIsKeyset(*file_key) && !e.id.is_null()) {
-    keyed = FC_log_key(EPDBKeysetKey(*file_key, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN,
-		       EPDBKeysetID(*file_key), EPDB_V2_ID_LEN, key);
-  }
-  gxString err;
-  if(FC_log_append(log_file.c_str(), e, keyed ? key : 0, err) != 0 && !access_log_warned) {
-    access_log_warned = 1;
-    cerr << "WARNING: " << err.c_str() << ", continuing without the access log" << "\n" << flush;
-  }
-  OPENSSL_cleanse(key, sizeof(key));
+  EPDBPerUserLog(log_ctx, fname.c_str(), action, slot, record, ok, detail, file_key);
+  ShowLogWarning();
 }
 
 void LogEvent(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
 	      int ok, const char *detail, const MemoryBuffer *file_key)
-// Per-user log when --access-log is on. With the in-file log on, the
-// entry also goes in the database file; when that cannot be written
-// (read-only, no key after a failed open) the entry goes to the
-// per-user log even without --access-log, marked as a fallback. A log
-// failure never stops an open or a change.
+// The core's EPDBLog(): per-user log when on, the in-file log when the
+// database has it on, with the per-user fallback. Never fails.
 {
-  PerUserLog(fname, action, slot, record, ok, detail, file_key, 0);
-  if(!InFileLogOn(fname.c_str())) return;
-  gxString why;
-  if(!file_key || !EPDBIsKeyset(*file_key)) why = "in-file log unavailable (no key)";
-  else {
-    gxString err;
-    gxDatabase *f = OpenEPDB(fname.c_str(), err, gxDBASE_READWRITE);
-    if(!f) why = "in-file log unavailable (read-only)";
-    else {
-      FCRingEntry r;
-      r.action = FC_action_code(action);
-      r.auth = AuthCode();
-      r.result = ok;
-      if(EPDBRingAppend(f, *file_key, r, slot.c_str(), err) != 0) {
-	why << clear << "in-file log unavailable (" << err << ")";
-      }
-      f->Close();
-      delete f;
-    }
-  }
-  if(!why.is_null() && !access_log) {
-    gxString d = why;
-    if(detail) d << "; " << detail;
-    PerUserLog(fname, action, slot, record, ok, d.c_str(), file_key, 1);
-  }
+  SetupLog();
+  EPDBLog(log_ctx, fname.c_str(), action, slot, record, ok, detail, file_key);
+  ShowLogWarning();
 }
 
 int CheckVersions()
@@ -2145,29 +2105,16 @@ int DestroyedNow(const gxString &fname)
 }
 
 int SelfDestructPrecheck(const gxString &fname)
-// Before any credential is tried: a destroyed database is reported, and
-// with self-destruct on a file that cannot be written is refused, since
-// otherwise a read-only copy would not count the failed opens
+// Before any credential is tried, see EPDBSelfDestructPrecheck()
 {
-  FCControlBlock c;
-  if(!EPDBReadControl(fname.c_str(), c)) return 1;
-  if(c.destroyed) {
-    cerr << "ERROR: " << fname.c_str() << " was destroyed after too many failed opens. "
-	 << "It cannot be recovered except from your own backups." << "\n" << flush;
-    SetExit(FC_EXIT_DESTROYED);
+  gxString msg;
+  int rv = EPDBSelfDestructPrecheck(fname.c_str(), msg);
+  if(rv != 0) {
+    cerr << "ERROR: " << msg.c_str() << "\n" << flush;
+    SetExit(rv);
     return 0;
   }
-  if(!c.SelfDestruct()) return 1;
-  gxString ifile = ReplaceFileExtension(fname, ".ehx");
-  if(!FC_file_writable(fname.c_str()) || !FC_file_writable(ifile.c_str())) {
-    cerr << "ERROR: " << fname.c_str() << " has self-destruct on and cannot be written (read-only file or media). "
-	 << "No credential was tried, so the failed open counter cannot be bypassed. Copy the database to writable storage." << "\n" << flush;
-    SetExit(FC_EXIT_IO);
-    return 0;
-  }
-  if(c.failed > 0) {
-    cerr << "WARNING: " << fname.c_str() << ": " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
-  }
+  if(!msg.is_null()) cerr << "WARNING: " << msg.c_str() << "\n" << flush;
   return 1;
 }
 
@@ -2175,58 +2122,19 @@ void CountFailedOpen(const gxString &fname, const char *what)
 // Counts a failed open in the file before the error is returned, and
 // destroys the database at the limit
 {
-  FCControlBlock c;
-  if(!EPDBReadControl(fname.c_str(), c) || !c.SelfDestruct() || c.destroyed) return;
-  c.failed++;
-  gxString err;
-  if(c.failed < c.limit) {
-    if(EPDBWriteControl(fname.c_str(), c, err) != 0) {
-      cerr << "ERROR: " << err.c_str() << "\n" << flush;
-      return;
-    }
-    cerr << "WARNING: " << what << ". " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
-    if(c.failed + 1 == c.limit) {
-      cerr << "WARNING: ONE ATTEMPT LEFT. The next failed open of " << fname.c_str()
-	   << " destroys every record. Stop now if you are not sure of the credential." << "\n" << flush;
-    }
-    return;
-  }
-  cerr << "WARNING: " << what << ". " << FC_sd_message(c.failed, c.limit).c_str() << "\n" << flush;
-  if(EPDBDestroy(fname.c_str(), err) != 0) {
-    cerr << "ERROR: " << err.c_str() << "\n" << flush;
-  }
-  cerr << "ERROR: " << fname.c_str() << " was destroyed after " << c.limit << " failed opens. "
-       << "It cannot be recovered except from your own backups." << "\n" << flush;
-  PerUserLog(fname, "self-destruct", gxString(), gxString(), 1, "destroyed after too many failed opens", 0, 1);
+  gxString msg;
+  int last_try = 0, destroyed = 0;
+  EPDBSelfDestructFailedOpen(fname.c_str(), what, msg, last_try, destroyed);
+  if(msg.is_null()) return;
+  cerr << (destroyed ? "ERROR: " : "WARNING: ") << msg.c_str() << "\n" << flush;
+  if(destroyed) PerUserLog(fname, "self-destruct", gxString(), gxString(), 1, "destroyed after too many failed opens", 0, 1);
 }
 
 void ResetFailedOpens(const gxString &fname, const MemoryBuffer &file_key)
-// After a good open: reset the counter and restore the control block
-// from the authenticated header copy if it was changed
 {
-  if(!EPDBIsKeyset(file_key)) return;
-  gxDatabase f;
-  if(f.Open(fname.c_str(), gxDBASE_READONLY) != gxDBASE_NO_ERROR) return;
-  EPDBHeaderExt x;
-  int has_ext = EPDBReadExt(&f, x);
-  FCControlBlock c;
-  int has_ctl = EPDBReadControl(&f, c);
-  f.Close();
-  int want_sd = has_ext && (x.flags & EPDB_EXT_SELF_DESTRUCT);
-  int changed = 0;
-  if(want_sd && (!has_ctl || !c.SelfDestruct() || c.limit != x.sd_limit)) {
-    cerr << "WARNING: The self-destruct settings of " << fname.c_str()
-	 << " were changed outside this program, they were restored" << "\n" << flush;
-    c.flags |= FC_CTL_SELF_DESTRUCT;
-    c.limit = x.sd_limit ? x.sd_limit : FC_SD_DEFAULT_ATTEMPTS;
-    changed = 1;
-  }
-  if(has_ctl && c.failed) {
-    c.failed = 0;
-    changed = 1;
-  }
-  gxString err;
-  if(changed && EPDBWriteControl(fname.c_str(), c, err) != 0) cerr << "WARNING: " << err.c_str() << "\n" << flush;
+  gxString msg;
+  EPDBSelfDestructReset(fname.c_str(), file_key, msg);
+  if(!msg.is_null()) cerr << "WARNING: " << msg.c_str() << "\n" << flush;
 }
 
 static int ConfirmAtTerminal(const char *question)

@@ -156,6 +156,46 @@ int EPDBMergeDatabases(const char *dst_file, const MemoryBuffer &dst_key, gxList
 int EPDBGeneratePassword(unsigned length, int symbols, gxString &password);
 
 // ----------------------------------------------------------- //
+// Access log and self-destruct decisions, shared by the CLI and GUI
+// ----------------------------------------------------------- //
+struct EPDBLogContext {
+  EPDBLogContext() { per_user = 0; warned = 0; }
+  int per_user;          // --access-log or the GUI setting
+  gxString log_file;     // Empty for the default per-user log
+  gxString tool;         // epdb_auth_tool or the GUI name
+  gxString auth;         // password, key-file, rsa-key or smartcard
+  int warned;            // Set after the first log warning
+  gxString warning;      // The first log failure, for the caller to show once
+};
+// Writes an entry to the per-user log (when on) and, when the database
+// has the in-file log on, to the database file. If the in-file log
+// cannot be written (read-only file, or no key after a failed open) the
+// entry goes to the per-user log even when it is off, marked as a
+// fallback. Never fails the caller: problems end up in ctx.warning.
+void EPDBLog(EPDBLogContext &ctx, const char *data_file, const char *action, const gxString &slot,
+	     const gxString &record, int ok, const char *detail, const MemoryBuffer *key, int force_per_user = 0);
+// Per-user log entry only, for actions the in-file log does not keep
+void EPDBPerUserLog(EPDBLogContext &ctx, const char *data_file, const char *action, const gxString &slot,
+		    const gxString &record, int ok, const char *detail, const MemoryBuffer *key);
+// Returns 1 if the database has the in-file log on
+int EPDBInFileLogOn(const char *data_file);
+
+// Self-destruct, before any credential is tried. Returns 0 to go on
+// (msg may hold the attempts used so far), FC_EXIT_DESTROYED for a
+// destroyed database or FC_EXIT_IO for a file that cannot be written
+// while self-destruct is on.
+int EPDBSelfDestructPrecheck(const char *data_file, gxString &msg);
+// Counts a failed open in the file (flushed to disk) and destroys the
+// database at the limit. msg is the warning to show; last_try is set
+// when one attempt is left; destroyed when it was destroyed now.
+// Returns 0 if self-destruct is off or the count was written.
+int EPDBSelfDestructFailedOpen(const char *data_file, const char *what, gxString &msg,
+			       int &last_try, int &destroyed);
+// After a good open: resets the counter and restores the control block
+// from the authenticated header copy if it was changed (msg says so).
+void EPDBSelfDestructReset(const char *data_file, const MemoryBuffer &key, gxString &msg);
+
+// ----------------------------------------------------------- //
 // Undo and redo of record changes, for any GUI. In memory only: the
 // steps hold record values, so they are wiped when cleared, never
 // written to disk or a log, and the depth is capped.
