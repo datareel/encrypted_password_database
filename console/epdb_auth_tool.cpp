@@ -2811,7 +2811,7 @@ static int GetField(const gxString &fname, MemoryBuffer &file_key)
 {
   int colon = FC_find_last(get_field.c_str(), ":");
   gxString name, field;
-  name.SetString(get_field.c_str(), (unsigned)colon);
+  if(colon > 0) name.SetString(get_field.c_str(), (unsigned)colon);
   field = get_field.c_str() + colon + 1;
   gxDatabaseConfig cfg;
   int have_cfg = ReadConfig(fname, file_key, cfg);

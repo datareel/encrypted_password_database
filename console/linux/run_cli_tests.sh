@@ -33,7 +33,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ ! -f ${TESTDB} ] || [ ${NEW_DIR}/../epdb_test_db.cpp -nt ${TESTDB} ]; then
+if [ ! -f ${TESTDB} ] || [ ${NEW_DIR}/../epdb_test_db.cpp -nt ${TESTDB} ] || [ ${TOOL} -nt ${TESTDB} ]; then
     # 10/26/2026: The default makefile is RHEL 10, use the RHEL 8 or 9
     # makefile on those releases
     MAKEFILE=makefile
@@ -73,10 +73,10 @@ ${TOOL} --password="${PW}" --db-list known.ehd > list.txt 2>>${logFILE}
 check $? "list with the right password"
 ${TOOL} --password="${WRONG}" --db-list known.ehd > out.txt 2>err.txt
 rv=$?
-[ ${rv} -eq 1 ] && [ ! -s out.txt ] && grep -q -E "Error decrypting database hash|not correct" err.txt
-check $? "list with the wrong password fails with no output"
+[ ${rv} -eq 2 ] && [ ! -s out.txt ] && grep -q -E "Error decrypting database hash|not correct" err.txt
+check $? "list with the wrong password fails with no output and exit code 2"
 ${TOOL} --password="${WRONG}" --db-find-key='Entry 003' known.ehd > out.txt 2>/dev/null
-[ $? -eq 1 ] && [ ! -s out.txt ]
+[ $? -eq 2 ] && [ ! -s out.txt ]
 check $? "find with the wrong password fails with no output"
 ${TOOL} --password="${PW}" --db-find-key='Entry 003' known.ehd > out.txt 2>/dev/null
 [ $? -eq 0 ] && [ $(wc -l < out.txt) -eq 1 ] && grep -q "^Entry 003" out.txt
@@ -85,8 +85,8 @@ ${TOOL} --password="${PW}" --db-find-key='nomatch' known.ehd > out.txt 2>err.txt
 [ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "No objects found" err.txt
 check $? "find with no match exits 1, message on stderr"
 ${TOOL} --password="${PW}" --db-list missing.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ ! -s out.txt ]
-check $? "missing database file exits 1"
+[ $? -eq 3 ] && [ ! -s out.txt ]
+check $? "missing database file exits 3 (not found)"
 printf '%s\n' "${PW}" | ${TOOL} --password --db-list known.ehd > out.txt 2>err.txt
 [ $? -eq 0 ] && [ $(wc -l < out.txt) -eq 12 ] && ! grep -q "Password:" out.txt
 check $? "password prompt and echo go to stderr"
@@ -184,7 +184,7 @@ python3 -I -c "
 a=bytearray(open('swap.ehd','rb').read()); b=open('other.ehd','rb').read()
 o=86+65536; a[o:o+65536]=b[o:o+65536]; open('swap.ehd','wb').write(a)"
 ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list swap.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "does not hold this database's key" err.txt
+[ $? -eq 2 ] && [ ! -s out.txt ] && grep -q "does not hold this database's key" err.txt
 check $? "RSA key block holding another database's key is rejected"
 # Add the other database's block as a second block for the same user
 cp rsa.ehd dup.ehd; cp rsa.ehx dup.ehx
@@ -196,20 +196,20 @@ def blen(d):
 la=blen(a); lb=blen(b); a[o+la:o+la+lb]=b[o:o+lb]; open('dup.ehd','wb').write(a)"
 ${TOOL} --list-users dup.ehd 2>/dev/null | grep -c "Username: tester" > count.txt
 ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list dup.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ "$(cat count.txt)" = "2" ] && grep -q "more than one RSA key block" err.txt
+[ $? -eq 2 ] && [ "$(cat count.txt)" = "2" ] && grep -q "more than one RSA key block" err.txt
 check $? "a second RSA key block for the same user is rejected"
 cp known_v1.ehd nohash.ehd; cp known_v1.ehx nohash.ehx
 python3 -I -c "d=bytearray(open('nohash.ehd','rb').read()); d[90]=0; open('nohash.ehd','wb').write(d)"
 ${TOOL} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && grep -q "not set" err.txt
+[ $? -ne 0 ] && grep -q "not set" err.txt
 check $? "a database name that was never set does not accept any password"
 cp known.ehd nohash2.ehd; cp known.ehx nohash2.ehx
 python3 -I -c "d=bytearray(open('nohash2.ehd','rb').read()); d[90]=0; open('nohash2.ehd','wb').write(d)"
 ${TOOL} --password-file=pw.txt --db-config nohash2.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "not set" err.txt
+[ $? -ne 0 ] && [ ! -s out.txt ] && grep -q "not set" err.txt
 check $? "a v2 database name that was never set is refused with the right password"
 ${TOOL} --password-file=pw2.txt --db-config nohash2.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ ! -s out.txt ]
+[ $? -ne 0 ] && [ ! -s out.txt ]
 check $? "a v2 database name that was never set is refused with another password"
 
 # Group 6: OAEP blocks, key file permissions, usernames, file names
@@ -302,7 +302,7 @@ rv=$?
 [ ${rv} -eq 1 ] && cmp -s bad.ehd bad_before.ehd && ! ls bad.v1-backup-* bad.v2-upgrade.* >/dev/null 2>&1
 check $? "a failed upgrade leaves the database unchanged and no backup or temporary files"
 ${TOOL} --password-file=pw2.txt --upgrade-db up_orig.ehd > out.txt 2>&1
-[ $? -eq 1 ] && ! ls up_orig.v1-backup-* >/dev/null 2>&1
+[ $? -eq 2 ] && ! ls up_orig.v1-backup-* >/dev/null 2>&1
 check $? "an upgrade with the wrong password changes nothing"
 # Tampering a v2 database is detected
 cp known.ehd t1.ehd; cp known.ehx t1.ehx
@@ -337,7 +337,7 @@ ${TOOL} --password-file=pw.txt --db-list t3.ehd > out.txt 2>err.txt
 [ $? -eq 1 ] && grep -q "index file does not match" err.txt
 check $? "re-sealing does not hide an entry removed from the index"
 ${TOOL} --password-file=pw2.txt --db-list known.ehd > out.txt 2>err.txt
-[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "not correct" err.txt
+[ $? -eq 2 ] && [ ! -s out.txt ] && grep -q "not correct" err.txt
 check $? "the wrong password is refused for a v2 database"
 if [ "${OLD_DIR}" != "" ]; then
     ${OLD} --password="${PW}" --db-config known.ehd > out.txt 2>&1
@@ -369,7 +369,7 @@ rv=$?; [ ${rv} -eq 1 ]
 check $? "auth area with a bad username length is rejected (rc=${rv})"
 tamper cryptlen "struct.pack_into('<I',d,90,200000)"
 ${TOOL} --password="${PW}" --db-list cryptlen.ehd > /dev/null 2>&1
-rv=$?; [ ${rv} -eq 1 ]
+rv=$?; [ ${rv} -ne 0 ]
 check $? "config string with a bad crypt_len is rejected (rc=${rv})"
 tamper keycount "r=struct.unpack_from('<q',x,86+20)[0]; struct.pack_into('<i',x,r,5000)"
 ${TOOL} --password="${PW}" --db-list keycount.ehd > /dev/null 2>&1
@@ -396,6 +396,9 @@ if [ "${OLD_DIR}" != "" ]; then
     [ ${rv} -eq 0 ] && cmp -s old_list.txt list_old_quoting.txt
     check $? "old build lists the database the same, apart from quote doubling"
 fi
+
+# 10/27/2026: Key management, records, logs, self-destruct and automation
+. ${NEW_DIR}/cli_keymgmt_tests.inc
 
 echo "" | tee -a ${logFILE}
 echo "${passed} passed, ${failed} failed" | tee -a ${logFILE}

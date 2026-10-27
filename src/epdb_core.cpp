@@ -274,35 +274,33 @@ int EPDBApplyRecordOp(POD *pod, const MemoryBuffer &key, const EPDBRecordOp &op_
     }
   }
 
-  // The new record: given values, and for an update the old values of
-  // the fields not given
-  int replace_all = (op.op == EPDB_OP_PUT);
+  // The new record, as text: given values, and for an update the old
+  // values of the fields not given. It is written like a new record
+  // (empty fields unset, as the GUI Add panel does), after the old one is
+  // deleted. InfoHog::ChangeObject() is not used: it skips members whose
+  // bytes did not change without moving past them.
+  EPDBRecord merged;
+  if(exists && op.op != EPDB_OP_PUT && EPDBLoadRecord(old, key, merged, err) != EPDB_REC_OK) return EPDB_REC_ERROR;
+  for(int i = 1; i < NumDataMembers; i++) {
+    if(op.rec.given[i] || op.op == EPDB_OP_PUT || !exists) merged.value[i] = op.rec.value[i];
+  }
   INFOHOG nw(pod, NumDataMembers);
   INFOHOG_t nk(new_name.c_str());
   nw.SetMember(&nk, sizeof(nk), 0);
   for(int i = 1; i < NumDataMembers; i++) {
-    if(op.rec.given[i] || replace_all || !exists) {
-      if(op.rec.value[i].is_null()) continue;
-      if(EPDBSetField(nw, i, key, op.rec.value[i], err) != EPDB_REC_OK) return EPDB_REC_ERROR;
-    }
-    else if(i < (int)old.GetNumMembers() && old.GetMemberLen(i)) {
-      nw.SetMember(old.GetMember(i), old.GetMemberLen(i), i);
-    }
+    if(merged.value[i].is_null()) continue;
+    if(EPDBSetField(nw, i, key, merged.value[i], err) != EPDB_REC_OK) return EPDB_REC_ERROR;
   }
-  if(exists) {
-    if(!old.ChangeObject(nw, 0)) {
-      err << clear << "Could not update record " << name;
-      return EPDB_REC_ERROR;
-    }
-    op.result = 2;
+  merged.Wipe();
+  if(exists && !old.DeleteObject()) {
+    err << clear << "Could not update record " << name;
+    return EPDB_REC_ERROR;
   }
-  else {
-    if(!nw.WriteObject()) {
-      err << clear << "Could not add record " << new_name;
-      return EPDB_REC_ERROR;
-    }
-    op.result = 1;
+  if(!nw.WriteObject()) {
+    err << clear << "Could not write record " << new_name;
+    return EPDB_REC_ERROR;
   }
+  op.result = exists ? 2 : 1;
   return EPDB_REC_OK;
 }
 
