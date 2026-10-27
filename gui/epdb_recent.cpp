@@ -49,6 +49,7 @@ void EPDBRecentLoad(std::vector<EPDBRecentFile> &files)
   if(!wxFileExists(name) || !f.Open(name)) return;
   wxString text;
   f.ReadAll(&text, wxConvUTF8);
+  if(!text.IsEmpty() && text[0] == wxUniChar(0xFEFF)) text.Remove(0, 1); // 10/27/2026: A UTF-8 BOM from an editor
   wxStringTokenizer lines(text, "\n");
   while(lines.HasMoreTokens() && (int)files.size() < EPDB_MAX_RECENT_FILES) {
     wxString line = lines.GetNextToken();
