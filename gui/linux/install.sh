@@ -36,11 +36,23 @@ if [ -d icons ]; then
     done
     /bin/mkdir -p ${HOME}/.local/share/icons/hicolor/scalable/apps
     /bin/cp -f icons/scalable.svg ${HOME}/.local/share/icons/hicolor/scalable/apps/encrypted_password_database.svg
-    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t ${HOME}/.local/share/icons/hicolor 2>/dev/null
+    # 10/27/2026: The desktop rereads the icon theme when its folder changes
+    touch ${HOME}/.local/share/icons/hicolor 2>/dev/null
+    # Refresh the icon cache only if there is one: a new cache in the
+    # user's folder would hide icons other programs add later
+    if [ -f ${HOME}/.local/share/icons/hicolor/icon-theme.cache ]; then
+        command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t ${HOME}/.local/share/icons/hicolor 2>/dev/null
+    fi
 fi
 sed -i s,'${HOME}',"${HOME}",g ${HOME}/.local/share/applications/encrypted_password_database.desktop
+# 10/27/2026: Older installs named the icon by its file path, which kept
+# the old icon in the task bar. The new .desktop file uses the themed
+# icon name and StartupWMClass, and the old icon file is replaced above.
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q ${HOME}/.local/share/applications 2>/dev/null
 
-/bin/cp -fpv ${HOME}/.local/share/applications/encrypted_password_database.desktop ${HOME}/Desktop/.
+if [ -d ${HOME}/Desktop ]; then
+    /bin/cp -fpv ${HOME}/.local/share/applications/encrypted_password_database.desktop ${HOME}/Desktop/.
+fi
 
 echo "Install complete"
 exit 0;

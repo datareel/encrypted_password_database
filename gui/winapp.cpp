@@ -31,10 +31,24 @@ wxWindow 2.X/3.X application class.
 */
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
+#ifdef __WXGTK__
+extern "C" void g_set_prgname(const char *prgname); // GLib, linked with GTK
+extern "C" void gdk_set_program_class(const char *program_class); // GDK
+#endif
 
 bool WinApp::OnInit(void)
 {
   SecureProcessSetup(); // 10/25/2026: Private files, no core dumps
+
+#ifdef __WXGTK__
+  // 10/27/2026: A fixed Wayland app_id and X11 WM_CLASS, whatever the
+  // binary is called, so the desktop finds encrypted_password_database.desktop
+  // and its icon (StartupWMClass in the .desktop file)
+  g_set_prgname("encrypted_password_database");
+  gdk_set_program_class("encrypted_password_database");
+  SetClassName("encrypted_password_database");
+  SetAppName("encrypted_password_database");
+#endif
 
 #ifdef __APP_DEBUG_VERSION__
   gxString work_dir = (const char *)wxGetCwd();
