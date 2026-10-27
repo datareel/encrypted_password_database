@@ -47,6 +47,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include <unistd.h>
 #else
 #include <io.h>
+#include <fcntl.h>
 #include <stdio.h>
 #endif
 #include "c_thread.h"
@@ -2659,6 +2660,10 @@ static int WriteOutput(const gxString &data, int is_secret)
   if(is_secret && tty) {
     NOTE << "WARNING: Writing clear text passwords to the terminal. Use --output-file=file to write a file only you can read." << "\n" << flush;
   }
+#if !defined (__UNIX__)
+  fflush(stdout);
+  _setmode(_fileno(stdout), _O_BINARY); // The same bytes as on Linux
+#endif
   fwrite(data.c_str(), 1, data.length(), stdout);
   fflush(stdout);
   return 0;

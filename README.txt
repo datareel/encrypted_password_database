@@ -61,6 +61,9 @@ RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
 * GUI fixes: Remove Users re-seals a v2 database (the database
   integrity check failed after it), and new config files get their
   numeric settings (they were written as spaces).
+* epdb_auth_tool writes requested output (--get-field, --export,
+  --show-record) in binary mode on Windows, so the bytes are the same
+  as on Linux.
 * Built with fcrypt 2026.106 and DataReel 6.1. The database format is
   unchanged: the new settings use bytes 2026.102 and older never read
   (see db_auth.h) and 2026.102 opens databases written by this release.

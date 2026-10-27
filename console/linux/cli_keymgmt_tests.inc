@@ -281,6 +281,8 @@ python3 -I -c "d=bytearray(open('kl_t.ehd','rb').read()); o=86+49472+64+96+20; d
 ${TOOL} ${A} --verify-access-log kl_t.ehd > out.txt 2>&1
 [ $? -ne 0 ] && grep -q "TAMPERED: in-file" out.txt
 check $? "--verify-access-log catches a changed in-file log entry"
+# root can write a mode 444 file, so the read-only checks need a normal user
+if [ $(id -u) -ne 0 ]; then
 chmod 444 kl.ehd
 rm -f k_fallback.log
 HOME_SAVE=${HOME}; export HOME=${testDIR}/khome; mkdir -p ${HOME}
@@ -291,6 +293,9 @@ check $? "in-file logging on a read-only file falls back to the per-user log, ma
 check $? "the per-user log directory is mode 700"
 export HOME=${HOME_SAVE}
 chmod 644 kl.ehd
+else
+    echo "Skipped: read-only checks, running as root" | tee -a ${logFILE}
+fi
 printf 'rsa:none=x\n' > /dev/null
 ${TOOL} ${A} --access-log=${KLOG} --rekey kl.ehd </dev/null >>${logFILE} 2>&1
 ${TOOL} ${A} --access-log=${KLOG} --verify-access-log kl.ehd > out.txt 2>&1
@@ -318,11 +323,15 @@ check $? "self-destruct counts failed opens and warns at one attempt left"
 ${TOOL} ${A} --db-list ks.ehd >/dev/null 2>&1
 ${TOOL} ${A} --db-info --json ks.ehd 2>/dev/null | python3 -I -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['failed_opens']==0 else 1)"
 check $? "a good open resets the failed open counter"
+if [ $(id -u) -ne 0 ]; then
 chmod 444 ks.ehd
 ${TOOL} ${A} --db-list ks.ehd > /dev/null 2>err.txt
 [ $? -eq 7 ] && grep -q "No credential was tried" err.txt
 check $? "with self-destruct on a read-only database is refused before any credential"
 chmod 644 ks.ehd
+else
+    echo "Skipped: self-destruct read-only check, running as root" | tee -a ${logFILE}
+fi
 ${TOOL} ${A} --add-rsa-key=k_alice.pub --add-username=alice ks.ehd >>${logFILE} 2>&1
 ${TOOL} ${A} --add-rsa-key=k_bob.pub --add-username=bob ks.ehd >>${logFILE} 2>&1
 ${TOOL} ${A} --remove-user=bob ks.ehd >>${logFILE} 2>&1
