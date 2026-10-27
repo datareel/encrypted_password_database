@@ -293,6 +293,12 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -eq 1 ]; then
 	printf '%s\t\n' "${SC_PIN}" > tabpin.txt
 	cp a.ehd a2.ehd; cp a.ehx a2.ehx
 
+	# 10/27/2026: The PIN flag, wrong PIN and two card checks need a
+	# PKCS#11 build. The RHEL 8 OpenSSL 1.1 engine build has no token
+	# flags and no slot selection (libp11 uses the first token with a
+	# key), so with two tokens it can pick the wrong one.
+	IS_P11=$(${TOOL} --version 2>&1 | grep -c "PKCS#11")
+	if [ ${IS_P11} -ne 0 ]; then
 	spyrun 0 --smartcard --smartcard-username=card ${SPYSC} ${PIN} --db-list a.ehd
 	[ $? -eq 0 ] && cmp -s out.txt list.txt && [ "$(logins)" = "1" ]
 	check $? "exactly one C_Login for one database open"
@@ -364,9 +370,12 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -eq 1 ]; then
 	[ $? -ne 0 ] && grep -q "needs a slot ID" err.txt
 	check $? "--smartcard-slot refuses a value that is not a slot ID"
 
+	else
+	    echo "Skipped: PIN flag, wrong PIN and two card checks, they need a PKCS#11 build (not the RHEL 8 engine build)" | tee -a ${logFILE}
+	fi
 	# 10/27/2026: Key management with a card user. Two tokens are present
 	# now and SoftHSM2 reports low PIN tries after the wrong PIN above.
-	CARD="--smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=${SLOT1} --smartcard-allow-pin-count-low --non-interactive"
+	CARD="--smartcard --smartcard-username=card ${SPYSC} ${SLOT1:+--smartcard-slot=${SLOT1}} --smartcard-allow-pin-count-low --non-interactive"
 	openssl genrsa -out alice.pem 2048 >/dev/null 2>&1; openssl rsa -in alice.pem -pubout -out alice.pub >/dev/null 2>&1
 	openssl genrsa -out bob.pem 2048 >/dev/null 2>&1; openssl rsa -in bob.pem -pubout -out bob.pub >/dev/null 2>&1
 	chmod 600 alice.pem bob.pem
@@ -386,7 +395,7 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -eq 1 ]; then
 	check $? "--check-version never logs in to the card (exit 5 for the v1 file)"
 	${TOOL} --password-file=pw.txt --non-interactive --remove-user=bob m.ehd >>${logFILE} 2>&1
 	printf 'rsa:alice=alice.pub\nsmartcard:card=card\n' > rekey.txt
-	spyrun 0 --password-file=pw.txt --non-interactive --rekey --rekey-file=rekey.txt ${SPYSC} --smartcard-slot=${SLOT1} m.ehd
+	spyrun 0 --password-file=pw.txt --non-interactive --rekey --rekey-file=rekey.txt ${SPYSC} ${SLOT1:+--smartcard-slot=${SLOT1}} m.ehd
 	[ $? -eq 0 ] && [ "$(logins)" = "0" ]
 	check $? "rekey with password, RSA and card users: the card public key is read with no login"
 	spyrun 0 ${CARD} ${PIN} --db-list m.ehd

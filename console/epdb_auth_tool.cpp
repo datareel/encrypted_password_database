@@ -573,6 +573,7 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
+      int sc_was_blocked = SC_login_blocked(); // 10/27/2026: For the failed open count
       int sc_rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
       if(sc_rv != 0 && sc.error_level == SC_ERROR_PIN_COUNT_LOW && !sc.allow_pin_count_low) {
 	// 10/26/2026: The PIN was not sent. Ask before sending it to a card
@@ -597,11 +598,12 @@ int main(int argc, char **argv)
 	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "smart card did not open the database", 0);
 	// 10/27/2026: A wrong PIN, or a card key that does not open the
 	// database, is one failed open. A PIN that was not sent is not.
-	if(sc.error_level == SC_ERROR_PIN_INCORRECT || !SC_is_pin_error(sc.error_level)) {
-	  if(sc.error_level != SC_ERROR || db_auth.err.Find("does not hold") != -1 ||
-	     db_auth.err.Find("authentication failed") != -1) {
-	    CountFailedOpen(fname, "The smart card did not open the database");
-	  }
+	// A card login was sent and failed in this attempt (a wrong PIN; the
+	// RHEL 8 engine build cannot tell a wrong PIN from other login
+	// errors), or the card's key does not open the database
+	if((!sc_was_blocked && SC_login_blocked()) || sc.error_level == SC_ERROR_PIN_INCORRECT ||
+	   db_auth.err.Find("does not hold") != -1 || db_auth.err.Find("authentication failed") != -1) {
+	  CountFailedOpen(fname, "The smart card did not open the database");
 	}
 	if(sc.error_level == SC_ERROR_PIN_FINAL_TRY) {
 	  cerr << "Use --smartcard-allow-final-try only if you are sure of the PIN, a wrong PIN locks the card" << "\n" << flush;

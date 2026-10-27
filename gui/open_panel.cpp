@@ -218,6 +218,7 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
 
+  int sc_was_blocked = SC_login_blocked(); // 10/27/2026: For the failed open count
   rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
   if(rv != 0 && (sc.error_level == SC_ERROR_PIN_COUNT_LOW || sc.error_level == SC_ERROR_PIN_FINAL_TRY)) {
     // 10/26/2026: The PIN was not sent. Ask first, the default is No.
@@ -253,9 +254,8 @@ int OpenDatabasePanel::SmartCardOpenDatabase()
     // 10/27/2026: A wrong PIN, or a card key that does not open the
     // database, is a failed open for self-destruct. A PIN that was not
     // sent is not.
-    if(sc.error_level == SC_ERROR_PIN_INCORRECT ||
-       (!SC_is_pin_error(sc.error_level) && (sc.error_level != SC_ERROR || db_auth.err.Find("does not hold") != -1 ||
-					     db_auth.err.Find("authentication failed") != -1))) {
+    if((!sc_was_blocked && SC_login_blocked()) || sc.error_level == SC_ERROR_PIN_INCORRECT ||
+       db_auth.err.Find("does not hold") != -1 || db_auth.err.Find("authentication failed") != -1) {
       open_failed = "The smart card did not open the database";
     }
     gxString msg;
