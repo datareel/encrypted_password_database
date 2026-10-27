@@ -27,7 +27,9 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
 USA
 
-Add user panel
+Add User For Database Access. 10/27/2026: Rewritten with sizers: one
+way at a time, an RSA public key, the smart card in the reader (from the
+card picker, no PIN) or an exported smart card cert file.
 */
 // ----------------------------------------------------------- // 
 #ifndef __ADD_USER_PANEL_HPP__
@@ -35,94 +37,50 @@ Add user panel
 
 #include "app_defs.h"
 
-// --------------------------------------------------------------
-// Window IDs
-// --------------------------------------------------------------
-#define ADDUSER_PANEL_ID 22730
-// --------------------------------------------------------------
-
-// --------------------------------------------------------------
-// Identification for event handlers, controls, and menu commands
-// --------------------------------------------------------------
-enum { // Page setup panel IDs 
-  ID_ADDUSER_OK = 22731,
-  ID_ADDUSER_CANCEL,
-  ID_ADDUSER_SC_CERT_BROWSE,
-  ID_ADDUSER_RSA_KEY_BROWSE,
-
-  ID_ADDUSER_TEXTCONTROL_RSA_USERNAME,
-  ID_ADDUSER_TEXTCONTROL_RSA_KEY,
-  ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
-  ID_ADDUSER_TEXTCONTROL_SC_CERT,
-  ID_ADDUSER_TEXTCONTROL_SC_CERT_ID
-};
-// --------------------------------------------------------------
+#define ADDUSER_PANEL_ID 760
 
 class AdduserPanel : public wxDialog
 {
 public:
-  AdduserPanel(wxWindow *parent, wxWindowID id, char *title,
-		   int xpos, int ypos, int width, int height,
-		   long style = wxDEFAULT_DIALOG_STYLE,
-		   char* name = (char *)"dialogBox");
+  AdduserPanel(wxWindow *parent);
   ~AdduserPanel();
-  
-public: // Event handlers
-  // Frame event handlers
-  void OnCloseWindow(wxCloseEvent& WXUNUSED(event));
 
-  // Button event handlers
+public: // Event handlers
+  void OnCloseWindow(wxCloseEvent &event);
   void OnOK(wxCommandEvent &event);
   void OnCancel(wxCommandEvent &event);
+  void OnMethod(wxCommandEvent &event);
   void OnRSAKeyFileBrowse(wxCommandEvent &event);
-  void OnTextControlRSAKeyFileEnter(wxCommandEvent &event);
-  void OnTextControlRSAUsernameEnter(wxCommandEvent &event);
-
 #ifdef __ENABLE_SMART_CARD__
-  void OnTextControlSCCertFileEnter(wxCommandEvent &event);
   void OnCertFileBrowse(wxCommandEvent &event);
-  void OnTextControlSCUsernameEnter(wxCommandEvent &event);
-  void OnTextControlSCCertIDEnter(wxCommandEvent &event);
 #endif // __ENABLE_SMART_CARD__
-  
-public: // Memeber functions
-  int CheckPassword();
+
+public: // Member functions
   void ShowPanel();
   int TestInput();
   int IsOK() { return is_ok == 1; }
+  void SelectMethod(int m);
 
 public: // Control objects
-  wxStaticBox *rsa_key_box;
-  wxStaticText *rsa_username_label;
-  wxTextCtrl *rsa_username_input;
-  wxStaticText *rsa_key_label;
+  wxRadioBox *method_box;
+  wxTextCtrl *username_input;
+  wxPanel *pages[3];
   wxTextCtrl *rsa_key_input;
-  wxButton *rsa_browse;
-
 #ifdef __ENABLE_SMART_CARD__
-  wxStaticBox *sc_box;
-  wxStaticText *sc_username_label;
-  wxTextCtrl *sc_username_input;
-  wxStaticText *sc_cert_label;
+  SmartCardPicker *sc_picker;
   wxTextCtrl *sc_cert_input;
-  wxButton *sc_browse;
-  wxCheckBox *sc_use_card_checkbox; // 10/26/2026: Read the cert from the card
-  wxStaticText *sc_keyid_label;
-  wxTextCtrl *sc_keyid_input;
 #endif // __ENABLE_SMART_CARD__
-  
-  wxButton *ok_btn;
-  wxButton *cancel_btn;
-  
+  wxStaticText *message;
+
 private: // Data members
   int is_ok;
+  int method;
 
 public:
   int use_rsa_key;
   gxString rsa_key_username;
   char public_key[RSA_max_keybuf_len];
   unsigned public_key_len = 0;
-
 #ifdef __ENABLE_SMART_CARD__
   int use_cert_file;
   int use_smartcard;

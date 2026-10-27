@@ -27,362 +27,275 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
 USA
 
-Add user panel
+Add User For Database Access, see add_user_panel.h. 10/27/2026:
+Rewritten with sizers, the checks are the same as before.
 */
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
 
+enum {
+  ID_ADDUSER_METHOD = 761,
+  ID_ADDUSER_RSA_BROWSE,
+  ID_ADDUSER_CERT_BROWSE
+};
+
+enum { EPDB_ADDUSER_RSA = 0, EPDB_ADDUSER_CARD, EPDB_ADDUSER_CERT_FILE };
+
 BEGIN_EVENT_TABLE(AdduserPanel, wxDialog)
   EVT_CLOSE(AdduserPanel::OnCloseWindow)
-  EVT_BUTTON (ID_ADDUSER_OK, AdduserPanel::OnOK)
-  EVT_BUTTON (ID_ADDUSER_CANCEL, AdduserPanel::OnCancel)
+  EVT_BUTTON(wxID_OK, AdduserPanel::OnOK)
+  EVT_BUTTON(wxID_CANCEL, AdduserPanel::OnCancel)
+  EVT_RADIOBOX(ID_ADDUSER_METHOD, AdduserPanel::OnMethod)
+  EVT_BUTTON(ID_ADDUSER_RSA_BROWSE, AdduserPanel::OnRSAKeyFileBrowse)
 #ifdef __ENABLE_SMART_CARD__
-  EVT_BUTTON (ID_ADDUSER_SC_CERT_BROWSE, AdduserPanel::OnCertFileBrowse)
-#endif // __ENABLE_SMART_CARD__
-  EVT_BUTTON (ID_ADDUSER_RSA_KEY_BROWSE, AdduserPanel::OnRSAKeyFileBrowse)
-  EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_RSA_USERNAME, AdduserPanel::OnTextControlRSAKeyFileEnter)
-  EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_RSA_KEY, AdduserPanel::OnTextControlRSAUsernameEnter)
-#ifdef __ENABLE_SMART_CARD__
- EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_USERNAME, AdduserPanel::OnTextControlSCUsernameEnter)
- EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_CERT, AdduserPanel::OnTextControlSCCertFileEnter)
- EVT_TEXT_ENTER(ID_ADDUSER_TEXTCONTROL_SC_CERT_ID, AdduserPanel::OnTextControlSCCertIDEnter)
-#endif // __ENABLE_SMART_CARD__
+  EVT_BUTTON(ID_ADDUSER_CERT_BROWSE, AdduserPanel::OnCertFileBrowse)
+#endif
 END_EVENT_TABLE()
 
-AdduserPanel::AdduserPanel(wxWindow *parent, wxWindowID id,
-				   char *title,
-				   int xpos, int ypos, int width, int height,
-				   long style, char* name) : 
-  wxDialog(parent, id, title, wxPoint(xpos, ypos), wxSize(width, height),
-	   style, name)
-  
+AdduserPanel::AdduserPanel(wxWindow *parent)
+  : wxDialog(parent, ADDUSER_PANEL_ID, "Add User", wxDefaultPosition, wxDefaultSize,
+	     wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
-  rsa_key_box = 0;
-  rsa_username_label = 0;
-  rsa_username_input = 0;
-  rsa_key_label = 0;
-  rsa_key_input = 0;
-  rsa_browse = 0;
-  ok_btn = 0;
-  cancel_btn = 0;
-    is_ok = 0;
+  is_ok = 0;
+  method = EPDB_ADDUSER_RSA;
   use_rsa_key = 0;
   memset(public_key, 0, sizeof(public_key));
-
 #ifdef __ENABLE_SMART_CARD__
+  use_cert_file = 0;
   use_smartcard = 0;
-  sc_box = 0;
-  sc_username_label = 0;
-  sc_username_input = 0;
-  sc_cert_label = 0;
-  sc_cert_input = 0;
-  sc_browse = 0;
-  sc_use_card_checkbox = 0;
-  sc_keyid_label = 0;
-  sc_keyid_input = 0;
-  use_cert_file = 1;
-#endif // __ENABLE_SMART_CARD__
+#endif
+  SetIcons(EPDBAppIcons());
+  const int pad = FromDIP(12);
+  const int gap = FromDIP(6);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer *head = new wxBoxSizer(wxHORIZONTAL);
+  head->Add(new wxStaticBitmap(this, wxID_ANY, EPDBIcon("users", 32)), 0, wxRIGHT, FromDIP(10));
+  head->Add(EPDBNote(this, "The user can then open this database with their own private RSA key or smart card. "
+		     "Only the public key is read, no PIN is needed.", 420), 1, wxALIGN_CENTER_VERTICAL);
+  top->Add(head, 0, wxEXPAND | wxALL, pad);
+
+  wxBoxSizer *ur = new wxBoxSizer(wxHORIZONTAL);
+  ur->Add(new wxStaticText(this, wxID_ANY, "Username"), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(8));
+  username_input = new wxTextCtrl(this, wxID_ANY, "");
+  ur->Add(username_input, 1, wxALIGN_CENTER_VERTICAL);
+  top->Add(ur, 0, wxEXPAND | wxLEFT | wxRIGHT, pad);
+
+  wxString methods[3] = { "RSA public key", "Smart card in the reader", "Exported smart card cert" };
+#ifdef __ENABLE_SMART_CARD__
+  int n = 3;
+#else
+  int n = 1;
+#endif
+  method_box = new wxRadioBox(this, ID_ADDUSER_METHOD, "Add with", wxDefaultPosition, wxDefaultSize,
+			      n, methods, n, wxRA_SPECIFY_COLS);
+  top->Add(method_box, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
+
+  wxButton *b;
+  for(int i = 0; i < 3; i++) pages[i] = 0;
+  pages[EPDB_ADDUSER_RSA] = new wxPanel(this);
+  wxBoxSizer *ps = new wxBoxSizer(wxVERTICAL);
+  ps->Add(new wxStaticText(pages[0], wxID_ANY, "Public key file (PEM)"), 0, wxBOTTOM, FromDIP(3));
+  ps->Add(EPDBFileRow(pages[0], rsa_key_input, b, ID_ADDUSER_RSA_BROWSE), 0, wxEXPAND);
+  pages[0]->SetSizer(ps);
+#ifdef __ENABLE_SMART_CARD__
+  pages[EPDB_ADDUSER_CARD] = new wxPanel(this);
+  ps = new wxBoxSizer(wxVERTICAL);
+  sc_picker = new SmartCardPicker(pages[1]);
+  ps->Add(sc_picker, 1, wxEXPAND);
+  pages[1]->SetSizer(ps);
+  pages[EPDB_ADDUSER_CERT_FILE] = new wxPanel(this);
+  ps = new wxBoxSizer(wxVERTICAL);
+  ps->Add(new wxStaticText(pages[2], wxID_ANY, "Cert file exported from the card (PEM, .cer or .crt)"), 0, wxBOTTOM, FromDIP(3));
+  ps->Add(EPDBFileRow(pages[2], sc_cert_input, b, ID_ADDUSER_CERT_BROWSE), 0, wxEXPAND);
+  pages[2]->SetSizer(ps);
+#endif
+  for(int i = 0; i < 3; i++) {
+    if(!pages[i]) continue;
+    top->Add(pages[i], 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
+    pages[i]->Hide();
+  }
+  message = new wxStaticText(this, wxID_ANY, "");
+  message->SetForegroundColour(EPDBWarningColour());
+  top->Add(message, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, gap);
+  wxStdDialogButtonSizer *btns = new wxStdDialogButtonSizer();
+  wxButton *ok = new wxButton(this, wxID_OK, "Add User");
+  ok->SetDefault();
+  btns->AddButton(ok);
+  btns->AddButton(new wxButton(this, wxID_CANCEL));
+  btns->Realize();
+  top->Add(btns, 0, wxEXPAND | wxALL, pad);
+  SetEscapeId(wxID_CANCEL);
+  SetSizer(top);
+  SelectMethod(EPDB_ADDUSER_RSA);
 }
-  
+
 AdduserPanel::~AdduserPanel()
 {
-  if(rsa_key_box) delete rsa_key_box;
-  if(rsa_username_label) delete rsa_username_label;
-  if(rsa_username_input) delete rsa_username_input;
-  if(rsa_key_label) delete rsa_key_label;
-  if(rsa_key_input) delete rsa_key_input;
-  if(rsa_browse) delete rsa_browse;
-  if(ok_btn) delete ok_btn;
-  if(cancel_btn) delete cancel_btn;
   memset(public_key, 0, sizeof(public_key));
+}
 
+void AdduserPanel::SelectMethod(int m)
+{
+  method = m;
+  method_box->SetSelection(m);
+  for(int i = 0; i < 3; i++) if(pages[i]) pages[i]->Show(i == m);
 #ifdef __ENABLE_SMART_CARD__
-  if(sc_box) delete sc_box;
-  if(sc_username_label) delete sc_username_label;
-  if(sc_username_input) delete sc_username_input;
-  if(sc_cert_label) delete sc_cert_label;
-  if(sc_cert_input) delete sc_cert_input;
-  if(sc_browse) delete sc_browse;
-  if(sc_use_card_checkbox) delete sc_use_card_checkbox;
-  if(sc_keyid_label) delete sc_keyid_label;
-  if(sc_keyid_input) delete sc_keyid_input;
-#endif // __ENABLE_SMART_CARD__
-  
+  if(m == EPDB_ADDUSER_CARD) {
+    sc_picker->Rescan(0);
+    sc_picker->StartPolling();
+  }
+  else {
+    sc_picker->StopPolling();
+  }
+#endif
+  int w = GetSize().x;
+  SetMinSize(wxDefaultSize);
+  Layout();
+  wxSize best = GetSizer()->ComputeFittingWindowSize(this);
+  SetMinSize(best);
+  SetSize(wxSize(wxMax(best.x, w), best.y));
+}
+
+void AdduserPanel::OnMethod(wxCommandEvent &WXUNUSED(event))
+{
+  message->SetLabel("");
+  SelectMethod(method_box->GetSelection());
 }
 
 void AdduserPanel::ShowPanel()
 {
   is_ok = 0;
+  message->SetLabel("");
+  username_input->Clear();
+  rsa_key_input->Clear();
+#ifdef __ENABLE_SMART_CARD__
+  sc_cert_input->Clear();
+#endif
+  SelectMethod(method);
+  CentreOnParent();
+  username_input->SetFocus();
   ShowModal();
+#ifdef __ENABLE_SMART_CARD__
+  sc_picker->StopPolling();
+#endif
 }
 
-void AdduserPanel::OnRSAKeyFileBrowse(wxCommandEvent &event)
+void AdduserPanel::OnRSAKeyFileBrowse(wxCommandEvent &WXUNUSED(event))
 {
-  wxFileDialog dialog(this, "Open RSA public key file:",
-		      progcfg->docDir.c_str(), "",
-		      "*.pem",
-		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
-  
-  if(dialog.ShowModal() == wxID_OK) {
-    rsa_key_input->Clear();
-    rsa_key_input->AppendText(dialog.GetPath());
-  }
+  wxFileDialog dialog(this, "RSA public key file", progcfg->docDir.c_str(), "",
+		      "PEM files (*.pem)|*.pem|All files|*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+  if(dialog.ShowModal() == wxID_OK) rsa_key_input->SetValue(dialog.GetPath());
 }
 
 #ifdef __ENABLE_SMART_CARD__
-void AdduserPanel::OnCertFileBrowse(wxCommandEvent &event)
+void AdduserPanel::OnCertFileBrowse(wxCommandEvent &WXUNUSED(event))
 {
   // 10/26/2026: Windows exports certs as .cer files, PEM or DER
-  wxFileDialog dialog(this, "Open smart card exported cert file:",
-		      progcfg->docDir.c_str(), "",
-		      "Cert files (*.pem;*.cer;*.crt)|*.pem;*.cer;*.crt|All files|*",
-		      wxFD_OPEN|wxFD_FILE_MUST_EXIST);
-  
-  if(dialog.ShowModal() == wxID_OK) {
-    sc_cert_input->Clear();
-    sc_cert_input->AppendText(dialog.GetPath());
-  }
-}
-#endif // __ENABLE_SMART_CARD__
-
-void AdduserPanel::OnTextControlRSAKeyFileEnter(wxCommandEvent &event)
-{
-  if(!TestInput()) return;  
-  Show(FALSE);
-}
-
-void AdduserPanel::OnTextControlRSAUsernameEnter(wxCommandEvent &event)
-{
-  if(!TestInput()) return;  
-  Show(FALSE);
-}
-
-#ifdef __ENABLE_SMART_CARD__
-void AdduserPanel::OnTextControlSCUsernameEnter(wxCommandEvent &event)
-{
-  if(!TestInput()) return;  
-  Show(FALSE);
-}
-
-void AdduserPanel::OnTextControlSCCertFileEnter(wxCommandEvent &event)
-{
-  if(!TestInput()) return;  
-  Show(FALSE);
-}
-
-void AdduserPanel::OnTextControlSCCertIDEnter(wxCommandEvent &event)
-{
-  if(!TestInput()) return;  
-  Show(FALSE);
+  wxFileDialog dialog(this, "Smart card exported cert file", progcfg->docDir.c_str(), "",
+		      "Cert files (*.pem;*.cer;*.crt)|*.pem;*.cer;*.crt|All files|*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+  if(dialog.ShowModal() == wxID_OK) sc_cert_input->SetValue(dialog.GetPath());
 }
 #endif // __ENABLE_SMART_CARD__
 
 int AdduserPanel::TestInput()
 {
   use_rsa_key = 0;
-
 #ifdef __ENABLE_SMART_CARD__
   use_smartcard = 0;
-#endif // __ENABLE_SMART_CARD__
-  
+  use_cert_file = 0;
+#endif
   gxString sbuf;
   int rv;
-
-#ifdef __ENABLE_SMART_CARD__
-  if(rsa_key_input->GetValue().IsNull() && sc_cert_input->GetValue().IsNull() &&
-     !sc_use_card_checkbox->IsChecked()) {
-    ProgramError->Message("You must enter an RSA public key file or smart card cert file, or read the cert from the smart card");
-    is_ok = 0;
+  message->SetLabel("");
+  wxString user = username_input->GetValue();
+  user.Trim().Trim(false);
+  if(user.IsEmpty()) {
+    message->SetLabel("Enter the username");
     return 0;
   }
-#else
-  if(rsa_key_input->GetValue().IsNull()) {
-    ProgramError->Message("You must enter an RSA public key file");
-    is_ok = 0;
-    return 0;
-  }
-#endif // __ENABLE_SMART_CARD__ 
 
-  
-  if(!rsa_key_input->GetValue().IsNull()) {
-    use_rsa_key = 1;
-    
-    if(!futils_exists(rsa_key_input->GetValue().c_str()) || !futils_isfile(rsa_key_input->GetValue().c_str())) {
-      ProgramError->Message("The public RSA key file does not exist or cannot be read");   
-      is_ok = 0;
+  if(method == EPDB_ADDUSER_RSA) {
+    wxString f = rsa_key_input->GetValue();
+    if(f.IsEmpty() || !futils_exists(f.utf8_str()) || !futils_isfile(f.utf8_str())) {
+      message->SetLabel("The public RSA key file does not exist or cannot be read");
       return 0;
     }
-    
-    rv = RSA_read_key_file(rsa_key_input->GetValue().c_str(), public_key, sizeof(public_key), &public_key_len);
+    rv = RSA_read_key_file(f.utf8_str(), public_key, sizeof(public_key), &public_key_len);
     if(rv != RSA_NO_ERROR) {
       sbuf << clear << "Error reading public key file " << RSA_err_string(rv);
       ProgramError->Message(sbuf.c_str());
-      is_ok = 0;
       return 0;
     }
-    
-    if(rsa_username_input->GetValue().IsNull()) {
-      ProgramError->Message("You must provide a user name for the public RSA key");   
-      is_ok = 0;
-      return 0;
-    }
-    
-    rsa_key_username = (const char *)rsa_username_input->GetValue();
+    use_rsa_key = 1;
+    rsa_key_username = (const char *)user.utf8_str();
   }
-
 #ifdef __ENABLE_SMART_CARD__
-  if(!sc_cert_input->GetValue().IsNull() && sc_use_card_checkbox->IsChecked()) {
-    ProgramError->Message("Use a smart card cert file or the cert on the smart card, not both");
-    is_ok = 0;
-    return 0;
-  }
-  if(sc_use_card_checkbox->IsChecked()) {
+  else if(method == EPDB_ADDUSER_CARD) {
     // 10/26/2026: Read the public key from the card in the reader, no PIN
-    // is needed
-    use_smartcard = 1;
-    if(sc_keyid_input->GetValue().IsNull()) {
-      ProgramError->Message("You must provide a cert ID for the smart card");   
-      is_ok = 0;
+    SC_TokenInfo token;
+    SC_CertInfo cert;
+    if(sc_picker->GetChoice(token, cert) != 0 || cert.id_hex.empty()) {
+      message->SetLabel("Choose the smart card certificate");
       return 0;
     }
-    sbuf = (const char *)sc_keyid_input->GetValue();
-    if(sbuf.length() >= SC_max_cert_id_size) {
-      ProgramError->Message("The smart card cert ID is too long");   
-      is_ok = 0;
+    if(!cert.is_rsa) {
+      message->SetLabel("The smart card key must be an RSA key");
       return 0;
     }
-    if(sc_username_input->GetValue().IsNull()) {
-      ProgramError->Message("You must provide a user name for the smart card");   
-      is_ok = 0;
+    if(cert.id_hex.length() >= SC_max_cert_id_size) {
+      message->SetLabel("The smart card cert ID is too long");
       return 0;
     }
     sc.SetEnginePath(progcfg->SC_enginePath.c_str());
-    sc.SetModulePath(progcfg->SC_modulePath.c_str()); 
+    sc.SetModulePath((char *)(const char *)sc_picker->GetModulePath().utf8_str());
     sc.SetEngineID(progcfg->SC_engine_ID.c_str());
-    // 10/26/2026: Use only the card in the configured PKCS#11 slot
-    if(!progcfg->SC_slot.is_null()) {
-      unsigned long slot_id = 0;
-      if(!SC_parse_slot(progcfg->SC_slot.c_str(), &slot_id)) {
-	ProgramError->Message("The SC_slot setting in the configuration file is not a slot number");
-	is_ok = 0;
-	return 0;
-      }
-      sc.SetSlot(slot_id);
-    }
-    sc.SetCertID(sbuf.c_str());
-    smartcard_username = (const char *)sc_username_input->GetValue();
-    use_cert_file = 0;
-  }
-  else if(!sc_cert_input->GetValue().IsNull()) {
+    sc.SetSlot(token.slot_id);
+    sc.SetCertID((char *)cert.id_hex.c_str());
     use_smartcard = 1;
-
-    if(!futils_exists(sc_cert_input->GetValue().c_str()) || !futils_isfile(sc_cert_input->GetValue().c_str())) {
-      ProgramError->Message("The smart card cert file file does not exist or cannot be read");   
-      is_ok = 0;
+    smartcard_username = (const char *)user.utf8_str();
+  }
+  else {
+    wxString f = sc_cert_input->GetValue();
+    if(f.IsEmpty() || !futils_exists(f.utf8_str()) || !futils_isfile(f.utf8_str())) {
+      message->SetLabel("The smart card cert file does not exist or cannot be read");
       return 0;
     }
-
     // 10/26/2026: PEM or DER cert files
-    if(EPDBReadSmartCardCertFile(&sc, sc_cert_input->GetValue().c_str(), sbuf) != 0) {
+    if(EPDBReadSmartCardCertFile(&sc, f.utf8_str(), sbuf) != 0) {
       ProgramError->Message(sbuf.c_str());
-      is_ok = 0;
       return 0;
     }
-    
-    if(sc_username_input->GetValue().IsNull()) {
-      ProgramError->Message("You must provide a user name for the smart card");   
-      is_ok = 0;
-      return 0;
-    }
-
-    smartcard_username = (const char *)sc_username_input->GetValue();
+    use_smartcard = 1;
     use_cert_file = 1;
+    smartcard_username = (const char *)user.utf8_str();
   }
 #endif // __ENABLE_SMART_CARD__
-  
-  rsa_key_input->Clear();
-  rsa_username_input->Clear();
-
-#ifdef __ENABLE_SMART_CARD__
-  sc_username_input->Clear();
-  sc_cert_input->Clear();
-  sc_use_card_checkbox->SetValue(false);
-#endif // __ENABLE_SMART_CARD__
-  
   is_ok = 1;
   return 1;
 }
 
 void AdduserPanel::OnOK(wxCommandEvent &WXUNUSED(event))
 {
-  if(!TestInput()) return;  
-  Show(FALSE);
+  if(!TestInput()) return;
+  EndModal(wxID_OK);
 }
 
 void AdduserPanel::OnCancel(wxCommandEvent &WXUNUSED(event))
 {
   is_ok = 0;
-  Show(FALSE);
+  EndModal(wxID_CANCEL);
 }
 
-void AdduserPanel::OnCloseWindow(wxCloseEvent& WXUNUSED(event))
+void AdduserPanel::OnCloseWindow(wxCloseEvent &WXUNUSED(event))
+// The window X cancels, it never adds a user
 {
-  if(!TestInput()) return;  
-  Show(FALSE);
+  is_ok = 0;
+  EndModal(wxID_CANCEL);
 }
 
 AdduserPanel *InitAdduserPanel(wxWindow *parent)
 {
-  // 10/26/2026: Two columns so the dialog fits small screens
-  int xpos=50; int ypos=50; int width=780; int height=400;
-  int button_ypos = 320;
-
-  AdduserPanel *panel = new AdduserPanel(parent, ADDUSER_PANEL_ID,
-					 (char *)"Add User For Database Access",
-					 xpos, ypos, width, height,
-					 wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-					 (char *)"Add User For Database Access");
-  if(!panel) return 0;
-
-  panel->rsa_key_box = new wxStaticBox(panel, -1, "Add Users Public RSA Key", wxPoint(9, 13), wxSize(370,200));
-  panel->rsa_username_label = new wxStaticText(panel, -1, "RSA Key Username", wxPoint(15, 43));
-  panel->rsa_username_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_RSA_USERNAME, 
-					     "", wxPoint(15, 65), wxSize(250, 25));
-  panel->rsa_key_label = new wxStaticText(panel, -1, "Public Key File Name", wxPoint(15, 101));
-  panel->rsa_key_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_RSA_KEY, 
-					"", wxPoint(15, 127), wxSize(350, 25));
-  panel->rsa_browse = new wxButton(panel, ID_ADDUSER_RSA_KEY_BROWSE, "Browse",
-				   wxPoint(15, 173), wxSize(75, 25));
-
-#ifdef __ENABLE_SMART_CARD__
-  panel->sc_box = new wxStaticBox(panel, -1, "Add Users Smart Card Cert", wxPoint(390, 13), wxSize(370,285));
-  panel->sc_username_label = new wxStaticText(panel, -1, "Smart Card Username", wxPoint(396, 39));
-  panel->sc_username_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_USERNAME,
-					    "", wxPoint(396, 65), wxSize(250,25));
-  panel->sc_cert_label = new wxStaticText(panel, -1, "Exported Smart Card Cert File", wxPoint(396, 101));
-  panel->sc_cert_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_CERT, 
-					"", wxPoint(396, 128), wxSize(350, 25));
-  panel->sc_browse =  new wxButton(panel, ID_ADDUSER_SC_CERT_BROWSE, "Browse", wxPoint(396, 169), wxSize(75, 25));
-  // 10/26/2026: Or read the cert from the smart card in the reader
-  panel->sc_use_card_checkbox = new wxCheckBox(panel, -1, "Or read the cert from the smart card in the reader",
-					       wxPoint(396, 205), wxSize(350, 25));
-  panel->sc_use_card_checkbox->SetValue(false);
-  panel->sc_keyid_label = new wxStaticText(panel, -1, "Smart Card Cert ID", wxPoint(396, 235));
-  panel->sc_keyid_input = new wxTextCtrl(panel, ID_ADDUSER_TEXTCONTROL_SC_CERT_ID,
-					 progcfg->SC_cert_id.c_str(), wxPoint(396, 258), wxSize(350, 25));
-#endif // __ENABLE_SMART_CARD__
-  
-  panel->ok_btn = new wxButton(panel, ID_ADDUSER_OK, "OK",
-			       wxPoint(17, button_ypos),
-			       wxSize(46, 25));
-  
-  panel->cancel_btn = new wxButton(panel, ID_ADDUSER_CANCEL, "Cancel",
-				   wxPoint(83, button_ypos),
-				   wxSize(56, 25));
-
-  panel->Show(FALSE);
-  
-  return panel;
+  return new AdduserPanel(parent);
 }
 // ----------------------------------------------------------- //
 // ------------------------------- //
