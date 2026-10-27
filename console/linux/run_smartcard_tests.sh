@@ -200,7 +200,7 @@ ${TOOL} --password-file=pw.txt --db-list a.ehd > out.txt 2>>${logFILE}
 [ $? -eq 0 ] && cmp -s out.txt list.txt
 check $? "the password still opens the database after adding a card"
 card --smartcard --smartcard-username=nobody ${SC} ${PIN} --db-list a.ehd
-[ $? -eq 1 ] && [ ! -s out.txt ] && grep -q "does not have access" err.txt
+[ $? -eq 2 ] && [ ! -s out.txt ] && grep -q "does not have access" err.txt
 check $? "unknown smart card user is refused before any login"
 ${TOOL} --password-file=pw.txt --add-smartcard-cert ${SC} --add-username=card a.ehd > out.txt 2>err.txt
 [ $? -ne 0 ] && grep -q "already exists" err.txt
@@ -363,6 +363,66 @@ if [ "${SC_TEST_WRONG_PIN}" = "1" ] && [ ${IS_SOFTHSM} -eq 1 ]; then
 	${TOOL} --smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=abc ${PIN} --db-list a.ehd > out.txt 2> err.txt
 	[ $? -ne 0 ] && grep -q "needs a slot ID" err.txt
 	check $? "--smartcard-slot refuses a value that is not a slot ID"
+
+	# 10/27/2026: Key management with a card user. Two tokens are present
+	# now and SoftHSM2 reports low PIN tries after the wrong PIN above.
+	CARD="--smartcard --smartcard-username=card ${SPYSC} --smartcard-slot=${SLOT1} --smartcard-allow-pin-count-low --non-interactive"
+	openssl genrsa -out alice.pem 2048 >/dev/null 2>&1; openssl rsa -in alice.pem -pubout -out alice.pub >/dev/null 2>&1
+	openssl genrsa -out bob.pem 2048 >/dev/null 2>&1; openssl rsa -in bob.pem -pubout -out bob.pub >/dev/null 2>&1
+	chmod 600 alice.pem bob.pem
+	cp known.ehd m.ehd; cp known.ehx m.ehx
+	${TOOL} --password-file=pw.txt --add-smartcard-cert-file=${SC_CERT} --add-username=card m.ehd >>${logFILE} 2>&1
+	${TOOL} --password-file=pw.txt --add-rsa-key=alice.pub --add-username=alice m.ehd >>${logFILE} 2>&1
+	${TOOL} --password-file=pw.txt --add-rsa-key=bob.pub --add-username=bob m.ehd >>${logFILE} 2>&1
+	cp m.ehd m2.ehd; cp m.ehx m2.ehx
+	spyrun 0 --password-file=pw.txt --non-interactive --remove-user=card --smartcard-provider=${SPY} m2.ehd
+	[ $? -eq 0 ] && [ "$(logins)" = "0" ]
+	check $? "remove a smart card user with the password: no PIN, no card login"
+	spyrun 0 ${CARD} ${PIN} --db-list m2.ehd
+	[ $? -ne 0 ] && [ "$(logins)" = "0" ] && grep -q "does not have access" err.txt
+	check $? "the removed card user is refused before any login"
+	spyrun 0 --check-version m.ehd known_v1.ehd --smartcard-provider=${SPY}
+	[ $? -eq 5 ] && [ "$(logins)" = "0" ]
+	check $? "--check-version never logs in to the card (exit 5 for the v1 file)"
+	${TOOL} --password-file=pw.txt --non-interactive --remove-user=bob m.ehd >>${logFILE} 2>&1
+	printf 'rsa:alice=alice.pub\nsmartcard:card=card\n' > rekey.txt
+	spyrun 0 --password-file=pw.txt --non-interactive --rekey --rekey-file=rekey.txt ${SPYSC} --smartcard-slot=${SLOT1} m.ehd
+	[ $? -eq 0 ] && [ "$(logins)" = "0" ]
+	check $? "rekey with password, RSA and card users: the card public key is read with no login"
+	spyrun 0 ${CARD} ${PIN} --db-list m.ehd
+	[ $? -eq 0 ] && cmp -s out.txt list.txt && [ "$(logins)" = "1" ]
+	check $? "the card user opens the rekeyed database with one C_Login"
+	${TOOL} --rsa-key=alice.pem --rsa-key-username=alice --non-interactive --db-list m.ehd > out.txt 2>>${logFILE}
+	[ $? -eq 0 ] && cmp -s out.txt list.txt && ${TOOL} --password-file=pw.txt --db-list m.ehd >/dev/null 2>&1
+	check $? "the RSA user and the password open the rekeyed database"
+	python3 -I -c "
+pre=open('m2.ehd','rb').read(); new=bytearray(open('m.ehd','rb').read())
+o=86+65536; new[o:o+65536]=pre[o:o+65536]; open('m_bob.ehd','wb').write(new)"
+	cp m.ehx m_bob.ehx
+	${TOOL} --rsa-key=bob.pem --rsa-key-username=bob --non-interactive --db-list m_bob.ehd >/dev/null 2>&1
+	[ $? -ne 0 ]
+	check $? "after remove and rekey the removed user's old key block does not open the database"
+	printf 'rsa:alice=alice.pub\nsmartcard:card=%s\n' "${SC_CERT}" > rekey2.txt
+	spyrun 0 --password-file=pw.txt --non-interactive --rekey --rekey-file=rekey2.txt --smartcard-provider=${SPY} m.ehd
+	[ $? -eq 0 ] && [ "$(logins)" = "0" ]
+	check $? "rekey with the card user's cert file: no login"
+	printf 'password=%s\nrsa:alice=alice.pub\nsmartcard:card=card\n' "${PW}" > rekey3.txt
+	spyrun 0 ${CARD} ${PIN} --rekey --rekey-file=rekey3.txt m.ehd
+	[ $? -eq 0 ] && [ "$(logins)" = "1" ]
+	check $? "rekey authenticated with the card: exactly one C_Login"
+	# Self-destruct: a wrong PIN is one failed open with one login, a PIN
+	# that is not sent is not counted
+	cp m.ehd sd.ehd; cp m.ehx sd.ehx
+	${TOOL} --password-file=pw.txt --non-interactive --self-destruct=on --self-destruct-attempts=3 sd.ehd >>${logFILE} 2>&1
+	spyrun 0 ${CARD} --smartcard-pin-file=longpin.txt --db-list sd.ehd
+	[ $? -ne 0 ] && [ "$(logins)" = "0" ] && ! grep -q "attempts used" err.txt
+	check $? "self-destruct: a PIN that is not sent is not counted"
+	spyrun 0 ${CARD} --smartcard-pin-file=badpin.txt --db-list sd.ehd
+	[ $? -ne 0 ] && [ "$(logins)" = "1" ] && grep -q "1 of 3 attempts used" err.txt
+	check $? "self-destruct: a wrong PIN is one failed open with exactly one C_Login"
+	spyrun 0 ${CARD} ${PIN} --db-list sd.ehd
+	[ $? -eq 0 ] && [ "$(logins)" = "1" ]
+	check $? "self-destruct: the right PIN opens and resets the counter, one C_Login"
     fi
 fi
 

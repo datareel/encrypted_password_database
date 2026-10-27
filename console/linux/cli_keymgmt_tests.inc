@@ -358,12 +358,16 @@ fake_kms() { printf '%s' "${PW}" | base64; }
 fake_kms | base64 -d | ${TOOL} --password-fd=0 --non-interactive --db-list known.ehd >/dev/null 2>&1
 check $? "a KMS style pipe (base64 -d into --password-fd=0) opens the database"
 
-# ---- Old build reads the new files ----
-if [ "${OLD_DIR}" != "" ]; then
-    for db in kr kk_pre kl ks3; do
+# ---- 2026.102 reads the new files ----
+# COMPAT_DIR is a console/linux directory with a 2026.102 (or other v2
+# capable) epdb_auth_tool. OLD_DIR above is for builds older than v2.
+if [ "${COMPAT_DIR}" != "" ]; then
+    COMPAT=${COMPAT_DIR}/epdb_auth_tool
+    for db in kr kk_pre kl ks3 kj; do
 	[ -f ${db}.ehd ] || continue
-	${OLD} --password="${PW}" --db-list ${db}.ehd >/dev/null 2>>${logFILE} || \
-	    ${OLD} --rsa-key=k_alice.pem --rsa-key-username=alice --db-list ${db}.ehd >/dev/null 2>>${logFILE}
-	check $? "the old build opens ${db}.ehd written by this build (remove-user, in-file log, self-destruct)"
+	${COMPAT} --password="${PW}" --db-list ${db}.ehd >/dev/null 2>>${logFILE}
+	check $? "the 2026.102 build opens ${db}.ehd written by this build"
     done
+    ${COMPAT} --rsa-key=k_alice.pem --rsa-key-username=alice --db-list kk.ehd >/dev/null 2>>${logFILE}
+    check $? "the 2026.102 build opens a rekeyed, password-less database with the kept RSA user"
 fi
