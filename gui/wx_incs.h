@@ -102,6 +102,7 @@ version 2.X
 #include <wx/scrolwin.h>
 #include <wx/numdlg.h>
 #include <wx/stdpaths.h>
+#include <wx/gbsizer.h>
 #include <wx/process.h>
 #include <wx/sstream.h>
 #include <wx/display.h>

@@ -111,7 +111,8 @@ public: // Helper functions
   int ReReadObject(INFOHOG &infohog);
 
 public:
-  wxTextCtrl *db_input[MaxPanelMembers];          // Text input array
+  RecordFieldCtrl *db_input[MaxPanelMembers];     // 10/27/2026: Record fields (record_form.h)
+  RecordForm form;                                // 10/27/2026: Shared record form layout
   wxStaticText *db_input_labels[MaxPanelMembers]; // Label array
   wxStaticBox *key_name_label; // Key data member label
   wxButton *next_btn;   // Next button

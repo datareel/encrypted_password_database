@@ -36,6 +36,7 @@ BEGIN_EVENT_TABLE(DisplayPanel, wxDialog)
   EVT_BUTTON    (ID_DISPLAY_NEXT, DisplayPanel::OnNext)
   EVT_BUTTON    (ID_DISPLAY_PREV, DisplayPanel::OnPrev)
   EVT_BUTTON    (ID_DISPLAY_CLOSE, DisplayPanel::OnClose)
+  EVT_BUTTON    (wxID_CANCEL, DisplayPanel::OnClose)
   EVT_BUTTON    (ID_DISPLAY_REMOVE, DisplayPanel::OnRemove)
   EVT_BUTTON    (ID_DISPLAY_CHANGE, DisplayPanel::OnChange)
   EVT_BUTTON    (ID_DISPLAY_EXPORT, DisplayPanel::OnExport)
@@ -436,65 +437,10 @@ void DisplayPanel::ShowPanel()
   gbuf << clear << "Displaying " << nbuf;
   SetTitle(gbuf.c_str());
 
-  int i;
-  if(change_labels) {
-    int start_x = DisplayPanelConfig::x_start_pos;
-    int start_y = DisplayPanelConfig::y_start_pos;
-    
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-				     wxPoint((start_x-8), (start_y-24)),
-				     wxSize(DisplayPanelConfig::key_label_width, 
-					    DisplayPanelConfig::key_label_height));					  
-    for(i = 1; i < MaxPanelMembers; i++) {
-      start_x += DisplayPanelConfig::x_offset ;
-      start_y += DisplayPanelConfig::y_offset_label;
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      progcfg->global_dbparms.dbgrid_labels[i].c_str(),	
-					      wxPoint(start_x, start_y), 
-					      wxSize(DisplayPanelConfig::label_width, 
-						     DisplayPanelConfig::label_height),
-					      wxTE_READONLY);
-      start_y += DisplayPanelConfig::y_offset_textbox;
-    }
-    change_labels = 0;
-  }
-  
-  gxString key_label = child_frame->DBParms()->db_config.GetColName(0, dest);  
-
-  int start_x = DisplayPanelConfig::x_start_pos;
-  int start_y = DisplayPanelConfig::y_start_pos;
-
-  if(key_label != progcfg->global_dbparms.dbgrid_labels[0]) {
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     key_label.c_str(),
-				     wxPoint((start_x-8), (start_y-24)),
-				     wxSize(DisplayPanelConfig::key_label_width, 
-					    DisplayPanelConfig::key_label_height));
-    change_labels++;
-  }
-
-  for(i = 1; i < MaxPanelMembers; i++) {
-    start_x += DisplayPanelConfig::x_offset ;
-    start_y += DisplayPanelConfig::y_offset_label;
-    
-    gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);  
-    if(label != progcfg->global_dbparms.dbgrid_labels[i]) {
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      label.c_str(),
-					      wxPoint(start_x, start_y), 
-					      wxSize(DisplayPanelConfig::label_width, 
-						     DisplayPanelConfig::label_height),
-					      wxTE_READONLY);
-      change_labels++;
-    }
-    start_y += DisplayPanelConfig::y_offset_textbox;
-  }
-
+  // 10/27/2026: The column names of this database
+  form.SetLabels(child_frame);
+  Fit();
+  CentreOnParent();
   ShowModal();
 
   // TODO/NOTE: Must implement in all wxWin 2.6.X code
@@ -521,7 +467,6 @@ void DisplayPanel::ClearPanel()
   for(int i = 0; i < MaxPanelMembers; i++) {
     if(db_input[i]) {
       db_input[i]->Clear();
-      db_input[i]->SetForegroundColour(*(frame->textreadonlyColor));
     }
   }
 }
@@ -599,99 +544,45 @@ void DisplayPanel::OnExport(wxCommandEvent &event)
 }
 
 DisplayPanel *InitDisplayPanel(wxWindow *parent)
+// 10/27/2026: The record form (record_form.cpp), read-only, with sizers
 {
-  int start_x = DisplayPanelConfig::x_start_pos;
-  int start_y = DisplayPanelConfig::y_start_pos;
-
-  // Calculate the height of the panel
-  int height = MaxPanelMembers * (DisplayPanelConfig::text_input_height + DisplayPanelConfig::label_height);
-  height += (DisplayPanelConfig::key_label_height + (DisplayPanelConfig::button_height*2));
-  height += height/2;
-  height += 25;
-
-  DisplayPanel *panel = new DisplayPanel(parent, DISPLAY_PANEL_ID,
-					 (char *)"Displaying Database Object",
-					 DisplayPanelConfig::xpos, 
-					 DisplayPanelConfig::ypos, 
-					 DisplayPanelConfig::width, height,
-		  wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-					 (char *)"Displaying Database Object");
-
+  DisplayPanel *panel = new DisplayPanel(parent, DISPLAY_PANEL_ID, (char *)"Display Records", -1, -1, -1, -1,
+					 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Display Records");
   if(!panel) return 0;
-  
-  panel->key_name_label = new wxStaticBox(panel, -1,
-					  progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-					  wxPoint((start_x-8), (start_y-24)),
-					  wxSize(DisplayPanelConfig::key_label_width, 
-						 DisplayPanelConfig::key_label_height));
+  panel->SetIcons(EPDBAppIcons());
+  const int pad = panel->FromDIP(12);
+  const int gap = panel->FromDIP(6);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer *form = new wxBoxSizer(wxVERTICAL);
+  panel->form.Build(panel, form, panel->db_input, panel->db_input_labels, 1);
+  top->Add(form, 1, wxEXPAND | wxALL, pad);
 
-  panel->db_input[0] = new wxTextCtrl(panel, -1, "",
-				      wxPoint(start_x, start_y),
-				      wxSize(DisplayPanelConfig::text_input_width, 
-					     DisplayPanelConfig::text_input_height),
-				      wxTE_READONLY);
-
-  for(int i = 1; i < MaxPanelMembers; i++) {
-    start_x += DisplayPanelConfig::x_offset ;
-    start_y += DisplayPanelConfig::y_offset_label;
-    panel->db_input_labels[i-1] = new wxStaticText(panel, -1,
-						   progcfg->global_dbparms.dbgrid_labels[i].c_str(),
-						   wxPoint(start_x, start_y), 
-						   wxSize(DisplayPanelConfig::label_width, 
-							  DisplayPanelConfig::label_height),
-						   wxTE_READONLY);
-    start_y += DisplayPanelConfig::y_offset_textbox;
-    panel->db_input[i] = new wxTextCtrl(panel, -1, "",
-				wxPoint(start_x, start_y),
-				wxSize(DisplayPanelConfig::text_input_width, 
-				       DisplayPanelConfig::text_input_height),
-					wxTE_READONLY|PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
-  }
-
-  start_y += DisplayPanelConfig::y_offset_button;
-  panel->next_btn = new wxButton(panel, ID_DISPLAY_NEXT, "Next",
-				 wxPoint(start_x, start_y),
-				 wxSize(DisplayPanelConfig::button_width, 
-					DisplayPanelConfig::button_height));
-
-  start_x += DisplayPanelConfig::x_offset_button;
-  panel->prev_btn = new wxButton(panel, ID_DISPLAY_PREV, "Prior",
-				 wxPoint(start_x, start_y),
-				 wxSize(DisplayPanelConfig::button_width, 
-					DisplayPanelConfig::button_height));
-  start_x += DisplayPanelConfig::x_offset_button;
-  panel->close_btn = new wxButton(panel, ID_DISPLAY_CLOSE, "Close",
-				  wxPoint(start_x, start_y),
-				  wxSize(DisplayPanelConfig::button_width, 
-					 DisplayPanelConfig::button_height));
-
-  start_x = DisplayPanelConfig::x_start_pos;
-  start_y += DisplayPanelConfig::y_offset_button;
-  panel->change_btn = new wxButton(panel, ID_DISPLAY_CHANGE, "Change",
-				   wxPoint(start_x, start_y),
-				   wxSize(DisplayPanelConfig::button_width, 
-					  DisplayPanelConfig::button_height));
-
-  start_x += DisplayPanelConfig::x_offset_button;
-  panel->remove_btn = new wxButton(panel, ID_DISPLAY_REMOVE, "Delete",
-				   wxPoint(start_x, start_y),
-				   wxSize(DisplayPanelConfig::button_width, 
-					  DisplayPanelConfig::button_height));
-
-  start_x += DisplayPanelConfig::x_offset_button;
-  panel->export_btn = new wxButton(panel, ID_DISPLAY_EXPORT, "Export",
-				   wxPoint(start_x, start_y),
-				   wxSize(DisplayPanelConfig::button_width, 
-					  DisplayPanelConfig::button_height));
-
+  wxBoxSizer *b = new wxBoxSizer(wxHORIZONTAL);
+  panel->prev_btn = new wxButton(panel, ID_DISPLAY_PREV, "Prior");
+  b->Add(panel->prev_btn, 0);
+  panel->next_btn = new wxButton(panel, ID_DISPLAY_NEXT, "Next");
+  b->Add(panel->next_btn, 0, wxLEFT, gap);
+  b->AddSpacer(panel->FromDIP(16));
+  panel->change_btn = new wxButton(panel, ID_DISPLAY_CHANGE, "Edit...");
+  panel->change_btn->SetBitmap(EPDBIcon("edit", EPDB_MENU_ICON_DIP));
+  b->Add(panel->change_btn, 0, wxLEFT, gap);
+  panel->remove_btn = new wxButton(panel, ID_DISPLAY_REMOVE, "Delete");
+  panel->remove_btn->SetBitmap(EPDBIcon("delete", EPDB_MENU_ICON_DIP));
+  b->Add(panel->remove_btn, 0, wxLEFT, gap);
+  panel->export_btn = new wxButton(panel, ID_DISPLAY_EXPORT, "Export...");
+  b->Add(panel->export_btn, 0, wxLEFT, gap);
 #ifdef __USE_MSW_PRINTING__
-  start_x += DisplayPanelConfig::x_offset_button;
-  panel->print_btn = new wxButton(panel, ID_DISPLAY_PRINT, "Print",
-				  wxPoint(start_x, start_y),
-				  wxSize(DisplayPanelConfig::button_width, 
-					 DisplayPanelConfig::button_height));
+  panel->print_btn = new wxButton(panel, ID_DISPLAY_PRINT, "Print...");
+  panel->print_btn->SetBitmap(EPDBIcon("print", EPDB_MENU_ICON_DIP));
+  b->Add(panel->print_btn, 0, wxLEFT, gap);
 #endif
-
+  b->AddStretchSpacer();
+  panel->close_btn = new wxButton(panel, wxID_CANCEL, "Close");
+  b->Add(panel->close_btn, 0, wxLEFT, gap);
+  top->Add(b, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, pad);
+  panel->SetEscapeId(wxID_CANCEL);
+  panel->SetSizerAndFit(top);
+  panel->SetMinSize(panel->GetSize());
   panel->Show(FALSE);
   return panel;
 }

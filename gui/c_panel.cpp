@@ -37,6 +37,8 @@ BEGIN_EVENT_TABLE(ChangePanel, wxDialog)
   EVT_BUTTON    (ID_CHANGE_CANCEL, ChangePanel::OnCancel)
   EVT_BUTTON    (ID_CHANGE_CLOSE, ChangePanel::OnClose)
   EVT_BUTTON    (ID_CHANGE_REVERT, ChangePanel::OnRevert)
+  EVT_BUTTON    (wxID_CANCEL, ChangePanel::OnDiscard)
+  EVT_CLOSE     (ChangePanel::OnCloseWindow)
 END_EVENT_TABLE()
 
   // Height and width constants for panel objects
@@ -144,6 +146,19 @@ changes?\n",
 			  wxYES_NO | wxCENTRE | wxICON_QUESTION, this);
     if(yn == wxYES) CommitChanges();
   }
+  Show(FALSE);
+}
+
+void ChangePanel::OnDiscard(wxCommandEvent &WXUNUSED(event))
+// 10/27/2026: Cancel, Esc and the window X close without saving
+{
+  ClearPanel();
+  Show(FALSE);
+}
+
+void ChangePanel::OnCloseWindow(wxCloseEvent &WXUNUSED(event))
+{
+  ClearPanel();
   Show(FALSE);
 }
 
@@ -321,63 +336,15 @@ void ChangePanel::ShowPanel()
     return;
   }
 
-  int i;
-  if(change_labels) {
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-				     wxPoint(9, 4),
-				     wxSize(ChangePanelConfig::key_label_width, 
-					    ChangePanelConfig::key_label_height));
-    int start_x = 17;
-    int start_y = 28;
-    for(i = 1; i < MaxPanelMembers; i++) {
-      start_x += ChangePanelConfig::x_offset;
-      start_y += ChangePanelConfig::y_offset_label;
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      progcfg->global_dbparms.dbgrid_labels[i].c_str(),
-					      wxPoint(start_x, start_y), 
-					      wxSize(ChangePanelConfig::label_width,
-						     ChangePanelConfig::label_height));
-      
-      start_y += ChangePanelConfig::y_offset_textbox;
-    }
-    change_labels = 0;
+  // 10/27/2026: The column names of this database
+  form.SetLabels(child_frame);
+  {
+    // The old password becomes the previous password when it changes
+    form.SetOriginalPassword(db_input[2]->GetValue(), db_input[3]->GetValue());
   }
-
-  char dest[DBStringLength];
-  gxString key_label = child_frame->DBParms()->db_config.GetColName(0, dest);  
-
-  if(key_label != progcfg->global_dbparms.dbgrid_labels[0]) {
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     key_label.c_str(), 
-				     wxPoint(9, 4),
-				     wxSize(ChangePanelConfig::key_label_width, 
-					    ChangePanelConfig::key_label_height));
-    change_labels++;
-  }
-  
-  int start_x = 17;
-  int start_y = 28;
-  for(i = 1; i < MaxPanelMembers; i++) {
-    start_x += ChangePanelConfig::x_offset;
-    start_y += ChangePanelConfig::y_offset_label;
-    gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);  
-    if(label != progcfg->global_dbparms.dbgrid_labels[i]) {
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      label.c_str(),
-					      wxPoint(start_x, start_y), 
-					      wxSize(ChangePanelConfig::label_width,
-						     ChangePanelConfig::label_height));
-
-      change_labels++;
-    }
-    start_y += ChangePanelConfig::y_offset_textbox;
-  }
-
+  db_input[0]->SetFocus();
+  Fit();
+  CentreOnParent();
   ShowModal();
 
   // TODO/NOTE: Must implement in all wxWin 2.6.X code
@@ -391,77 +358,33 @@ void ChangePanel::ShowPanel()
 }
 
 ChangePanel *InitChangePanel(wxWindow *parent)
+// 10/27/2026: The record form (record_form.cpp) with sizers
 {
-  // Calculate the height of the panel
-  int height = MaxPanelMembers * (ChangePanelConfig::text_input_height + ChangePanelConfig::label_height);
-  height += (ChangePanelConfig::key_label_height + ChangePanelConfig::button_height);
-  height += height/2;
-  height += 30;
-
-  ChangePanel *panel = new ChangePanel(parent, CHANGE_PANEL_ID,
-				       (char *)"Change Database Object",
-				       ChangePanelConfig::xpos, ChangePanelConfig::ypos, 
-				       ChangePanelConfig::width, height,
-		  wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-				       (char *)"Change Database Object");
-
+  ChangePanel *panel = new ChangePanel(parent, CHANGE_PANEL_ID, (char *)"Edit Record", -1, -1, -1, -1,
+				       wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Edit Record");
   if(!panel) return 0;
-  
-  panel->key_name_label = new wxStaticBox(panel, -1,
-					  progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-					  wxPoint(9, 4),
-					  wxSize(ChangePanelConfig::key_label_width, 
-						 ChangePanelConfig::key_label_height));
+  panel->SetIcons(EPDBAppIcons());
+  const int pad = panel->FromDIP(12);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer *form = new wxBoxSizer(wxVERTICAL);
+  panel->form.Build(panel, form, panel->db_input, panel->db_input_labels, 0);
+  top->Add(form, 1, wxEXPAND | wxALL, pad);
 
-  panel->db_input[0] = new wxTextCtrl(panel, -1, "",
-			       wxPoint(17, 28),
-			       wxSize(ChangePanelConfig::text_input_width, 
-				      ChangePanelConfig::text_input_height));
-
-  int start_x = 17;
-  int start_y = 28;
-  for(int i = 1; i < MaxPanelMembers; i++) {
-    start_x += ChangePanelConfig::x_offset;
-    start_y += ChangePanelConfig::y_offset_label;
-    panel->db_input_labels[i-1] = new wxStaticText(panel, -1,
-						   progcfg->global_dbparms.dbgrid_labels[i].c_str(),
-						   wxPoint(start_x, start_y), 
-						   wxSize(ChangePanelConfig::label_width, 
-							  ChangePanelConfig::label_height));
-    start_y += ChangePanelConfig::y_offset_textbox;
-    panel->db_input[i] = new wxTextCtrl(panel, -1, "",
-				wxPoint(start_x, start_y),
-				wxSize(ChangePanelConfig::text_input_width, 
-				       ChangePanelConfig::text_input_height),
-				PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
-  }
-
-  start_y += ChangePanelConfig::y_offset_button;
-  panel->accept_btn = new wxButton(panel, ID_CHANGE_ACCEPT, "Accept",
-				   wxPoint(start_x, start_y),
-				   wxSize(ChangePanelConfig::button_width, 
-					  ChangePanelConfig::button_height));
-
-  start_x += ChangePanelConfig::x_offset_button;
-  panel->cancel_btn = new wxButton(panel, ID_CHANGE_CANCEL, "Undo",
-				   wxPoint(start_x, start_y),
-				   wxSize(ChangePanelConfig::button_width, 
-					  ChangePanelConfig::button_height));
-  start_x += ChangePanelConfig::x_offset_button;
-  panel->close_btn = new wxButton(panel, ID_CHANGE_CLOSE, "Close",
-				  wxPoint(start_x, start_y),
-				  wxSize(ChangePanelConfig::button_width, 
-					 ChangePanelConfig::button_height));
-
-  start_x += ChangePanelConfig::x_offset_button;
-  panel->revert_btn = new wxButton(panel, ID_CHANGE_REVERT, "Redo",
-				   wxPoint(start_x, start_y),
-				   wxSize(ChangePanelConfig::button_width, 
-					  ChangePanelConfig::button_height));
-  // TODO: remove
-  //  panel->ShowModal(); 
+  wxBoxSizer *b = new wxBoxSizer(wxHORIZONTAL);
+  panel->cancel_btn = new wxButton(panel, ID_CHANGE_CANCEL, "Revert");
+  panel->cancel_btn->SetToolTip("Put back the values the record had");
+  b->Add(panel->cancel_btn, 0);
+  b->AddStretchSpacer();
+  panel->close_btn = new wxButton(panel, wxID_CANCEL, "Cancel");
+  b->Add(panel->close_btn, 0, wxLEFT, panel->FromDIP(6));
+  panel->accept_btn = new wxButton(panel, ID_CHANGE_ACCEPT, "Save");
+  panel->accept_btn->SetDefault();
+  b->Add(panel->accept_btn, 0, wxLEFT, panel->FromDIP(6));
+  top->Add(b, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, pad);
+  panel->SetEscapeId(wxID_CANCEL);
+  panel->SetSizerAndFit(top);
+  panel->SetMinSize(panel->GetSize());
   panel->Show(FALSE);
-
   return panel;
 }
 // ----------------------------------------------------------- //

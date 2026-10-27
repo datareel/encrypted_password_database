@@ -69,7 +69,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)unlock_dlg.h $(APP_PATH)$(PATHSEP)details_pane.h \
 	    $(APP_PATH)$(PATHSEP)misc_dlg.h $(APP_PATH)$(PATHSEP)cmdbuild_dlg.h $(APP_PATH)$(PATHSEP)epdb_version.h \
 	    $(APP_PATH)$(PATHSEP)add_user_panel.h \
-	    $(APP_PATH)$(PATHSEP)a_panel.cpp \
+	    $(APP_PATH)$(PATHSEP)a_panel.cpp $(APP_PATH)$(PATHSEP)record_form.cpp $(APP_PATH)$(PATHSEP)record_form.h \
 	    $(APP_PATH)$(PATHSEP)epdb_gui_hooks.cpp $(APP_PATH)$(PATHSEP)epdb_gui_hooks.h \
 	    $(APP_PATH)$(PATHSEP)backup.cpp \
 	    $(APP_PATH)$(PATHSEP)compare.cpp \

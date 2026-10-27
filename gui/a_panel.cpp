@@ -37,6 +37,8 @@ BEGIN_EVENT_TABLE(AddPanel, wxDialog)
   EVT_BUTTON    (ID_ADD_CANCEL, AddPanel::OnCancel)
   EVT_BUTTON    (ID_ADD_CLOSE, AddPanel::OnClose)
   EVT_BUTTON    (ID_ADD_REVERT, AddPanel::OnRevert)
+  EVT_BUTTON    (wxID_OK, AddPanel::OnSave)
+  EVT_BUTTON    (wxID_CANCEL, AddPanel::OnClose)
 END_EVENT_TABLE()
 
 
@@ -116,6 +118,19 @@ void AddPanel::ClearPanel()
 }
 
 void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
+// 10/27/2026: Save and add another, the dialog stays open
+{
+  AcceptRecord();
+}
+
+void AddPanel::OnSave(wxCommandEvent &WXUNUSED(event))
+// 10/27/2026: Save and close
+{
+  if(AcceptRecord()) Show(FALSE);
+}
+
+int AddPanel::AcceptRecord()
+// Returns 1 if the record was added
 {
   INFOHOG infohog(child_frame->GetPOD(), NumDataMembers);
 
@@ -126,7 +141,7 @@ void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
 
   if(key_name == "") {
     ProgramError->Message("You must enter a valid name for this entry\n");
-    return;
+    return 0;
   }
   
   INFOHOG_t key(key_name.c_str());
@@ -137,7 +152,7 @@ void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
   if(exists) {
     ProgramError->Message("Item: ", key_name.c_str(), 
 			  "\nalready exists in the database");
-    return;
+    return 0;
   }
   
   // Load the object
@@ -153,7 +168,7 @@ void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
   GUIUndoBefore(child_frame, undo_name, undo_mark);
   if(!infohog.WriteObject()) {
     ProgramError->Message("Could not add object to the database\n");
-    return;
+    return 0;
   }
   else {
     child_frame->GetPOD()->Flush(); // Flush the POD database following each insert
@@ -174,6 +189,8 @@ void AddPanel::OnAccept(wxCommandEvent &WXUNUSED(event))
   child_frame->GridFrame()->InsertCell(infohog);
 
   ClearPanel();
+  db_input[0]->SetFocus();
+  return 1;
 }
 
 void AddPanel::OnCancel(wxCommandEvent &WXUNUSED(event))
@@ -217,140 +234,44 @@ void AddPanel::ShowPanel()
     frame->dpanel->ClosePanel();
   }
 
-  int i;
-  if(change_labels) {
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-				     wxPoint(9, 4),
-				     wxSize(AddPanelConfig::key_label_width, 
-					    AddPanelConfig::key_label_height));
-    int start_x = 17;
-    int start_y = 28;
-    for(i = 1; i < MaxPanelMembers; i++) {
-      start_x += AddPanelConfig::x_offset ;
-      start_y += AddPanelConfig::y_offset_label;
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      progcfg->global_dbparms.dbgrid_labels[i].c_str(),
-					      wxPoint(start_x, start_y), 
-					      wxSize(AddPanelConfig::label_width, 
-						     AddPanelConfig::label_height));
-      start_y += AddPanelConfig::y_offset_textbox;
-    }
-    change_labels = 0;
-  }
-  
-  char dest[DBStringLength];
-  gxString key_label = child_frame->DBParms()->db_config.GetColName(0, dest);  
-
-  if(key_label != progcfg->global_dbparms.dbgrid_labels[0]) {
-    delete key_name_label;
-    key_name_label = new wxStaticBox(this, -1,
-				     key_label.c_str(),
-				     wxPoint(9, 4),
-				     wxSize(AddPanelConfig::key_label_width, 
-					    AddPanelConfig::key_label_height));
-    change_labels++;
-  }
-  
-  int start_x = 17;
-  int start_y = 28;
-  for(i = 1; i < MaxPanelMembers; i++) {
-    start_x += AddPanelConfig::x_offset ;
-    start_y += AddPanelConfig::y_offset_label;
-    gxString label = child_frame->DBParms()->db_config.GetColName(i, dest);  
-    if(label != progcfg->global_dbparms.dbgrid_labels[i]) {
-      delete db_input_labels[i-1];
-      db_input_labels[i-1] = new wxStaticText(this, -1,
-					      label.c_str(),
-					      wxPoint(start_x, start_y), 
-					      wxSize(AddPanelConfig::label_width, 
-						     AddPanelConfig::label_height));
-      change_labels++;
-    }
-    start_y += AddPanelConfig::y_offset_textbox;
-  }
-
+  // 10/27/2026: The column names of this database
+  form.SetLabels(child_frame);
+  db_input[0]->SetFocus();
+  Fit();
+  CentreOnParent();
   ShowModal();
 
 }
 
 AddPanel *InitAddPanel(wxWindow *parent)
+// 10/27/2026: The record form (record_form.cpp) with sizers
 {
-  // Calculate the height of the panel
-  int height = MaxPanelMembers * (AddPanelConfig::text_input_height + AddPanelConfig::label_height);
-  height += (AddPanelConfig::key_label_height + AddPanelConfig::button_height);
-  height += height/2;
-  height += 20;
-  AddPanel *panel = new AddPanel(parent, ADD_PANEL_ID,
-				 (char *)"Add Database Object",
-				 AddPanelConfig::xpos, AddPanelConfig::ypos, 
-				 AddPanelConfig::width, height,
-				 // TODO: Is this deprciated
-				 // wxRAISED_BORDER|wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU,
-				 wxRAISED_BORDER|wxCAPTION|wxSYSTEM_MENU,
-				 (char *)"Add Database Object");
-
+  AddPanel *panel = new AddPanel(parent, ADD_PANEL_ID, (char *)"Add Record", -1, -1, -1, -1,
+				 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, (char *)"Add Record");
   if(!panel) return 0;
-  
-  panel->key_name_label = new wxStaticBox(panel, -1,
-					  progcfg->global_dbparms.dbgrid_labels[0].c_str(),
-					  wxPoint(9, 4),
-					  wxSize(AddPanelConfig::key_label_width, 
-						 AddPanelConfig::key_label_height));
+  panel->SetIcons(EPDBAppIcons());
+  const int pad = panel->FromDIP(12);
+  wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer *form = new wxBoxSizer(wxVERTICAL);
+  panel->form.Build(panel, form, panel->db_input, panel->db_input_labels, 0);
+  top->Add(form, 1, wxEXPAND | wxALL, pad);
 
-  panel->db_input[0] = new wxTextCtrl(panel, -1, "",
-			       wxPoint(17, 28),
-			       wxSize(AddPanelConfig::text_input_width, 
-				      AddPanelConfig::text_input_height));
-
-  int start_x = 17;
-  int start_y = 28;
-  for(int i = 1; i < MaxPanelMembers; i++) {
-    start_x += AddPanelConfig::x_offset;
-    start_y += AddPanelConfig::y_offset_label;
-    panel->db_input_labels[i-1] = new wxStaticText(panel, -1,
-		   progcfg->global_dbparms.dbgrid_labels[i].c_str(),
-					   wxPoint(start_x, start_y), 
-					   wxSize(AddPanelConfig::label_width, 
-						  AddPanelConfig::label_height));
-    start_y += AddPanelConfig::y_offset_textbox;
-    panel->db_input[i] = new wxTextCtrl(panel, -1, "",
-				wxPoint(start_x, start_y),
-				wxSize(AddPanelConfig::text_input_width, 
-				       AddPanelConfig::text_input_height),
-				PasswordFieldStyle(i)); // 10/25/2026: Mask passwords
-  }
-
-  start_y += AddPanelConfig::y_offset_button;
-  panel->accept_btn = new wxButton(panel, ID_ADD_ACCEPT, "Add",
-				   wxPoint(start_x, start_y),
-				   wxSize(AddPanelConfig::button_width, 
-					  AddPanelConfig::button_height));
-
-  start_x += AddPanelConfig::x_offset_button;
-  panel->cancel_btn = new wxButton(panel, ID_ADD_CANCEL, "Clear",
-				   wxPoint(start_x, start_y),
-				   wxSize(AddPanelConfig::button_width, 
-					  AddPanelConfig::button_height));
-  start_x += AddPanelConfig::x_offset_button;
-  panel->close_btn = new wxButton(panel, ID_ADD_CLOSE, "Close",
-				  wxPoint(start_x, start_y),
-				  wxSize(AddPanelConfig::button_width, 
-					 AddPanelConfig::button_height));
-
-  start_x += AddPanelConfig::x_offset_button;
-  panel->revert_btn = new wxButton(panel, ID_ADD_REVERT, "Redo",
-				   wxPoint(start_x, start_y),
-				   wxSize(AddPanelConfig::button_width, 
-					  AddPanelConfig::button_height));
-
-  // TODO: remove
-  //  panel->ShowModal(); 
-
+  wxBoxSizer *b = new wxBoxSizer(wxHORIZONTAL);
+  panel->cancel_btn = new wxButton(panel, ID_ADD_CANCEL, "Clear");
+  b->Add(panel->cancel_btn, 0);
+  b->AddStretchSpacer();
+  panel->close_btn = new wxButton(panel, wxID_CANCEL, "Cancel");
+  b->Add(panel->close_btn, 0, wxLEFT, panel->FromDIP(6));
+  panel->accept_btn = new wxButton(panel, ID_ADD_ACCEPT, "Save and Add Another");
+  b->Add(panel->accept_btn, 0, wxLEFT, panel->FromDIP(6));
+  wxButton *save = new wxButton(panel, wxID_OK, "Save");
+  save->SetDefault();
+  b->Add(save, 0, wxLEFT, panel->FromDIP(6));
+  top->Add(b, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, pad);
+  panel->SetEscapeId(wxID_CANCEL);
+  panel->SetSizerAndFit(top);
+  panel->SetMinSize(panel->GetSize());
   panel->Show(FALSE);
-
   return panel;
 }
 // ----------------------------------------------------------- //

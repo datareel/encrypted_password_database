@@ -327,6 +327,10 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 
 // Application and framework include files
 #include "mswprint.h"   // Microsoft Windows printing framework 
+#include "epdb_art.h"       // 10/27/2026: Icons and DPI helpers
+#include "epdb_widgets.h"   // 10/27/2026: Password field and strength meter
+#include "record_form.h"    // 10/27/2026: Record form of the Add, Edit and Display dialogs
+#include "sc_picker.h"      // 10/27/2026: Smart card picker, no login
 #include "a_panel.h"    // Add panel
 #include "c_panel.h"    // Change panel
 #include "d_panel.h"    // Display panel
@@ -348,11 +352,8 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "new_panel.h"      // New DB panel
 #include "add_user_panel.h" // Add user access panel
 #include "epdb_gui_hooks.h" // 10/27/2026: Logs, self-destruct, v1 warning and undo for the GUI
-#include "epdb_art.h"       // 10/27/2026: Icons and DPI helpers
-#include "epdb_widgets.h"   // 10/27/2026: Password field and strength meter
 #include "epdb_recent.h"    // 10/27/2026: Recent databases and their unlock method
 #include "epdb_cmdbuild.h"  // 10/27/2026: Command builder
-#include "sc_picker.h"      // 10/27/2026: Smart card picker, no login
 #include "unlock_dlg.h"     // 10/27/2026: Unlock Database dialog
 #include "details_pane.h"   // 10/27/2026: Record details pane
 #include "misc_dlg.h"       // 10/27/2026: Self-destruct, generate password and other small dialogs

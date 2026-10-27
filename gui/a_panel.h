@@ -89,6 +89,8 @@ public: // Event handlers
   void OnCancel(wxCommandEvent &event);
   void OnClose(wxCommandEvent &event);
   void OnRevert(wxCommandEvent &event);
+  void OnSave(wxCommandEvent &event); // 10/27/2026: Save and close
+  int AcceptRecord();
   
 public: // Helper functions
   void ClearPanel();
@@ -96,7 +98,8 @@ public: // Helper functions
   void ShowPanel();
 
 public:
-  wxTextCtrl *db_input[MaxPanelMembers];          // Text input array
+  RecordFieldCtrl *db_input[MaxPanelMembers];     // 10/27/2026: Record fields (record_form.h)
+  RecordForm form;                                // 10/27/2026: Shared record form layout
   wxStaticText *db_input_labels[MaxPanelMembers]; // Label array
   wxStaticBox *key_name_label; // Key data member label
   wxButton *accept_btn;        // Accept button
