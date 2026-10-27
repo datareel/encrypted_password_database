@@ -574,7 +574,8 @@ void MainFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
       << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n"
 #ifdef __ENABLE_SMART_CARD__
       << "\n"
-      << "Smart card enabled for " << SC_get_default_engine_ID() << "\n"
+      << "Smart card enabled for " << (SC_uses_engine() ? SC_get_default_engine_ID() : "PKCS#11") << "\n"
+      << "Smart card module: " << progcfg->SC_modulePath.c_str() << "\n"
 #else
       << "\n"
       << "Smart card support is not enabled" << "\n"

@@ -54,12 +54,12 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 // Global vars
 gxString program_name = "Encrypted Password Database Auth Tool";
-gxString version_str = "2026.101";
+gxString version_str = "2026.102";
 gxString copyright = "Copyright (c) Datareel Open Source";
 gxString copyright_dates = "2003-2026";
 gxString produced_by = "Datareel Open Source";
 gxString default_url = "https://datareel.com";
-gxString release_date = "10/25/2026";
+gxString release_date = "10/26/2026";
 gxString debug_message;
 int debug_mode = 0;
 int debug_level = 1;
@@ -739,6 +739,7 @@ void HelpMessage()
   cout << "          --smartcard-allow-pin-count-low (Send the PIN when the card reports low PIN tries, asks first if interactive)" << "\n" << flush;
   cout << "          --smartcard-allow-final-try (Send the PIN when the card reports one try left, a wrong PIN locks the card)" << "\n" << flush;
   cout << "                 The PIN is sent at most once per run, it is never retried after a failure" << "\n" << flush;
+  cout << "                 List the cards, slots and cert IDs without a PIN with smartcard_list.sh or smartcard_list.bat" << "\n" << flush;
   cout << "\n" << flush;
   cout << "Smart card settings:\n" << flush;
   cout << "          --smartcard-cert-id=" << SC_get_default_cert_id() << " (Set the ID number for the smartcard cert)" << "\n" << flush;

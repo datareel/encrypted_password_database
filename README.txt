@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.101
+Release 2026.102
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -8,6 +8,42 @@ Supports Red Hat Enterprise Linux 8, 9, and 10
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
+
+RELEASE 2026.102: SMART CARDS ON RHEL 10 AND WINDOWS
+----------------------------------------------------
+Release 2026.102 turns on smart card support in the RHEL 10 and
+64-bit Windows builds. It was tested with a DoD CAC through
+ActivClient (Windows) and OpenSC (RHEL 10 and Windows), and with a
+YubiKey PIV key through OpenSC. A database given smart card access on
+Linux opens on Windows with the same card.
+
+* Smart cards use the card's PKCS#11 module directly (fcrypt
+  2026.105), no OpenSSL pkcs11 engine is needed. Windows uses the
+  ActivClient module when it is installed, otherwise OpenSC. RHEL uses
+  OpenSC. See SMART CARDS AND DOD CAC CARDS below.
+* PIN safeguards so testing or a typing mistake does not lock a card:
+  the PIN is sent once per open and never retried, no card login is
+  made after a failed one until the program is restarted, an empty,
+  too long or control character PIN is never sent, and a locked PIN,
+  one try left or low tries reported by the card stop the login (the
+  GUI asks, default No; epdb_auth_tool has
+  --smartcard-allow-pin-count-low and --smartcard-allow-final-try).
+* --smartcard-slot=N (GUI: Smart Card Slot, SC_slot) selects the card
+  when more than one is inserted. A cert ID found on more than one
+  card, or on no card, is refused and no PIN is sent.
+* epdb_auth_tool --add-smartcard-cert reads the cert from the card in
+  the reader, --add-smartcard-cert-file takes an exported PEM or DER
+  (.cer) cert. GUI Add Users can read the cert from the card.
+* smartcard_list.bat (Windows) and smartcard_list.sh (Linux) list the
+  cards, PIN flags, slots and cert IDs without a PIN.
+* EC card keys are refused with a clear message, the database key is
+  wrapped with RSA (DoD CACs use RSA 2048).
+* RHEL 10 is the default Linux build (make), use makefile_rhel8 or
+  makefile_rhel9 on older releases.
+* The New Database, Open and Add Users dialogs use two columns so they
+  fit smaller screens, such as a 958 pixel tall remote desktop.
+* Built with fcrypt 2026.105 and DataReel 6.1. The database format is
+  unchanged from 2026.101.
 
 RELEASE 2026.101: SECURITY FIXES AND DATABASE FORMAT V2
 -------------------------------------------------------
@@ -68,10 +104,9 @@ Platforms and builds:
 * Binaries are released for RHEL 8, 9 and 10 and for 64-bit Windows 11
   and Windows Server 2022 or later. RHEL 6 and 7 and 32-bit Windows
   binaries are no longer released.
-* Smart card support is not in the 2026.101 RHEL 10 and Windows
-  binaries. It is turned on for RHEL 10 and Windows in the source after
-  2026.101, see SMART CARDS AND DOD CAC CARDS below.
-* Built with fcrypt 2026.104 and DataReel 6.1. Windows builds use
+* Smart card support was not in the 2026.101 RHEL 10 and Windows
+  binaries, it is in 2026.102.
+* 2026.101 was built with fcrypt 2026.104 and DataReel 6.1. Windows builds use
   OpenSSL 3.5.x LTS, Linux builds use the OpenSSL from the OS.
 
 FEATURES
@@ -96,7 +131,7 @@ INSTALLING ON WINDOWS
 ---------------------
 Download and unzip the 64-bit Windows binaries:
 
-https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_101_windows_binaries.zip
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_windows_binaries.zip
 
 The "encrypted_password_database.exe" and "epdb_auth_tool.exe" are
 standalone EXE files that can be run with no installer needed. They
@@ -105,6 +140,9 @@ Windows systems already have:
 
 https://aka.ms/vs/17/release/vc_redist.x64.exe
 
+smartcard_list.bat lists the smart cards and their cert IDs without a
+PIN, see SMART CARDS AND DOD CAC CARDS.
+
 INSTALLING ON LINUX
 ------------------
 The binaries for RHEL 8, 9 and 10 include an installer that installs
@@ -112,9 +150,9 @@ to your user account without root access. To install from the command
 line:
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_101_rhel_8_9_10_binaries.tar.gz
-tar xvfz encrypted_password_database_2026_101_rhel_8_9_10_binaries.tar.gz
-cd encrypted_password_database_2026_101_rhel_8_9_10_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_102_rhel_8_9_10_binaries.tar.gz
+tar xvfz encrypted_password_database_2026_102_rhel_8_9_10_binaries.tar.gz
+cd encrypted_password_database_2026_102_rhel_8_9_10_binaries
 ./rh_install.sh
 
 The installer lists any system libraries that are missing. Most
@@ -125,6 +163,11 @@ sudo dnf install gtk3 pcre2-utf32 libXxf86vm libSM libICE
 On RHEL 8 and 9:
 
 sudo dnf install gtk3 webkit2gtk3 pcre2-utf32 libXxf86vm libSM libXtst
+
+For smart cards (DoD CAC, PIV, YubiKey) install OpenSC and start pcscd:
+
+sudo dnf install opensc pcsc-lite pcsc-lite-ccid
+sudo systemctl enable --now pcscd
 
 To run the Encrypted Password Database GUI from the command line:
 
@@ -314,14 +357,40 @@ builds still use the pkcs11 engine. The PKCS#11 module is:
 
 Set a different module with --smartcard-provider=path in
 epdb_auth_tool, or with SC_modulePath in the GUI configuration file
-(encrypted_password_database.cfg in the program's home directory).
+(.encrypted_password_database/encrypted_password_database.cfg in your
+home directory, %USERPROFILE% on Windows). A YubiKey is often not seen
+by ActivClient, use the OpenSC module for it.
 
-The cert ID can be a hex ID such as 03, or id_03, label_name,
-slot_N-id_03, slot_N-label_name or a "pkcs11:id=%03" URI. List the
-keys and certs on the card with the OpenSC pkcs11-tool:
+Finding the slot and the cert ID without a PIN:
 
-> pkcs11-tool --list-objects
-> pkcs11-tool --module "C:\Program Files\HID Global\ActivClient\acpkcs211.dll" --list-objects
+  Windows: smartcard_list.bat (in the Windows package) lists every
+           reader slot, the card's PIN flags and every cert and key
+           with its ID, label and type, through ActivClient and
+           OpenSC. It writes %TEMP%\smartcard_list.log.
+  Linux:   smartcard_list.sh [module] (installed in
+           ~/.encrypted_password_database/bin by rh_install.sh)
+
+Each card is shown as "Slot n (0xID)", use the 0xID with
+--smartcard-slot when more than one card is inserted. Use the
+encryption cert:
+
+  Module       Card                 Cert ID
+  OpenSC       CAC, PIV, YubiKey    03 ("Certificate for Key Management",
+                                    YubiKey PIV slot 9D)
+  ActivClient  CAC                  the long hex ID of "Encryption - NAME",
+                                    or label_Encryption - NAME
+
+Do not use 01 (PIV Authentication), 02 (Digital Signature) or 04
+(Card Authentication). The cert ID can also be id_03, label_name,
+slot_N-id_03, slot_N-label_name or a "pkcs11:id=%03" URI. Quote a
+label with spaces on the command line:
+
+> epdb_auth_tool --smartcard --smartcard-username=myname "--smartcard-cert-id=label_Encryption - LAST.FIRST.M.1234567890" --db-list mydb.ehd
+
+Remote desktop: with smart card redirection on in the RDP client
+(Local Resources, More, Smart cards), programs in the RDP session see
+only the client computer's cards, not the readers of the remote
+computer or VM. Turn it off, or use the computer's console.
 
 A DOD CAC card holds PIV Authentication, Digital Signature and Key
 Management (encryption) keys. Use the Key Management key, since DOD
@@ -372,7 +441,10 @@ Open the database with the card:
 
 > epdb_auth_tool --smartcard --smartcard-username=myname --smartcard-cert-id=03 --db-list mydb.ehd
 
-In the GUI use Users/Add Users and either an exported cert file or
-"Or read the cert from the smart card in the reader" with the cert ID,
-then open the database with the Use Smart Card fields of the open
-dialog.
+In the GUI, File/New with "Use Smart Card" (and a password) creates a
+database with smart card access. Users/Add Users adds a card from an
+exported cert file or with "Or read the cert from the smart card in
+the reader" and the cert ID. Open the database with the Use Smart Card
+fields of the open dialog: username, PIN, cert ID and, with more than
+one card inserted, the Smart Card Slot. Creating a database and adding
+a card do not use the PIN.

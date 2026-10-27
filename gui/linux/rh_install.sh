@@ -99,5 +99,16 @@ if [ -d ${HOME}/Desktop ]; then
     /bin/cp -fpv ${HOME}/.local/share/applications/encrypted_password_database.desktop ${HOME}/Desktop/.
 fi
 
+# 10/26/2026: Smart card (DoD CAC, PIV, YubiKey) support uses OpenSC
+if [ ! -f /usr/lib64/opensc-pkcs11.so ]; then
+    echo "NOTE: For smart cards install OpenSC and start pcscd:"
+    echo "    sudo dnf install opensc pcsc-lite pcsc-lite-ccid"
+    echo "    sudo systemctl enable --now pcscd"
+fi
+if [ -f smartcard_list.sh ]; then
+    /bin/cp -fv smartcard_list.sh ${HOME}/.encrypted_password_database/bin/.
+    chmod 755 ${HOME}/.encrypted_password_database/bin/smartcard_list.sh
+fi
+
 echo "Install complete"
 exit 0;
