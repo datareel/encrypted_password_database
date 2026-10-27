@@ -275,11 +275,14 @@ void InitProgramConfig(int argc, char *argv[])
 #endif // __ENABLE_SMART_CARD__      
       dfile << "# Security settings" << "\n";
       dfile << "# Close open databases after this many idle minutes, 0 turns it off" << "\n";
-      dfile << "AutoLockMinutes = " << progcfg->auto_lock_minutes << "\n";
+      sbuf << clear << progcfg->auto_lock_minutes; // 10/27/2026: DiskFileB wrote ints as spaces
+      dfile << "AutoLockMinutes = " << sbuf.c_str() << "\n";
       dfile << "# Clear a value copied to the clipboard after this many seconds, 0 turns it off" << "\n";
-      dfile << "ClipboardClearSeconds = " << progcfg->clipboard_clear_seconds << "\n";
+      sbuf << clear << progcfg->clipboard_clear_seconds; // 10/27/2026: DiskFileB wrote ints as spaces
+      dfile << "ClipboardClearSeconds = " << sbuf.c_str() << "\n";
       dfile << "# Log opens and changes to the per-user access log: 1 on, 0 off" << "\n";
-      dfile << "AccessLog = " << progcfg->access_log << "\n";
+      sbuf << clear << progcfg->access_log; // 10/27/2026: DiskFileB wrote ints as spaces
+      dfile << "AccessLog = " << sbuf.c_str() << "\n";
       dfile << "# Access log file, empty for the default (.encrypted_password_database/logs/access.log)" << "\n";
       dfile << "AccessLogFile = " << progcfg->access_log_file.c_str() << "\n";
       dfile << "\n";
