@@ -325,7 +325,13 @@ void UnlockDialog::SelectMethod(int m)
   Refit();
   if(m == EPDB_UNLOCK_PASSWORD) password_input->SetFocus();
   else if(m == EPDB_UNLOCK_KEY_FILE) key_input->SetFocus();
-  else if(m == EPDB_UNLOCK_RSA_KEY) rsa_key_input->SetFocus();
+  else if(m == EPDB_UNLOCK_RSA_KEY) {
+    // 10/27/2026: The first empty field, the passphrase when the names
+    // are remembered, so typing does not replace the selected key path
+    if(rsa_username_input->GetValue().IsEmpty()) rsa_username_input->SetFocus();
+    else if(rsa_key_input->GetValue().IsEmpty()) rsa_key_input->SetFocus();
+    else rsa_passphrase_input->SetFocus();
+  }
 #ifdef __ENABLE_SMART_CARD__
   else sc_pin_input->SetFocus();
 #endif
