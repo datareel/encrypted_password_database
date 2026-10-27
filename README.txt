@@ -68,6 +68,74 @@ RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
   unchanged: the new settings use bytes 2026.102 and older never read
   (see db_auth.h) and 2026.102 opens databases written by this release.
 
+THE GUI (DEVELOPMENT BRANCH gui-phase3, NOT YET RELEASED)
+---------------------------------------------------------
+The GUI was redesigned. Every earlier menu item and accelerator is kept.
+* Main window: menus File, Edit, Records (was Database), View, Users,
+  Security, Tools and Help. The toolbar has New, Open, Lock, Add, Edit,
+  Delete, Copy user, Copy password, Open link and Print. Each open
+  database is a tab with a search box above the records (all fields but
+  the passwords, or one field) and a record details pane right of the
+  grid with copy buttons, password show and hide, and an open button for
+  the website link. Copied values are cleared from the clipboard after
+  the time set in Preferences (30 seconds by default). The status bar
+  shows how the database was unlocked (for example "Unlocked with smart
+  card CAC (slot 1)"), the number of records, the format and the
+  auto-lock countdown.
+* Unlock Database (File > Open, Ctrl+O): the database file (with the
+  recent files) and one unlock method, Password, Key file, Private key
+  or Smart card. Only that method's fields are shown, so methods cannot
+  be mixed. The method and names used the last time are remembered for
+  each file in recent_files.txt next to the config file (no password,
+  key, PIN or passphrase is kept).
+* Smart cards: the Unlock, Create Database and Add User dialogs list the
+  cards in the readers (reader slot, cert ID, key type and size and the
+  PIN status: Ready, Few tries left, One PIN try left, PIN locked, No
+  user in this database) without a PIN or a card login, and find a card
+  that is inserted while the dialog is open. A card is chosen for you
+  only when one card can open the database: the card and cert ID used
+  the last time, or the only RSA key whose size matches a smart card
+  user of the database. With two cards that could match, nothing is
+  chosen and you pick the card. Locked cards and EC keys are shown but
+  cannot be chosen. The PIN safeguards are unchanged: the PIN is sent at
+  most once, never empty or cut short, not at all after a failed card
+  login until the program is restarted, and when the card is low on
+  tries or has one try left a warning comes first with Cancel as the
+  default (the PIN is not sent unless you choose Send the PIN).
+* Create Database: name and folder (the full path is shown), and the
+  ways it can be unlocked: master password (with a strength meter and
+  Generate), or a key file, RSA public keys and smart cards (no PIN is
+  needed to add a card).
+* Records: Add, Edit and Display share one two-column form. Security
+  questions, Account information and Notes are multi-line. Every field
+  holds up to 255 bytes (newlines count), shown by a counter. Editing a
+  password moves the old one to Previous password. CSV export writes a
+  line break in a field as a space and printing writes it as " / ", as
+  every record is one line.
+* Users > Add User (RSA public key, the smart card in the reader or an
+  exported cert file) and Remove User (pick the user from a list).
+* Edit > Preferences: File Locations, Security (encryption strength,
+  clipboard clear time, auto-lock minutes, access log) and Appearance.
+* Tools > Command Builder: shows the epdb_auth_tool command for an
+  operation (records, export and import, merge, users, rekey, password
+  change and generation, version check, access logs) for bash,
+  PowerShell and cmd.exe as you fill in the options, with Copy, Save as
+  Script and Test with --dry-run. It never puts a password, PIN or
+  passphrase on the command line: they are read with the -file= or
+  -fd= options from a file only you can read or a pipe (for example
+  from AWS Secrets Manager), and record values from --record-file or
+  stdin. Also on the details pane: Copy as command.
+* Keyboard: Ctrl+N new, Ctrl+O open, Ctrl+Shift+L lock, Ctrl+F search,
+  Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo, Ctrl+C/X/V copy, cut and
+  paste a cell, Ctrl+L clear the clipboard, Ctrl+Shift+U and
+  Ctrl+Shift+C copy the username and password, Ctrl+Shift+O open the
+  link, Alt+F find, Alt+A add, Alt+C edit, Alt+D delete, Ctrl+P print,
+  F1 about. The window X and Esc cancel a dialog, they never save.
+* High DPI: the icons are SVGs drawn at the screen scale, every dialog
+  uses sizers and the system font, window and column sizes are kept in
+  DIPs, and the Windows program is per-monitor DPI aware.
+* Built with wxWidgets 3.3.4 (static) on RHEL 10 and Windows.
+
 BEHAVIOR CHANGES IN RELEASE 2026.103
 ------------------------------------
 * epdb_auth_tool exit codes: 2 when the credential does not open the
@@ -438,6 +506,8 @@ To run the Encrypted Password Database GUI from the command line:
 
 ${HOME}/.encrypted_password_database/bin/encrypted_password_database
 
+The install script also installs the program icon at every size in
+${HOME}/.local/share/icons/hicolor (16 to 256 pixels and a scalable SVG).
 For GNOME desktops the Encrypted Password Database will be added to your applications list
 For GNOME classic desktops you will have a desktop icon and entry
 under Applications->Other
@@ -461,8 +531,10 @@ The Windows build requires the OpenSSL library.
 For instructions on how to build OpenSSL for Windows please see the
 following readme file: README_windows_openssl.txt 
 
-The Windows build requires wxWidgets version 3.2.4 or higher, built
-for x64 in release mode (BUILD=release TARGET_CPU=X64).
+The Windows build requires wxWidgets 3.3.4, built as static libraries
+with the dynamic runtime (SHARED=0 RUNTIME_LIBS=dynamic), x64 in
+3plibs\wxWidgets64-3.3.4 and x86 in 3plibs\wxWidgets32-3.3.4. The older
+wxWidgets 3.2.4 builds still work with nmake WXVER=324.
 
 For instructions on how to build wxWidgets for Windows please see the
 following readme file: README_windows_wxwidgets.txt
@@ -497,8 +569,8 @@ ZCODE_DIR = ../../../../3plibs/zlib64-1.3.1
 # Setup path to OPENSSL library
 OPENSSL_DIR = ../../../../3plibs/openssl64
 
-# Set path to wxWidgets library here
-WXDIR = ../../../../3plibs/wxWidgets64-3.2.4
+# wxWidgets 3.3.4 by default, nmake WXVER=324 for 3.2.4
+WXDIR = ../../../../3plibs/wxWidgets64-3.3.4
 
 The makefiles use msvc64.env when the Visual Studio environment
 targets x64. For a 32-bit x86 build for legacy systems run
@@ -518,7 +590,10 @@ To run the Windows program:
 > encrypted_password_database.exe
 
 This is a standalone EXE file that can be run with no installer
-needed (it needs the Visual C++ Redistributable).
+needed (it needs the Visual C++ Redistributable). The program icon,
+version information and the manifest (version 6 common controls and
+per-monitor DPI awareness) are built into the exe from
+gui\encrypted_password_database.rc.
 
 To build the Windows console program:
 
@@ -531,12 +606,24 @@ Run nmake to build the executable:
 
 SOURCE CODE BUILD ON LINUX
 --------------------------
-Building the binaries from the source code repository will require you
-to build wxWidgets version 3.2.4 or higher. To download and build the
-wxWidgets source code please visit the wxWidgets home page and follow
-the latest download and build instructions for Linux wxGTK:
+The RHEL 10 GUI is built with a static wxWidgets 3.3.4 (gtk3, -fPIC so
+the program is a PIE). Build it once from the wxWidgets source
+(https://www.wxwidgets.org/, wxWidgets-3.3.4.tar.bz2):
 
- https://www.wxwidgets.org/
+> mkdir -p ${HOME}/3plibs/build && cd ${HOME}/3plibs/build
+> tar xjf wxWidgets-3.3.4.tar.bz2
+> mkdir wx334_epdb_gtk3_static && cd wx334_epdb_gtk3_static
+> ../wxWidgets-3.3.4/configure --prefix=${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhel10 \
+    --disable-shared --with-gtk=3 --disable-webview --disable-mediactrl \
+    --without-opengl --without-libnotify --without-sdl \
+    --with-libpng=builtin --with-libjpeg=builtin --with-libtiff=builtin \
+    --with-regex=builtin --with-expat=builtin --with-zlib=builtin \
+    CFLAGS="-fPIC -O2" CXXFLAGS="-fPIC -O2"
+> make -j$(nproc) && make install
+
+It needs gtk3-devel (and the X11 and webp devel packages wx-config
+lists). The builds used for EPDB are archived, see WXWIDGETS AND OPENSSL
+BUILD ARCHIVES below.
 
 To build the latest release of the Encrypted Password Database:
 
@@ -547,19 +634,17 @@ To build the latest release of the Encrypted Password Database:
 > mv encrypted_password_database-<version> encrypted_password_database
 > cd encrypted_password_database
 
-Set up the build environment for the GUI build:
-
-> cd ${HOME}/git/encrypted_password_database/env
-> vi linux.env
-
-WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.4
-
-Change the WXSRCDIR to your wxWidget build installation path. 
+The RHEL 10 build takes the wxWidgets compile and link flags from
+${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhel10/bin/wx-config
+(env/wx3.3.4_rhel10.env). Another wxWidgets 3.3 build can be used with
+make WX_CONFIG=/path/to/bin/wx-config, and make WXVER=324 builds with
+wxWidgets 3.2.4 in WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.4 (env/linux.env),
+as the RHEL 8 and RHEL 9 builds still do.
 
 > cd ${HOME}/git/encrypted_password_database/gui/linux
 RHEL 10 is the default build, the makefile is the same as
 makefile_rhel10. Use makefile_rhel8 or makefile_rhel9 to build on RHEL 8
-or RHEL 9. For RHEL 10:
+or RHEL 9 (wxWidgets 3.2.4). For RHEL 10:
 
 > cat makefile_rhel10
 
@@ -579,6 +664,14 @@ example: make WXSRCDIR=$HOME/3plibs/wxWidgets-3.2.4_rhel9 -f makefile_rhel9
 Run the make to build the GUI
 
 > make
+
+The GUI icons are SVGs built into the program. After changing
+gui/icons/svg/icons.txt run python3 gui/tools/make_icons.py, which also
+makes the Windows .ico and the Linux icons (needs rsvg-convert and
+python3-pillow). The command builder tests are in gui/tests:
+
+> cd ${HOME}/git/encrypted_password_database/gui/tests
+> g++ -o cmdbuild_test cmdbuild_test.cpp ../epdb_cmdbuild.cpp && ./cmdbuild_test
 
 Set up the build environment for the command line utility build:
 
@@ -607,6 +700,25 @@ a PIN first, then run the tests (they stop at the first PIN error):
 The wrong PIN and PIN flag tests (SC_TEST_WRONG_PIN=1) only run with a
 SoftHSM2 token.
 
+WXWIDGETS AND OPENSSL BUILD ARCHIVES
+------------------------------------
+The third party builds EPDB is built with are kept in 3plibs, with
+archive copies (README, sha256 file, build commands and logs, no
+intermediate .obj files) on the AWS server:
+* wxWidgets 3.3.4: RHEL 10 static gtk3, Windows x64 and x86 static /MD
+  (VS 2026): ~/3plibs/wxwindows/builds on the AWS server (also
+  ~/3plibs/archives on the build workstation).
+  wxWidgets-3.3.4_epdb_rhel10_static_gtk3_x86_64_2026-10-27.tar.gz
+  wxWidgets-3.3.4_epdb_win64_vc_x64_lib_MD_vs2026_2026-10-27.tar.gz
+  wxWidgets-3.3.4_epdb_win32_vc_lib_MD_vs2026_2026-10-27.tar.gz
+* OpenSSL 3.5.9 for Windows, x64 and x86, static, FIPS enabled:
+  ~/3plibs/openssl/builds on the AWS server.
+  openssl-3.5.9_win64_VC-WIN64A_static_MT-Zl_fips_vs2026_2026-10-27.tar.gz
+  openssl-3.5.9_win32_VC-WIN32_static_MT-Zl_fips_vs2026_2026-10-27.tar.gz
+Each folder has a README with the build commands and how the env files
+point to the builds (env/wx3.3.4_rhel10.env, env/msvc64.env and
+env/msvc.env).
+
 SMART CARDS AND DOD CAC CARDS
 -----------------------------
 Smart card access uses the fcrypt smart card code. Builds that use
@@ -631,6 +743,14 @@ builds, and SC_cert_id is only the default shown in the dialogs. A YubiKey is of
 by ActivClient, use the OpenSC module for it.
 
 Finding the slot and the cert ID without a PIN:
+
+  GUI:     the Unlock, Create Database and Add User dialogs list the
+           cards, slots, cert IDs, key sizes and PIN status themselves
+           (no PIN, no card login). The PKCS#11 module is set under
+           Unlock > Smart card > Advanced.
+  fcrypt:  fcrypt --smartcard-list [--smartcard-provider=module] lists
+           the same without a login, --smartcard-match=cert.pem shows
+           which card and cert ID hold a cert.
 
   Windows: smartcard_list.bat (in the Windows package) lists every
            reader slot, the card's PIN flags and every cert and key

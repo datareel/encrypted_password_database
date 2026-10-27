@@ -208,8 +208,8 @@ SmartCardPicker::SmartCardPicker(wxWindow *parent, wxWindowID id)
   wxBoxSizer *top = new wxBoxSizer(wxVERTICAL);
   list = new wxListCtrl(this, ID_SCPICKER_LIST, wxDefaultPosition, FromDIP(wxSize(-1, 110)),
 			wxLC_REPORT | wxLC_SINGLE_SEL);
-  list->AppendColumn("Card", wxLIST_FORMAT_LEFT, FromDIP(150));
-  list->AppendColumn("Slot", wxLIST_FORMAT_LEFT, FromDIP(50));
+  list->AppendColumn("Card", wxLIST_FORMAT_LEFT, FromDIP(130));
+  list->AppendColumn("Slot", wxLIST_FORMAT_LEFT, FromDIP(90));
   list->AppendColumn("Cert ID", wxLIST_FORMAT_LEFT, FromDIP(70));
   list->AppendColumn("Key", wxLIST_FORMAT_LEFT, FromDIP(80));
   list->AppendColumn("Status", wxLIST_FORMAT_LEFT, FromDIP(150));
