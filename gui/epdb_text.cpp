@@ -41,7 +41,8 @@ usernames, never a password, key, PIN or passphrase.
 void EPDBSetUTF8Locale()
 {
 #if defined (__WIN32__)
-  // The Windows 10 and later C runtime has a UTF-8 locale
+  // The manifest sets the process code page to UTF-8 (Windows 10 1903
+  // and later), the C runtime locale follows it
   setlocale(LC_CTYPE, ".UTF8");
 #else
   if(!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "en_US.UTF-8");
@@ -51,8 +52,20 @@ void EPDBSetUTF8Locale()
 static const wxMBConv &EPDBLegacyConv()
 {
 #if defined (__WIN32__)
-  static wxCSConv conv(wxFONTENCODING_SYSTEM); // The ANSI code page
-  return conv;
+  // The user's ANSI code page, not the process code page, which the
+  // manifest sets to UTF-8
+  static wxCSConv *conv = 0;
+  if(!conv) {
+    UINT cp = 0;
+    if(GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_IDEFAULTANSICODEPAGE | LOCALE_RETURN_NUMBER,
+		       (LPWSTR)&cp, sizeof(cp) / sizeof(WCHAR)) == 0 || cp == 0 || cp == CP_UTF8) cp = 1252;
+    conv = new wxCSConv(wxString::Format("cp%u", cp));
+    if(!conv->IsOk()) {
+      delete conv;
+      conv = new wxCSConv(wxFONTENCODING_CP1252);
+    }
+  }
+  return *conv;
 #else
   return wxConvISO8859_1;
 #endif

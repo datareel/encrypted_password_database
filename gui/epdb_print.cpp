@@ -639,8 +639,8 @@ void EPDBPrintout::PlanTable(wxDC *dc)
     table_cells.push_back(cells);
     int cell_index = (int)table_cells.size() - 1;
     double h = rows * line_h + row_pad;
-    double avail = content_bottom - (content_top + header_row_h);
-    if(y + h > content_bottom && h <= avail) {
+    double row_avail = content_bottom - (content_top + header_row_h);
+    if(y + h > content_bottom && h <= row_avail) {
       pages.push_back(page);
       page = Page();
       y = content_top;
