@@ -137,9 +137,36 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
 * Records: Add, Edit and Display share one two-column form. Security
   questions, Account information and Notes are multi-line. Every field
   holds up to 255 bytes (newlines count), shown by a counter. Editing a
-  password moves the old one to Previous password. CSV export writes a
-  line break in a field as a space and printing writes it as " / ", as
-  every record is one line.
+  password moves the old one to Previous password. CSV export keeps a
+  line break in a field inside a quoted field (RFC 4180, as Excel and
+  LibreOffice read it) and the CSV import reads it back; older CSV files
+  import as before.
+* Text: the database text is UTF-8, as epdb_auth_tool writes it, on
+  Linux and on Windows (the Windows program uses the UTF-8 code page,
+  Windows 10 1903 or later). Text written in the ANSI code page by an
+  older Windows version is still shown and is saved as UTF-8 when the
+  record is changed. Windows 2026.103 and older show non-ASCII text
+  saved by this version with the wrong characters.
+* File > Print: one dialog for the layout, the records and the page:
+  - Cards (the default): one block per record, the title in bold and
+    every chosen field in full, wrapped, with its line breaks. A record
+    that does not fit goes to the next page, one taller than a page goes
+    on with "(continued)".
+  - Table: one row per record, the columns fitted to the page width by
+    their content, cells wrapped (long links are broken anywhere), the
+    header row on every page and every other row shaded.
+  - Records: all, the search results or the selected rows.
+  - Fields: Password and Previous password are off until ticked, with a
+    warning that they are then printed in clear text.
+  - Paper (Letter, Legal, A4, A3, Tabloid), orientation, all four
+    margins (Normal, Narrow, Wide or custom), the database name, print
+    date, record count, search and a "passwords not printed" note at the
+    top and "Page n of N" at the bottom.
+  The settings are kept for each database (print_settings.txt next to
+  the configuration file); a database printed with 2026.103 starts with
+  its old page settings, the passwords off. Preview shows the same pages
+  that Print from the preview prints. File > Page Setup opens the same
+  dialog, File > Printer Setup the system printer dialog.
 * Users > Add User (RSA public key, the smart card in the reader or an
   exported cert file) and Remove User (pick the user from a list).
 * Edit > Preferences: File Locations, Security (encryption strength,
