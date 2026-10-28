@@ -141,12 +141,13 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
   line break in a field inside a quoted field (RFC 4180, as Excel and
   LibreOffice read it) and the CSV import reads it back; older CSV files
   import as before.
-* Text: the database text is UTF-8, as epdb_auth_tool writes it, on
-  Linux and on Windows (the Windows program uses the UTF-8 code page,
-  Windows 10 1903 or later). Text written in the ANSI code page by an
-  older Windows version is still shown and is saved as UTF-8 when the
-  record is changed. Windows 2026.103 and older show non-ASCII text
-  saved by this version with the wrong characters.
+* Text: the GUI text is now UTF-8 on Windows too, the same as Linux and
+  epdb_auth_tool (the Windows program uses the UTF-8 code page, which
+  needs Windows 10 version 1903 or later). Text written in the ANSI code
+  page by an older Windows version is still shown and is saved as UTF-8
+  when the record is changed. Windows 2026.103 and older show non-ASCII
+  values that are new or edited with this version as the wrong
+  characters.
 * File > Print: one dialog for the layout, the records and the page:
   - Cards (the default): one block per record, the title in bold and
     every chosen field in full, wrapped, with its line breaks. A record
