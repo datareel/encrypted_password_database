@@ -1497,6 +1497,11 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
   ::wxSetWorkingDirectory(progcfg->docDir.c_str());
 
   gxString database_file;
+  // 10/27/2026: A new dialog for every open. The dialog kept from the
+  // first open returned at once from ShowModal() on GTK, so a second
+  // database could not be opened.
+  if(unlock_dlg) unlock_dlg->Destroy();
+  unlock_dlg = new UnlockDialog(this);
   if(unlock_dlg->ShowPanel(database_file, start_file)) {
     // Make another frame, containing a canvas
     CryptDBDocument *subframe = new CryptDBDocument(frame, progcfg->ProgramName.c_str(),
@@ -1541,9 +1546,17 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     grid_frame->InitGrid();
 
     char dest[DBStringLength];
-    subframe->SetTitle(subframe->DBParms()->db_config.database_name.c_str(dest));
+    // 10/27/2026: The file name too when it differs from the database
+    // name, so copies of a database can be told apart
+    wxString title = wxString::FromUTF8(subframe->DBParms()->db_config.database_name.c_str(dest));
+    wxString file_name = wxFileName(wxString::FromUTF8(database_file.c_str())).GetName();
+    wxString full_name = wxFileName(wxString::FromUTF8(database_file.c_str())).GetFullName();
+    if(title.IsEmpty()) title = full_name;
+    else if(!file_name.IsEmpty() && file_name != title) title << " (" << full_name << ")";
+    subframe->SetTitle(title);
 
     subframe->Show(TRUE);
+    subframe->Activate(); // 10/27/2026: The database just opened is the active one
     // NOTE: 11/06/2014: When testing the database after an open the child frame is not set
     // NOTE: 11/06/2014: So the ReloadGrid() call was changed not to test the database
     //subframe->grid_frame->ReloadGrid(1);
