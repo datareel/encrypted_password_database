@@ -128,7 +128,7 @@ int EPDBParseCSV(const MemoryBuffer &data, gxList<EPDBRecord> &recs, gxString &e
 // Database info, read without a key except the record count
 struct EPDBInfo {
   EPDBInfo() { format = 0; records = -1; rsa_users = smartcard_users = 0; flags = key_generation = 0; rekey_time = 0;
-    sd_on = 0; sd_limit = sd_failed = 0; destroyed = 0; }
+    sd_on = 0; sd_limit = sd_failed = 0; destroyed = 0; index_order = -2; }
   int format;           // 1 or 2
   long records;         // -1 if not counted
   gxString id;          // Database ID (v2)
@@ -138,9 +138,27 @@ struct EPDBInfo {
   int sd_on;
   unsigned sd_limit, sd_failed;
   int destroyed;
+  int index_order;      // 10/27/2026: EPDBIndexInOrder(), -2 if not checked
   gxList<gxString> users; // "name (RSA key)" or "name (Smart Card)"
 };
 int EPDBGetInfo(const char *data_file, POD *pod, EPDBInfo &info, gxString &err);
+
+// 10/27/2026: Index key order. An index built by a program that compared
+// the keys differently (Windows 2026.103 and older on titles with bytes
+// above 127) is not in the order this program searches it in, so some
+// records are not found by title. The walk still returns every key.
+// Returns 1 if every key sorts after the one before it, 0 if not, -1 if
+// the index cannot be walked. key is the database key (the titles are
+// decrypted to compare them). keys and out_of_order, if given, are the
+// counts.
+int EPDBIndexInOrder(POD *pod, const MemoryBuffer &key, long *keys = 0, long *out_of_order = 0);
+
+// Rebuilds the index file of data_file from its records. The old index
+// is kept as <index>.backup-<YYYYmmdd-HHMMSS>, named in backup; the data
+// file is only read. With pod (the open database) its index is closed
+// and opened again; without it the files are opened here. Returns 0, or
+// -1 with err (the old index is then left in place).
+int EPDBRebuildIndex(const char *data_file, const MemoryBuffer &key, POD *pod, gxString &backup, gxString &err);
 gxString EPDBInfoJSON(const char *data_file, const EPDBInfo &info);
 
 // Merge: every record of the source is added to the destination. A

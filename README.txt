@@ -68,6 +68,26 @@ RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
   unchanged: the new settings use bytes 2026.102 and older never read
   (see db_auth.h) and 2026.102 opens databases written by this release.
 
+REBUILD THE INDEX OF DATABASES LAST WRITTEN ON WINDOWS (gui-phase3)
+-------------------------------------------------------------------
+Databases with titles that have characters beyond ASCII (accents,
+umlauts, other alphabets) and that were last written by the Windows
+version 2026.103 or older should have their index rebuilt once. The
+older Windows programs ordered those titles differently, so the index
+file (.ehx) can miss records when they are searched for by title: edit,
+delete, find and epdb_auth_tool --get-field or --show-record do not find
+them, although they are listed. The records themselves are not damaged.
+* The GUI checks the index when a database is opened and offers to
+  rebuild it (Rebuild the index / Not now). File > Rebuild Database
+  does the same at any time.
+* From the command line: epdb_auth_tool --rebuild-index db.ehd. The
+  --db-info output has a line "Index order: OK" or "needs rebuild".
+The rebuild makes the index again from the records, which are not
+changed, and keeps the old index as db.ehx.backup-YYYYmmdd-HHMMSS. A
+database with self-destruct on, or files that cannot be written, gets a
+message only. Databases written only on Linux, or with ASCII titles
+only, do not need it.
+
 THE GUI (DEVELOPMENT BRANCH gui-phase3, NOT YET RELEASED)
 ---------------------------------------------------------
 The GUI was redesigned. Every earlier menu item and accelerator is kept.

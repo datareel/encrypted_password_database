@@ -125,6 +125,7 @@ public: // Event handlers
   void MSWPrint();
   void MSWPrintPreview();
   void PrintRecords(); // 10/27/2026: The Print dialog
+  void CheckIndexOrder(CryptDBDocument *doc); // 10/27/2026: Offer to rebuild an index in a different key order
 #endif
 
 #ifdef __USE_APP_POSTSCRIPT_PRINTING__

@@ -592,6 +592,87 @@ int EPDBGetInfo(const char *data_file, POD *pod, EPDBInfo &info, gxString &err)
   return 0;
 }
 
+int EPDBIndexInOrder(POD *pod, const MemoryBuffer &key_in, long *keys, long *out_of_order)
+// Every record the index holds (found by the walk of its nodes, which
+// does not compare keys) must also be found by a search for its title,
+// which follows the key order. A search that misses means the index was
+// built with a different key order.
+{
+  EPDBKeyScope scope(key_in);
+  if(keys) *keys = 0;
+  if(out_of_order) *out_of_order = 0;
+  if(!pod || !pod->UsingIndex() || !pod->Index()) return -1;
+  gxBtree *btx = pod->Index();
+  btx->TestTree();
+  gxList<FAU_t> addrs;
+  gxString err;
+  if(EPDBIndexAddresses(pod, addrs, err) != 0) return -1;
+  long n = 0, bad = 0;
+  for(gxListNode<FAU_t> *a = addrs.GetHead(); a; a = a->next) {
+    INFOHOG ih(pod);
+    if(!ih.ReadObject(a->data) || ih.GetMemberLen(0) != sizeof(INFOHOG_t)) continue;
+    n++;
+    INFOHOGKEY key(*((INFOHOG_t *)ih.GetMember(0))), compare_key;
+    if(!btx->Find(key, compare_key, 0) || (FAU_t)key.ObjectID() != a->data) bad++;
+  }
+  if(keys) *keys = n;
+  if(out_of_order) *out_of_order = bad;
+  return bad == 0 ? 1 : 0;
+}
+
+int EPDBRebuildIndex(const char *data_file, const MemoryBuffer &key, POD *pod_in, gxString &backup, gxString &err)
+{
+  EPDBKeyScope scope(key);
+  backup.Clear();
+  gxString dfile(data_file);
+  if(dfile.length() < 5 || CaseICmp(gxString(dfile.c_str() + dfile.length() - 4), ".ehd") != 0) {
+    err << clear << "The database file name must end in .ehd";
+    return -1;
+  }
+  gxString ifile = ReplaceFileExtension(dfile, ".ehx");
+  gxString tfile = ifile;
+  tfile << ".rebuild";
+  futils_remove(tfile.c_str());
+  POD *pod = pod_in;
+  if(!pod) {
+    pod = EPDBOpenPOD(dfile, ifile, gxDBASE_READWRITE, err);
+    if(!pod) return -1;
+  }
+  INFOHOG infohog(pod);
+  int inserted = infohog.RebuildIndexFile(tfile.c_str(), 0, InfoHogNumTrees, InfoHogNodeOrder);
+  if(!inserted) {
+    futils_remove(tfile.c_str());
+    if(!pod_in) delete pod;
+    err << clear << "The index of " << data_file << " could not be rebuilt, the old index is unchanged";
+    return -1;
+  }
+  char stamp[32];
+  time_t now = time(0);
+  strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", localtime(&now));
+  backup << clear << ifile << ".backup-" << stamp;
+  pod->CloseIndex(0);
+  int rv = 0;
+  if(rename(ifile.c_str(), backup.c_str()) != 0) {
+    err << clear << "Could not keep the old index as " << backup;
+    backup.Clear();
+    rv = -1;
+  }
+  else if(rename(tfile.c_str(), ifile.c_str()) != 0) {
+    err << clear << "Could not put the new index in place, the old index is " << backup;
+    rename(backup.c_str(), ifile.c_str());
+    backup.Clear();
+    rv = -1;
+  }
+  futils_remove(tfile.c_str());
+  INFOHOGKEY key_type;
+  if(pod->OpenIndex(ifile.c_str(), 0, key_type, InfoHogNodeOrder, gxDBASE_READWRITE) != gxDBASE_NO_ERROR && rv == 0) {
+    err << clear << "The index was rebuilt but could not be opened again";
+    rv = -1;
+  }
+  if(!pod_in) delete pod;
+  return rv;
+}
+
 gxString EPDBInfoJSON(const char *data_file, const EPDBInfo &info_in)
 {
   EPDBInfo &info = (EPDBInfo &)info_in;
@@ -601,6 +682,7 @@ gxString EPDBInfoJSON(const char *data_file, const EPDBInfo &info_in)
   s << ", \"id\": " << FC_json_string(info.id);
   s << ", \"key_generation\": " << info.key_generation << ", \"last_rekey_time\": " << (unsigned long)info.rekey_time;
   s << ", \"in_file_log\": " << ((info.flags & EPDB_EXT_LOG_IN_FILE) ? "true" : "false");
+  if(info.index_order >= -1) s << ", \"index_order\": " << (info.index_order == 1 ? "\"ok\"" : (info.index_order == 0 ? "\"needs rebuild\"" : "\"error\""));
   s << ", \"self_destruct\": " << (info.sd_on ? "true" : "false") << ", \"self_destruct_attempts\": " << info.sd_limit
     << ", \"failed_opens\": " << info.sd_failed << ", \"destroyed\": " << (info.destroyed ? "true" : "false");
   s << ", \"users\": [";

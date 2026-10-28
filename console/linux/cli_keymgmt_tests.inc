@@ -200,7 +200,7 @@ check $? "a held lock makes a writer exit 4 after --lock-timeout"
 wait
 newdb kw 0
 for i in $(seq 1 10); do
-    printf 'username=w%d\n' $i | ${TOOL} ${A} --add-record=W$i kw.ehd >>${logFILE} 2>&1 &
+    printf 'username=w%d\n' $i | ${TOOL} ${A} --lock-timeout=60 --add-record=W$i kw.ehd >>${logFILE} 2>&1 &
 done
 wait
 n=$(${TOOL} ${A} --db-list kw.ehd 2>/dev/null | wc -l)
@@ -420,3 +420,36 @@ if [ "${COMPAT_DIR}" != "" ]; then
     ${COMPAT} --rsa-key=k_alice.pem --rsa-key-username=alice --db-list kk.ehd >/dev/null 2>>${logFILE}
     check $? "the 2026.102 build opens a rekeyed, password-less database with the kept RSA user"
 fi
+
+# ---- 10/27/2026: Index key order ----
+# testdata/windows_2026_103_index.tar.gz: 30 records with non-ASCII titles
+# imported by the Windows 2026.103 epdb_auth_tool, whose key compare
+# ordered the index differently (password TestPass-1234)
+tar xzf ${NEW_DIR}/testdata/windows_2026_103_index.tar.gz
+printf 'TestPass-1234\n' > w103_pw.txt; chmod 600 w103_pw.txt
+W="--password-file=w103_pw.txt --non-interactive"
+w103_found() {
+    python3 -I -c "
+import json, subprocess, sys
+found = 0
+for r in json.load(open('recs.json')):
+    p = subprocess.run([sys.argv[1], '--password-file=w103_pw.txt', '--non-interactive', '--get-field=%s:username' % r['title'], 'w103.ehd'], capture_output=True)
+    found += p.returncode == 0 and p.stdout.decode('utf-8').strip() == r['username']
+print(found)" ${TOOL}
+}
+data_sum=$(sha256sum w103.ehd | cut -d' ' -f1)
+${TOOL} ${W} --db-info w103.ehd > out.txt 2>>${logFILE}
+grep -q "Index order: needs rebuild (13 of 30 records not found by title" out.txt && [ "$(w103_found)" = "17" ]
+check $? "an index built by Windows 2026.103: --db-info says it needs a rebuild, 17 of 30 titles found"
+${TOOL} ${W} --db-info --json w103.ehd 2>>${logFILE} | python3 -I -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['index_order'] == 'needs rebuild' else 1)"
+check $? "--db-info --json reports the index order"
+${TOOL} ${W} --rebuild-index w103.ehd > out.txt 2>>${logFILE}
+[ $? -eq 0 ] && ls w103.ehx.backup-* >/dev/null 2>&1 && [ "$(sha256sum w103.ehd | cut -d' ' -f1)" = "${data_sum}" ]
+check $? "--rebuild-index keeps the old index as a backup and does not change the data file"
+${TOOL} ${W} --db-info w103.ehd 2>>${logFILE} | grep -q "Index order: OK" && [ "$(w103_found)" = "30" ]
+check $? "after --rebuild-index all 30 titles are found and the index order is OK"
+newdb kascii 0
+for i in 1 2 3; do printf 'username=a%d\n' $i | ${TOOL} ${A} --add-record=Ascii$i kascii.ehd >>${logFILE} 2>&1; done
+sum_before=$(cat kascii.ehd kascii.ehx | sha256sum)
+${TOOL} ${A} --db-info kascii.ehd 2>>${logFILE} | grep -q "Index order: OK" && [ "$(cat kascii.ehd kascii.ehx | sha256sum)" = "${sum_before}" ] && ! ls kascii.ehx.backup-* >/dev/null 2>&1
+check $? "an ASCII database: index order OK, --db-info changes nothing"

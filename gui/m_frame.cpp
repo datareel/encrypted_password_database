@@ -1563,6 +1563,7 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
       subframe->GetGrid()->SetGridCursor(0, 0);
       subframe->details->ShowRow(0);
     }
+    CheckIndexOrder(subframe); // 10/27/2026
   }
   else {
     ::wxSetWorkingDirectory(work_dir.c_str());
@@ -1571,6 +1572,50 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
 
   // CD to the program's working directory
   ::wxSetWorkingDirectory(work_dir.c_str());
+}
+
+void MainFrame::CheckIndexOrder(CryptDBDocument *doc)
+// 10/27/2026: An index built with a different key order (Windows
+// 2026.103 and older, on titles with characters above ASCII) misses some
+// records when they are searched for by title. The index is rebuilt from
+// the records when the user agrees; the old index is kept as a backup.
+// A file that cannot be written, or has self-destruct on, gets a message
+// only. It is never rebuilt without asking.
+{
+  if(!doc || !doc->GetPOD()) return;
+  long keys = 0, missed = 0;
+  if(EPDBIndexInOrder(doc->GetPOD(), doc->DBParms()->crypt_key, &keys, &missed) != 0) return;
+  wxString name = wxFileName(EPDBFromDB(doc->DBParms()->data_file.c_str())).GetFullName();
+  gxString ifile = ReplaceFileExtension(doc->DBParms()->data_file, ".ehx");
+  FCControlBlock c;
+  int sd_on = EPDBReadControl(doc->DBParms()->data_file.c_str(), c) && c.SelfDestruct();
+  int writable = wxFileName::IsFileWritable(EPDBFromDB(doc->DBParms()->data_file.c_str())) &&
+    wxFileName::IsFileWritable(EPDBFromDB(ifile.c_str()));
+  wxString what = wxString::Format("The index of %s was built by an older version of this program, and %ld of "
+				   "its %ld records cannot be found by their title (edit, delete and find can "
+				   "miss them).", name, missed, keys);
+  if(!writable || sd_on) {
+    wxMessageBox(what + "\n\n" + (sd_on ? "Self-destruct is on for this database, so the index is not "
+				     "rebuilt here. Turn self-destruct off, then use File > Rebuild Database."
+				   : "The database files cannot be written. Copy them to a folder you can write to, "
+				     "then use File > Rebuild Database."),
+		 "Database index", wxOK | wxICON_WARNING, this);
+    return;
+  }
+  wxMessageDialog dlg(this, what + "\n\nRebuild the index now? It is made again from the records, which "
+		      "are not changed. The current index is kept as a backup copy.",
+		      "Database index", wxYES_NO | wxYES_DEFAULT | wxICON_QUESTION);
+  dlg.SetYesNoLabels("Rebuild the index", "Not now");
+  if(dlg.ShowModal() != wxID_YES) return;
+  gxString backup, err;
+  if(EPDBRebuildIndex(doc->DBParms()->data_file.c_str(), doc->DBParms()->crypt_key, doc->GetPOD(), backup, err) != 0) {
+    ProgramError->Message(err.c_str());
+    return;
+  }
+  doc->GridFrame()->ReloadGrid(0);
+  *(statusWin) << "Rebuilt the index of " << name << ", the old index is " << EPDBFromDB(backup.c_str()) << "\n";
+  wxMessageBox(wxString::Format("The index was rebuilt. The old index is kept as\n%s", EPDBFromDB(backup.c_str())),
+	       "Database index", wxOK | wxICON_INFORMATION, this);
 }
 
 void MainFrame::OnCloseStatusWin(wxCommandEvent& WXUNUSED(event))
@@ -2021,8 +2066,17 @@ void MainFrame::OnRebuild(wxCommandEvent& event)
     dpanel->ClosePanel();
   }
 
-  RebuildIndexFile(child_frame->DBParms()->index_file,
-  		   child_frame->GetPOD(), 1, 1);
+  // 10/27/2026: The rebuild keeps the old index as a backup copy
+  gxString backup, err;
+  if(EPDBRebuildIndex(child_frame->DBParms()->data_file.c_str(), child_frame->DBParms()->crypt_key,
+		      child_frame->GetPOD(), backup, err) != 0) {
+    ProgramError->Message(err.c_str());
+    return;
+  }
+  child_frame->GridFrame()->ReloadGrid(0);
+  *(statusWin) << "The index file was rebuilt, the old index is " << EPDBFromDB(backup.c_str()) << "\n";
+  wxMessageBox(wxString::Format("The index was rebuilt. The old index is kept as\n%s", EPDBFromDB(backup.c_str())),
+	       "Rebuild Database", wxOK | wxICON_INFORMATION, this);
 }
 
 void MainFrame::OnRebuildConfig(wxCommandEvent& event)

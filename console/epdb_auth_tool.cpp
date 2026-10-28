@@ -151,6 +151,7 @@ gxString get_field;             // --get-field=record:field
 gxString output_file;           // --output-file
 gxString show_record_name;      // --show-record
 int db_info = 0;                // --db-info
+int rebuild_index = 0;          // 10/27/2026: --rebuild-index
 int export_db = 0;              // --export[=csv|json]
 int export_json = 0;
 int import_db = 0;              // --import
@@ -1034,6 +1035,7 @@ void HelpMessage()
   cout << "          --show-record=name (Show one record, all fields)" << "\n" << flush;
   cout << "          --get-field=record:field (Write only the value of one field, for scripts, never logged)" << "\n" << flush;
   cout << "          --db-info (Format, records, users, key generation, logging and self-destruct settings)" << "\n" << flush;
+  cout << "          --rebuild-index (Rebuild the index file from the records, the old one is kept as a backup)" << "\n" << flush;
   cout << "          --export[=csv|json] (Write every record, CSV as the GUI writes it, to stdout or --output-file)" << "\n" << flush;
   cout << "          --import (Add the JSON or CSV records read from stdin, --record-fd or --record-file, all or nothing)" << "\n" << flush;
   cout << "          --merge-from=other.ehd (Add the records of another database, all or nothing)" << "\n" << flush;
@@ -1699,6 +1701,10 @@ int ProcessDashDashArg(gxString &arg)
     db_info = 1;
     has_valid_args = 1;
   }
+  if(arg == "rebuild-index") { // 10/27/2026
+    rebuild_index = 1;
+    has_valid_args = 1;
+  }
   if(arg == "export") {
     gxString f = equal_arg;
     f.ToLower();
@@ -2092,7 +2098,7 @@ int ReadOperationInput()
 int WillWrite(const gxString &fname)
 // Returns 1 if this run may change the file, so it takes the lock
 {
-  if(record_op || remove_user || rekey || upgrade_db || reseal_db || add_rsa_key || import_db ||
+  if(record_op || remove_user || rekey || upgrade_db || reseal_db || add_rsa_key || import_db || rebuild_index ||
      !merge_from.is_null() || access_log_in_file >= 0 || self_destruct >= 0 || self_destruct_attempts) return 1;
 #ifdef __ENABLE_SMART_CARD__
   if(add_smart_card) return 1;
@@ -2913,6 +2919,8 @@ static int DatabaseInfo(const gxString &fname, MemoryBuffer &file_key)
   EPDBInfo info;
   gxString err;
   int rv = EPDBGetInfo(fname.c_str(), pod, info, err);
+  long keys = 0, out_of_order = 0;
+  if(rv == 0) info.index_order = EPDBIndexInOrder(pod, file_key, &keys, &out_of_order); // 10/27/2026
   delete pod;
   if(rv != 0) {
     cerr << "ERROR: " << err.c_str() << "\n" << flush;
@@ -2941,9 +2949,45 @@ static int DatabaseInfo(const gxString &fname, MemoryBuffer &file_key)
     if(info.sd_on) cout << ", " << FC_sd_message(info.sd_failed, info.sd_limit).c_str();
     cout << "\n";
   }
+  cout << "Index order: ";
+  if(info.index_order == 1) cout << "OK";
+  else if(info.index_order == 0) cout << "needs rebuild (" << out_of_order << " of " << keys
+				       << " records not found by title, use --rebuild-index)";
+  else cout << "could not be checked";
+  cout << "\n";
   cout << "RSA key users: " << info.rsa_users << ", smart card users: " << info.smartcard_users << "\n";
   for(gxListNode<gxString> *p = info.users.GetHead(); p; p = p->next) cout << "  " << p->data.c_str() << "\n";
   cout << flush;
+  return 0;
+}
+
+static int RebuildIndex(const gxString &fname, MemoryBuffer &file_key)
+// 10/27/2026: The GUI's File > Rebuild Database, with a backup
+{
+  gxString backup, err;
+  if(EPDBRebuildIndex(fname.c_str(), file_key, 0, backup, err) != 0) {
+    cerr << "ERROR: " << err.c_str() << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
+  POD *pod;
+  long keys = 0, bad = 0;
+  int order = -1;
+  if(OpenRead(fname, &pod)) {
+    order = EPDBIndexInOrder(pod, file_key, &keys, &bad);
+    delete pod;
+  }
+  if(!quiet_mode) {
+    cout << "Rebuilt the index of " << fname.c_str() << ": " << keys << " records, order "
+	 << (order == 1 ? "OK" : "not OK") << "\n";
+    cout << "The old index is kept as " << backup.c_str() << "\n" << flush;
+  }
+  LogEvent(fname, "rebuild-index", AuthSlotName(), gxString(), 1, "", &file_key);
+  if(order != 1) {
+    cerr << "ERROR: The rebuilt index is not in order" << "\n" << flush;
+    SetExit(FC_EXIT_IO);
+    return -1;
+  }
   return 0;
 }
 
@@ -2952,6 +2996,10 @@ int ExtraOps(const gxString &fname, MemoryBuffer &file_key, int is_v2)
 // of operations, or -1 if one failed.
 {
   int n = 0;
+  if(rebuild_index) { // 10/27/2026: First, so the other operations use the new index
+    n++;
+    if(RebuildIndex(fname, file_key) != 0) return -1;
+  }
   if(import_db) {
     n++;
     if(ImportOrMerge(fname, file_key, input_records, "import") != 0) return -1;
