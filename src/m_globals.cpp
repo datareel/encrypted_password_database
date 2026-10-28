@@ -136,20 +136,76 @@ void UnescapeCSVFormula(gxString &value)
 }
 
 void AppendCSVField(gxString &out, const gxString &value, char delimiter, char filter)
-// 10/25/2026: Append one export field. The filter character and line
-// breaks, which would split the record, are removed, formulas are
-// escaped and fields with the delimiter are quoted.
+// 10/25/2026: Append one export field. The filter character is removed,
+// formulas are escaped and fields with the delimiter are quoted.
+// 10/27/2026: Line breaks are kept: a field with the delimiter, a double
+// quote or a line break is quoted with its quotes doubled (RFC 4180, as
+// spreadsheets read it). CR LF is written as LF.
 {
   gxString v(value);
   if(filter) v.FilterChar(filter);
-  v.ReplaceChar('\r', ' ');
-  v.ReplaceChar('\n', ' ');
+  v.ReplaceString("\r\n", "\n");
+  v.ReplaceChar('\r', '\n');
   EscapeCSVFormula(v);
   gxString d;
   d << delimiter;
-  if(v.Find(d) != -1) out << "\"" << v << "\"";
+  if((v.Find(d) != -1) || (v.Find("\"") != -1) || (v.Find("\n") != -1)) {
+    v.ReplaceString("\"", "\"\"");
+    out << "\"" << v << "\"";
+  }
   else out << v;
   SecureWipe(v);
+}
+
+int ParseCSVRecord(const gxString &rec, gxString *fields, unsigned max_fields, unsigned &num,
+		   int &open, int &rfc)
+// 10/27/2026: Splits one CSV record, which can span lines. A quote at the
+// start of a field opens a quoted field, "" in it is one quote, and a
+// quote before a comma or the end of the record closes it. Any other
+// quote is kept, as files written before quotes were doubled have them.
+// Unquoted fields have their leading and trailing spaces removed.
+// open is set if the record ends inside a quoted field, rfc if a quoted
+// field has a line break or a doubled quote. Returns 0, or -1 if the
+// record ends inside a quoted field.
+{
+  const char *p = rec.c_str();
+  unsigned len = rec.length(), pos = 0;
+  num = 0;
+  open = 0;
+  rfc = 0;
+  for(;;) {
+    gxString f;
+    if(pos < len && p[pos] == '"') {
+      pos++;
+      int closed = 0;
+      while(pos < len) {
+	if(p[pos] == '"') {
+	  if(pos + 1 < len && p[pos+1] == '"') { f << '"'; pos += 2; rfc = 1; continue; }
+	  if(pos + 1 >= len || p[pos+1] == ',') { pos++; closed = 1; break; }
+	  f << '"'; pos++; // A quote inside an old style quoted field
+	  continue;
+	}
+	if(p[pos] == '\n') rfc = 1;
+	f << p[pos++];
+      }
+      if(!closed) {
+	open = 1;
+	SecureWipe(f);
+	return -1;
+      }
+    }
+    else {
+      while(pos < len && p[pos] != ',') f << p[pos++];
+      f.TrimLeadingSpaces();
+      f.TrimTrailingSpaces();
+    }
+    if(num < max_fields) fields[num] = f;
+    num++;
+    SecureWipe(f);
+    if(pos < len && p[pos] == ',') { pos++; continue; }
+    break;
+  }
+  return 0;
 }
 
 int WritePrivateFile(const char *fname, const char *data, unsigned len, gxString &err)

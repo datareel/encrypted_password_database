@@ -135,6 +135,40 @@ ${TOOL} ${A} --import --record-file=k_exp.csv --input-format=csv kc.ehd >>${logF
 ${TOOL} ${A} --get-field=R007:password kc.ehd > out.txt 2>>${logFILE}
 [ "$(cat out.txt)" = 'p"w\7' ]
 check $? "CSV import of the GUI export format"
+# 10/27/2026: Line breaks in a field are kept in a quoted CSV field
+${TOOL} ${A} --get-field=R007:notes kc.ehd > out.txt 2>>${logFILE}
+[ "$(cat out.txt)" = "$(printf 'line1\nline2')" ]
+check $? "CSV export and import keep the line breaks of a field"
+newdb km 0
+python3 -I -c "
+import json
+recs=[{'title':'ML, \"one\"','username':'a,b','security-questions':'Q1? \"blue\", red\nQ2? 42','notes':'first\n\n\"quoted\", line\nlast'}]
+open('k_ml.json','w').write(json.dumps(recs))"
+chmod 600 k_ml.json
+${TOOL} ${A} --import --record-file=k_ml.json km.ehd >>${logFILE} 2>&1
+${TOOL} ${A} --export --output-file=k_ml.csv km.ehd >>${logFILE} 2>&1
+python3 -I -c "
+import csv,sys
+rows=[r for r in csv.reader(open('k_ml.csv',newline='')) if r and r[0].strip()]
+r=rows[-1]
+sys.exit(0 if r[0]=='ML, \"one\"' and r[4]=='Q1? \"blue\", red\nQ2? 42' and r[7]=='first\n\n\"quoted\", line\nlast' else 1)"
+check $? "CSV export of quotes, commas and line breaks reads back in a spreadsheet CSV reader"
+newdb km2 0
+${TOOL} ${A} --import --record-file=k_ml.csv --input-format=csv km2.ehd >>${logFILE} 2>&1
+${TOOL} ${A} --export=json --quiet km.ehd > k_ml1.json 2>>${logFILE}
+${TOOL} ${A} --export=json --quiet km2.ehd > k_ml2.json 2>>${logFILE}
+python3 -I -c "
+import json,sys
+a=json.load(open('k_ml1.json')); b=json.load(open('k_ml2.json'))
+sys.exit(0 if a and a==b else 1)"
+check $? "CSV round trip of quotes, commas and line breaks"
+printf 'Title,Username,Password,Previous Password,Security Questions,Account Information,Website Link,Notes,\n\nOld1,u1,"p,1",  ,q1 a2,acct,https://x.example,old note,\n' > k_old.csv
+chmod 600 k_old.csv
+newdb km3 0
+${TOOL} ${A} --import --record-file=k_old.csv --input-format=csv km3.ehd >>${logFILE} 2>&1
+[ "$(${TOOL} ${A} --get-field=Old1:password km3.ehd 2>>${logFILE})" = "p,1" ] && \
+[ "$(${TOOL} ${A} --get-field=Old1:notes km3.ehd 2>>${logFILE})" = "old note" ]
+check $? "CSV import of an older single line export"
 ${TOOL} ${A} --merge-from=kj.ehd --merge-policy=skip kc.ehd > out.txt 2>&1
 grep -q "0 added, 0 replaced, 200 skipped" out.txt
 check $? "--merge-from with --merge-policy=skip"

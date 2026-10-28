@@ -250,8 +250,43 @@ static int SelfTest(const char *dir)
     }
   }
   gxString out;
-  AppendCSVField(out, gxString("a,b\nc"), ',', '\t');
-  if(out != gxString("\"a,b c\"")) { cerr << "FAIL: AppendCSVField " << out.c_str() << "\n"; fails++; }
+  AppendCSVField(out, gxString("a,b\r\nc"), ',', '\t');
+  if(out != gxString("\"a,b\nc\"")) { cerr << "FAIL: AppendCSVField " << out.c_str() << "\n"; fails++; }
+
+  // 10/27/2026: Line breaks, quotes and commas round trip through a CSV
+  // record, and older single line records split as before
+  const char *row[] = { "Title", "say \"hi\", ok\nline 2", "", "=1+1", "Q1? \"blue\"\nQ2? 42",
+			"plain", "https://example.com/a,b", "Notes\n\nlast \"line\"", 0 };
+  gxString rec;
+  int nrow = 0;
+  for(int i = 0; row[i]; i++, nrow++) {
+    if(i > 0) rec << ",";
+    AppendCSVField(rec, gxString(row[i]), ',', '\t');
+  }
+  gxString fields[12];
+  unsigned num = 0;
+  int open = 0, rfc = 0;
+  if(ParseCSVRecord(rec, fields, 12, num, open, rfc) != 0 || num != (unsigned)nrow || !rfc) {
+    cerr << "FAIL: ParseCSVRecord of an exported record" << "\n"; fails++;
+  }
+  else {
+    for(int i = 0; i < nrow; i++) {
+      UnescapeCSVFormula(fields[i]);
+      if(fields[i] != gxString(row[i])) {
+	cerr << "FAIL: CSV round trip of field " << i << ": " << fields[i].c_str() << "\n"; fails++;
+      }
+    }
+  }
+  // A record cut inside a quoted field is open
+  if(ParseCSVRecord(gxString("x,\"line 1"), fields, 12, num, open, rfc) == 0 || !open) {
+    cerr << "FAIL: ParseCSVRecord open quoted field" << "\n"; fails++;
+  }
+  // Older exports: no doubled quotes, a quote inside a quoted field is kept
+  if(ParseCSVRecord(gxString("\"a\"b,c\", plain ,P@ss\"w"), fields, 12, num, open, rfc) != 0 ||
+     num != 3 || rfc || fields[0] != gxString("a\"b,c") || fields[1] != gxString("plain") ||
+     fields[2] != gxString("P@ss\"w")) {
+    cerr << "FAIL: ParseCSVRecord of an older style record" << "\n"; fails++;
+  }
 
   gxString fname, err;
   fname << dir << "/private_file.txt";

@@ -62,6 +62,86 @@ static int ReadImportLine(DiskFileB &stream, char *buf, unsigned buf_len, int &b
   return got;
 }
 
+static int ReadImportRecord(DiskFileB &stream, char *buf, unsigned buf_len, int &bad_line,
+			    gxString &rec, int &rfc)
+// 10/27/2026: Read one CSV record. A quoted field with line breaks
+// (written by this version's export or a spreadsheet) spans lines, which
+// are joined with LF. If the quote does not close within the size of a
+// record, the first line is read alone as before, for older files with a
+// value that starts with a quote. rfc is set if the record has a quoted
+// field with a line break or a doubled quote. Returns 0 at end of file.
+{
+  rec.Clear();
+  rfc = 0;
+  if(!ReadImportLine(stream, buf, buf_len, bad_line)) return 0;
+  if(bad_line) return 1;
+  rec = buf;
+  rec.TrimTrailing('\n');
+  rec.TrimTrailing('\r');
+  gxString fields[NumDataMembers + 2];
+  unsigned num = 0;
+  int open = 0;
+  if(ParseCSVRecord(rec, fields, NumDataMembers + 2, num, open, rfc) == 0) {
+    for(unsigned i = 0; i < NumDataMembers + 2; i++) SecureWipe(fields[i]);
+    return 1;
+  }
+  // Join the next lines while the quoted field is open
+  const unsigned max_record = NumDataMembers * (2 * DBStringLength + 3);
+  FAU_t next_line = stream.df_Tell();
+  gxString joined(rec);
+  int ok = 0;
+  for(int lines = 0; lines < DBStringLength && joined.length() <= max_record; lines++) {
+    int bad = 0;
+    if(!ReadImportLine(stream, buf, buf_len, bad) || bad) break;
+    gxString line(buf);
+    line.TrimTrailing('\n');
+    line.TrimTrailing('\r');
+    joined << "\n" << line;
+    SecureWipe(line);
+    if(ParseCSVRecord(joined, fields, NumDataMembers + 2, num, open, rfc) == 0) {
+      ok = (num <= (unsigned)NumDataMembers + 1);
+      break;
+    }
+  }
+  for(unsigned i = 0; i < NumDataMembers + 2; i++) SecureWipe(fields[i]);
+  if(ok) {
+    SecureWipe(rec);
+    rec = joined;
+    rfc = 1;
+  }
+  else {
+    stream.df_Seek(next_line); // Read the first line alone
+    rfc = 0;
+  }
+  SecureWipe(joined);
+  return 1;
+}
+
+static int SkipImportRecord(const gxString &rec, CryptDBDocument *child_frame)
+// 10/27/2026: A record with no values (a header line of a database
+// without column names) or the column names line, with this database's
+// names or the default ones, is not imported
+{
+  gxString fields[NumDataMembers + 2];
+  unsigned num = 0;
+  int open = 0, rfc = 0;
+  int skip = 0;
+  if(ParseCSVRecord(rec, fields, NumDataMembers + 2, num, open, rfc) == 0) {
+    int empty = 1, own = 0, defaults = 0;
+    char dest[DBStringLength];
+    for(int i = 0; i < NumDataMembers; i++) {
+      if(i < (int)num && !fields[i].is_null()) empty = 0;
+      if(i < (int)num) {
+	if(fields[i] == child_frame->DBParms()->db_config.GetColName(i, dest)) own++;
+	if(fields[i] == progcfg->global_dbparms.dbgrid_labels[i]) defaults++;
+      }
+    }
+    skip = empty || own == NumDataMembers || defaults == NumDataMembers;
+  }
+  for(unsigned i = 0; i < NumDataMembers + 2; i++) SecureWipe(fields[i]);
+  return skip;
+}
+
 int has_grid_labels(const char *line, CryptDBDocument *child_frame) 
 {
   char dest[DBStringLength]; 
@@ -101,8 +181,18 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
   while(!stream.df_EOF()) { // Read in file line by line
     ::wxYield(); // Allow the GUI to update the display
 
-    if(!ReadImportLine(stream, LineBuffer, MaxLine, bad_line)) break;
+    gxString rec;
+    int rfc = 0;
+    if(!ReadImportRecord(stream, LineBuffer, MaxLine, bad_line, rec, rfc)) break;
     if(bad_line) continue;
+    if(SkipImportRecord(rec, child_frame)) { SecureWipe(rec); continue; }
+    if(rfc) { // 10/27/2026: A record with quoted line breaks or quotes
+      rec.TrimLeadingSpaces();
+      if(!rec.is_null() && rec[0] != ',') num_object_lines++;
+      SecureWipe(rec);
+      continue;
+    }
+    SecureWipe(rec);
     
     // Copy contents of the array to temporary holding buffer
     sbuf = LineBuffer;
@@ -265,16 +355,21 @@ Exiting the import operation");
       }
     }
 
-    if(!ReadImportLine(stream, LineBuffer, MaxLine, bad_line)) break;
+    gxString rec;
+    int rfc = 0;
+    if(!ReadImportRecord(stream, LineBuffer, MaxLine, bad_line, rec, rfc)) break;
     linecount++;
     if(bad_line) {
       *(frame->statusWin) << "Skipped line " << (int)linecount
 			  << ": longer than " << (int)(MaxLine-1) << " characters or has a NUL character" << "\n";
       continue;
     }
+    if(SkipImportRecord(rec, child_frame)) { SecureWipe(rec); continue; }
     
     // Copy contents of the array to temporary holding buffer
-    sbuf = LineBuffer;
+    // 10/27/2026: A record with quoted line breaks or doubled quotes is
+    // split exactly, older single line records as before
+    sbuf = rfc ? wxString::FromUTF8(rec.c_str()) : wxString(LineBuffer);
     
     // Strip all line feeds and carriage returns
     wxStrStripChar(sbuf, '\r');
@@ -295,7 +390,17 @@ Exiting the import operation");
       if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
 
       gxString gxbuf = sbuf;
-      csv_array = ParseCVSLine(gxbuf, num);
+      if(rfc) {
+	unsigned n = 0;
+	int open = 0, has_rfc = 0;
+	csv_array = new gxString[NumDataMembers + 2];
+	ParseCSVRecord(rec, csv_array, NumDataMembers + 2, n, open, has_rfc);
+	num = (n > (unsigned)NumDataMembers + 2) ? NumDataMembers + 2 : n;
+      }
+      else {
+	csv_array = ParseCVSLine(gxbuf, num);
+      }
+      SecureWipe(rec);
 
       if(!csv_array[0].is_null()) {
 	// Import or update each object

@@ -128,6 +128,8 @@ int CSVFormulaPrefixLength(const gxString &value);
 void EscapeCSVFormula(gxString &value);
 void UnescapeCSVFormula(gxString &value);
 void AppendCSVField(gxString &out, const gxString &value, char delimiter, char filter);
+int ParseCSVRecord(const gxString &rec, gxString *fields, unsigned max_fields, unsigned &num,
+		   int &open, int &rfc); // 10/27/2026
 int WritePrivateFile(const char *fname, const char *data, unsigned len, gxString &err);
 int CheckPrivateKeyFile(const char *fname, gxString &err); // 10/25/2026
 gxString ReplaceFileExtension(const gxString &fname, const char *ext); // 10/25/2026

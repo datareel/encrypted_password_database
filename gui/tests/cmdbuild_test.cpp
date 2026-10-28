@@ -227,6 +227,11 @@ static void CommandTests()
 	EPDBBuildCommand(o, EPDB_SHELL_BASH, r, err) == 0 && Contains(r.command, "'--add-record=My Bank'") &&
 	Contains(r.command, "--record-file=/home/me/rec.txt") && Contains(r.command, "--dry-run"), r.command + err);
   Check("the sample input has no real password", Contains(r.input_sample, "(the password)"));
+  // 10/27/2026: A line break in a value points to the record file
+  o.record_name = "Two\nlines";
+  Check("cmd: a line break is refused with a pointer to --record-file",
+	EPDBBuildCommand(o, EPDB_SHELL_CMD, r, err) != 0 && Contains(err, "--record-file") && Contains(err, "cmd.exe"), err);
+  o.record_name = "My Bank";
 
   o.operation = EPDB_OP_SHOW_RECORD;
   Check("--dry-run is left out for operations that do not support it",

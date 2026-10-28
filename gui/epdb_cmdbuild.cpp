@@ -528,6 +528,14 @@ int EPDBBuildCommand(const EPDBCmdOptions &opt, int shell, EPDBCmdResult &result
   for(size_t i = 0; i < b.args.size(); i++) {
     std::string q;
     if(EPDBQuoteArg(b.args[i], shell, q) != 0) {
+      // 10/27/2026: Point multi-line values to a record file
+      if(b.args[i].find('\n') != std::string::npos || b.args[i].find('\r') != std::string::npos) {
+	err = "A value has a line break, which ";
+	err += (shell == EPDB_SHELL_CMD) ? "cmd.exe" : "this shell";
+	err += " cannot pass on the command line. Put multi-line values in a record file "
+	  "(Record values: from a file, --record-file) or JSON (--input-format=json) instead.";
+	return -1;
+      }
       err = "A value has a double quote, a line break or (PowerShell) a trailing backslash, which this shell "
 	"cannot pass safely: " + b.args[i];
       return -1;
