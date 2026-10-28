@@ -262,6 +262,8 @@ void CryptDBDocument::OnChangeSize(wxCommandEvent& WXUNUSED(event))
 void CryptDBDocument::OnActivate(wxActivateEvent& event)
 {
   if(event.GetActive() && grid_frame) grid_frame->SetFocus();
+  if(event.GetActive() && frame) frame->UpdateStatusFields(); // 10/27/2026: The title bar follows the database in front
+  event.Skip();
 }
 
 void CryptDBDocument::OnMove(wxMoveEvent& event)

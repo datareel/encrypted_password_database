@@ -2871,6 +2871,13 @@ void MainFrame::UpdateStatusFields()
 {
   if(!GetStatusBar() || GetStatusBar()->GetFieldsCount() < 5) return;
   CryptDBDocument *doc = ActiveChild();
+  // 10/27/2026: The name of the database in front in the title bar
+  wxString title = progcfg->ProgramName.c_str();
+  if(doc && doc->GridFrame() && doc->DBParms()->pod) {
+    wxString file = wxFileName(EPDBFromDB(doc->DBParms()->data_file.c_str())).GetFullName();
+    title << " - " << (file.IsEmpty() ? doc->GetTitle() : file);
+  }
+  if(GetTitle() != title) SetTitle(title);
   if(!doc || !doc->GridFrame() || !doc->DBParms()->pod) {
     SetStatusText("No database open", 1);
     SetStatusText("", 2);
