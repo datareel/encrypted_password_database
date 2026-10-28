@@ -421,6 +421,12 @@ MainFrame::MainFrame(wxWindow *parent,
     RecreateToolbar();
   }
   Bind(wxEVT_DPI_CHANGED, &MainFrame::OnDPIChanged, this);
+  // 10/27/2026: A smaller screen (an RDP session moved to the console,
+  // a resolution change): keep the window on the screen
+  Bind(wxEVT_DISPLAY_CHANGED, [this](wxDisplayChangedEvent &event) {
+    event.Skip();
+    CallAfter([this]() { EPDBFitOnScreen(this, 1); });
+  });
 }
 
 wxMenuItem *MainFrame::MenuItem(wxMenu *menu, int id, const wxString &text, const wxString &help, const char *icon)

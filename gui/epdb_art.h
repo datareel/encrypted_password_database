@@ -54,6 +54,10 @@ wxColour EPDBOkColour();
 
 // A label in the system GUI font, bold or a step larger for headings
 wxStaticText *EPDBHeading(wxWindow *parent, const wxString &text, int larger = 1);
+// 10/27/2026: Keeps a top level window inside the work area of its
+// display: moved fully on screen, or maximized (maximize = 1) or shrunk
+// when it is larger than the display
+void EPDBFitOnScreen(wxTopLevelWindow *w, int maximize);
 wxStaticText *EPDBNote(wxWindow *parent, const wxString &text, int wrap_dip = 0);
 // Monospace font the size of the system GUI font
 wxFont EPDBMonoFont();

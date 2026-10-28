@@ -351,8 +351,17 @@ CommandBuilderDialog::CommandBuilderDialog(wxWindow *parent, CryptDBDocument *do
   wxRect area = wxDisplay(wxDisplay::GetFromWindow(parent) == wxNOT_FOUND ? 0u :
 			  (unsigned)wxDisplay::GetFromWindow(parent)).GetClientArea();
   wxSize best = GetBestSize();
+  // 10/27/2026: On a narrow screen the command goes below the options
+  // instead of beside them
+  if(best.x > area.width) {
+    mid->SetOrientation(wxVERTICAL);
+    shells->SetMinSize(wxSize(-1, FromDIP(140)));
+    opts->SetMinSize(wxSize(-1, FromDIP(160)));
+    Layout();
+    best = GetBestSize();
+  }
   SetSize(wxSize(wxMin(wxMax(best.x, FromDIP(1100)), area.width), wxMin(wxMax(best.y, FromDIP(640)), area.height)));
-  SetMinSize(wxSize(wxMin(FromDIP(800), area.width), wxMin(FromDIP(500), area.height)));
+  SetMinSize(wxSize(wxMin(FromDIP(600), area.width), wxMin(FromDIP(400), area.height)));
   CentreOnParent();
 }
 

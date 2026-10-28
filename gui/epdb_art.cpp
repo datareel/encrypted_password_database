@@ -102,6 +102,29 @@ wxColour EPDBOkColour()
   return EPDBIsDark() ? wxColour(0x6C, 0xC9, 0x8A) : wxColour(0x1E, 0x7B, 0x3E);
 }
 
+void EPDBFitOnScreen(wxTopLevelWindow *w, int maximize)
+{
+  if(!w || w->IsMaximized() || w->IsIconized()) return;
+  int d = wxDisplay::GetFromWindow(w);
+  if(d == wxNOT_FOUND) d = wxDisplay::GetFromPoint(w->GetPosition());
+  if(d == wxNOT_FOUND) d = 0;
+  wxRect area = wxDisplay((unsigned)d).GetClientArea();
+  wxRect r = w->GetRect();
+  if(r.width > area.width || r.height > area.height) {
+    if(maximize) {
+      w->Maximize(true);
+      return;
+    }
+    r.width = wxMin(r.width, area.width);
+    r.height = wxMin(r.height, area.height);
+  }
+  if(r.x < area.x) r.x = area.x;
+  if(r.y < area.y) r.y = area.y;
+  if(r.GetRight() > area.GetRight()) r.x = area.GetRight() - r.width + 1;
+  if(r.GetBottom() > area.GetBottom()) r.y = area.GetBottom() - r.height + 1;
+  if(r != w->GetRect()) w->SetSize(r);
+}
+
 wxStaticText *EPDBHeading(wxWindow *parent, const wxString &text, int larger)
 {
   wxStaticText *t = new wxStaticText(parent, wxID_ANY, text);

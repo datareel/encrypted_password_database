@@ -112,9 +112,14 @@ bool WinApp::OnInit(void)
   }
   want.x = wxMin(want.x, area.width);
   want.y = wxMin(want.y, area.height);
-  frame->SetMinSize(frame->FromDIP(wxSize(640, 420)));
+  wxSize min_size = frame->FromDIP(wxSize(640, 420));
+  frame->SetMinSize(wxSize(wxMin(min_size.x, area.width), wxMin(min_size.y, area.height))); // 10/27/2026: Never larger than the screen
   frame->SetSize(want);
   frame->Centre(wxBOTH);
+  EPDBFitOnScreen(frame, 1); // 10/27/2026
+  // 10/27/2026: A dialog taller or wider than the screen is made to
+  // scroll, its buttons stay visible
+  wxDialog::EnableLayoutAdaptation(true);
   frame->Show(TRUE);
   SetTopWindow(frame);
 
