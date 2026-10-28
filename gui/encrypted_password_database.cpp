@@ -949,6 +949,7 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 // Application and framework include source code files 
 // --------------------------------------------------------------
 #include "epdb_text.cpp"
+#include "epdb_print.cpp"
 #include "epdb_widgets.cpp"
 #include "record_form.cpp"
 #include "a_panel.cpp"

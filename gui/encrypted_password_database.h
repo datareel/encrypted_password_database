@@ -328,7 +328,8 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 // Application and framework include files
 #include "mswprint.h"   // Microsoft Windows printing framework 
 #include "epdb_art.h"       // 10/27/2026: Icons and DPI helpers
-#include "epdb_text.h"      // 10/27/2026: UTF-8 database text
+#include "epdb_text.h"
+#include "epdb_print.h"     // 10/27/2026: Printing: cards or table      // 10/27/2026: UTF-8 database text
 #include "epdb_widgets.h"   // 10/27/2026: Password field and strength meter
 #include "record_form.h"    // 10/27/2026: Record form of the Add, Edit and Display dialogs
 #include "sc_picker.h"      // 10/27/2026: Smart card picker, no login

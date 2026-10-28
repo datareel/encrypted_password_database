@@ -489,38 +489,17 @@ void DisplayPanel::LoadPanel(INFOHOG &ob)
 }
 
 #ifdef __USE_MSW_PRINTING__
-void DisplayPanel::OnPrint(wxCommandEvent &event)
+void DisplayPanel::OnPrint(wxCommandEvent &WXUNUSED(event))
+// 10/27/2026: The Print dialog. Printing reads the records again, which
+// replaces the list this panel browses, so the panel is closed first.
 {
   if(!child_frame) {
     ProgramError->Message("The child frame has been closed\n");
     ClosePanel();
     return;
   }
-
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  // Record the current pointer in the virtual list
-  gxListNode<FAU> *curr_dllistptr = dllistptr;
-  print_config->print_list = 1;
-  print_config->print_all_entries = 0;
-  print_config->print_all_cols = 1;
-  wxPrintDialogData printDialogData(print_config->print_data);
-  wxPrinter printer(& printDialogData);
-  mswPrintout printout(progcfg->ProgramName.c_str());
-  
-  if(!printer.Print(this, &printout, TRUE)) {
-    if (wxPrinter::GetLastError() == wxPRINTER_ERROR)
-      wxMessageBox("There was a problem printing.\nPerhaps your current \
-printer is not set correctly?", "Printing", wxOK);
-    else
-      wxMessageBox("Print operation canceled", "Printing", wxOK);
-  }
-  else {
-    print_config->print_data = printer.GetPrintDialogData().GetPrintData();
-  }
-
-  // Restore the virtual list pointer
-  dllistptr = curr_dllistptr;
+  ClosePanel();
+  frame->PrintRecords();
 }
 #endif
 

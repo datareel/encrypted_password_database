@@ -64,7 +64,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)wx_incs.h \
 	    $(APP_PATH)$(PATHSEP)new_panel.h \
 	    $(APP_PATH)$(PATHSEP)epdb_art.h $(APP_PATH)$(PATHSEP)epdb_icons.h \
-	    $(APP_PATH)$(PATHSEP)epdb_widgets.h $(APP_PATH)$(PATHSEP)epdb_recent.h $(APP_PATH)$(PATHSEP)epdb_text.h \
+	    $(APP_PATH)$(PATHSEP)epdb_widgets.h $(APP_PATH)$(PATHSEP)epdb_recent.h $(APP_PATH)$(PATHSEP)epdb_text.h $(APP_PATH)$(PATHSEP)epdb_print.h \
 	    $(APP_PATH)$(PATHSEP)epdb_cmdbuild.h $(APP_PATH)$(PATHSEP)sc_picker.h \
 	    $(APP_PATH)$(PATHSEP)unlock_dlg.h $(APP_PATH)$(PATHSEP)details_pane.h \
 	    $(APP_PATH)$(PATHSEP)misc_dlg.h $(APP_PATH)$(PATHSEP)cmdbuild_dlg.h $(APP_PATH)$(PATHSEP)epdb_version.h \
@@ -104,7 +104,7 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)txtprint.cpp \
 	    $(APP_PATH)$(PATHSEP)winapp.cpp \
 	    $(APP_PATH)$(PATHSEP)new_panel.cpp \
-	    $(APP_PATH)$(PATHSEP)epdb_art.cpp $(APP_PATH)$(PATHSEP)epdb_widgets.cpp $(APP_PATH)$(PATHSEP)epdb_text.cpp \
+	    $(APP_PATH)$(PATHSEP)epdb_art.cpp $(APP_PATH)$(PATHSEP)epdb_widgets.cpp $(APP_PATH)$(PATHSEP)epdb_text.cpp $(APP_PATH)$(PATHSEP)epdb_print.cpp \
 	    $(APP_PATH)$(PATHSEP)epdb_recent.cpp $(APP_PATH)$(PATHSEP)epdb_cmdbuild.cpp \
 	    $(APP_PATH)$(PATHSEP)sc_picker.cpp $(APP_PATH)$(PATHSEP)unlock_dlg.cpp \
 	    $(APP_PATH)$(PATHSEP)details_pane.cpp $(APP_PATH)$(PATHSEP)misc_dlg.cpp $(APP_PATH)$(PATHSEP)cmdbuild_dlg.cpp \

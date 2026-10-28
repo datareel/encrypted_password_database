@@ -2149,38 +2149,38 @@ printer is not set correctly?", "Printing", wxOK);
   }
 }
 
-void MainFrame::OnMSWPrint(wxCommandEvent& event)
+void MainFrame::OnMSWPrint(wxCommandEvent& WXUNUSED(event))
+// 10/27/2026: The Print dialog: layout, records, fields, page, header
 {
   if(!TestDatabase(0, 0, 1)) return;
-
-  if(dpanel->PanelIsOpen()) {
-    dpanel->ClosePanel();
-  }
-
-  CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  print_config->print_list = 0;
-  print_config->print_all_entries = 1;
-  print_config->print_all_cols = 1;
-  MSWPrint();
+  if(dpanel->PanelIsOpen()) dpanel->ClosePanel();
+  PrintRecords();
 }
 
-void MainFrame::OnMSWPrintPreview(wxCommandEvent& event)
+void MainFrame::PrintRecords()
+{
+  CryptDBDocument *child_frame = ActiveChild();
+  if(!child_frame) return;
+  EPDBPrintJob job;
+  int rv = EPDBShowPrintDialog(this, child_frame, job);
+  if(rv == wxID_CANCEL) return;
+  EPDBRunPrint(this, child_frame, job, rv == wxID_PREVIEW);
+}
+
+void MainFrame::OnMSWPrintPreview(wxCommandEvent& WXUNUSED(event))
+// 10/27/2026: A preview with the settings last used for this database
 {
   if(!TestDatabase(0, 0, 1)) return;
-
-  if(dpanel->PanelIsOpen()) {
-    dpanel->ClosePanel();
-  }
-
+  if(dpanel->PanelIsOpen()) dpanel->ClosePanel();
   CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  print_config->print_list = 0;
-  print_config->print_all_entries = 1;
-  print_config->print_all_cols = 1;
-  MSWPrintPreview();
+  if(!child_frame) return;
+  EPDBPrintSettings s;
+  if(!s.Load(EPDBFromDB(child_frame->DBParms()->data_file.c_str()))) s.FromDatabase(child_frame->DBParms()->db_config);
+  if(s.records == EPDB_PRINT_SELECTED) s.records = EPDB_PRINT_ALL;
+  if(s.records == EPDB_PRINT_SEARCH && child_frame->search_ctrl->GetValue().IsEmpty()) s.records = EPDB_PRINT_ALL;
+  EPDBPrintJob job;
+  EPDBMakePrintJob(child_frame, job, s);
+  EPDBRunPrint(this, child_frame, job, 1);
 }
 
 void MainFrame::MSWPrintPreview()
@@ -2225,16 +2225,15 @@ printer is not set correctly?", "Previewing", wxOK);
   preview_frame->Maximize(TRUE); // Maximize frame, WIN32 only
 }
 
-void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& event)
+void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& WXUNUSED(event))
+// 10/27/2026: The page settings are in the Print dialog
 {
   CryptDBDocument *child_frame = ActiveChild();
-
   if(!child_frame) {
     ProgramError->Message("No database is currently open\n");
     return;
   }
-
-  mswpage->ShowPanel();
+  PrintRecords();
 }
 
 void MainFrame::OnMSWPrintSetup(wxCommandEvent& event)

@@ -124,6 +124,7 @@ public: // Event handlers
   int MSWTestPaperSize();
   void MSWPrint();
   void MSWPrintPreview();
+  void PrintRecords(); // 10/27/2026: The Print dialog
 #endif
 
 #ifdef __USE_APP_POSTSCRIPT_PRINTING__
