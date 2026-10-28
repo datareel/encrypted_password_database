@@ -234,7 +234,7 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
   screen. A dialog larger than the screen scrolls, with its buttons
   visible, and the Command Builder puts the command below the options
   on a narrow screen.
-* Built with wxWidgets 3.3.4 (static) on RHEL 10 and Windows.
+* Built with wxWidgets 3.3.4 (static) on RHEL 8, 9 and 10 and Windows.
 
 BEHAVIOR CHANGES IN RELEASE 2026.103
 ------------------------------------
@@ -706,14 +706,15 @@ Run nmake to build the executable:
 
 SOURCE CODE BUILD ON LINUX
 --------------------------
-The RHEL 10 GUI is built with a static wxWidgets 3.3.4 (gtk3, -fPIC so
-the program is a PIE). Build it once from the wxWidgets source
+The RHEL 8, 9 and 10 GUI is built with a static wxWidgets 3.3.4 (gtk3,
+-fPIC so the program is a PIE). Build it once on each release from the
+wxWidgets source, with N = 8, 9 or 10
 (https://www.wxwidgets.org/, wxWidgets-3.3.4.tar.bz2):
 
 > mkdir -p ${HOME}/3plibs/build && cd ${HOME}/3plibs/build
 > tar xjf wxWidgets-3.3.4.tar.bz2
 > mkdir wx334_epdb_gtk3_static && cd wx334_epdb_gtk3_static
-> ../wxWidgets-3.3.4/configure --prefix=${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhel10 \
+> ../wxWidgets-3.3.4/configure --prefix=${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhelN \
     --disable-shared --with-gtk=3 --disable-webview --disable-mediactrl \
     --without-opengl --without-libnotify --without-sdl \
     --with-libpng=builtin --with-libjpeg=builtin --with-libtiff=builtin \
@@ -722,7 +723,7 @@ the program is a PIE). Build it once from the wxWidgets source
 > make -j$(nproc) && make install
 
 It needs gtk3-devel (and the X11 and webp devel packages wx-config
-lists). The builds used for EPDB are archived, see WXWIDGETS AND OPENSSL
+lists; on RHEL 9 enable crb, on RHEL 8 powertools). The builds used for EPDB are archived, see WXWIDGETS AND OPENSSL
 BUILD ARCHIVES below.
 
 To build the latest release of the Encrypted Password Database:
@@ -734,17 +735,18 @@ To build the latest release of the Encrypted Password Database:
 > mv encrypted_password_database-<version> encrypted_password_database
 > cd encrypted_password_database
 
-The RHEL 10 build takes the wxWidgets compile and link flags from
-${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhel10/bin/wx-config
-(env/wx3.3.4_rhel10.env). Another wxWidgets 3.3 build can be used with
+The build takes the wxWidgets compile and link flags from
+${HOME}/3plibs/wxWidgets-3.3.4_epdb_rhelN/bin/wx-config
+(env/wx3.3.4_rhel10.env, N is the RHEL= of the makefile). Another
+wxWidgets 3.3 build can be used with make WXSRCDIR=/path/to/wx or
 make WX_CONFIG=/path/to/bin/wx-config, and make WXVER=324 builds with
-wxWidgets 3.2.4 in WXSRCDIR = $(HOME)/3plibs/wxWidgets-3.2.4 (env/linux.env),
-as the RHEL 8 and RHEL 9 builds still do.
+wxWidgets 3.2.4 as release 2026.103 did (env/linux.env). RHEL 7 still
+builds with wxWidgets 3.2.4.
 
 > cd ${HOME}/git/encrypted_password_database/gui/linux
 RHEL 10 is the default build, the makefile is the same as
 makefile_rhel10. Use makefile_rhel8 or makefile_rhel9 to build on RHEL 8
-or RHEL 9 (wxWidgets 3.2.4). For RHEL 10:
+or RHEL 9. For RHEL 10:
 
 > cat makefile_rhel10
 
@@ -759,7 +761,7 @@ clean:
 
 The extra LIBRARIES are needed when the wxWidgets build was made on
 RHEL 8. You can also set the wxWidgets path on the command line, for
-example: make WXSRCDIR=$HOME/3plibs/wxWidgets-3.2.4_rhel9 -f makefile_rhel9
+example: make WXSRCDIR=$HOME/3plibs/wxWidgets-3.3.4_epdb_rhel9 -f makefile_rhel9
 
 Run the make to build the GUI
 
@@ -805,10 +807,12 @@ WXWIDGETS AND OPENSSL BUILD ARCHIVES
 The third party builds EPDB is built with are kept in 3plibs, with
 archive copies (README, sha256 file, build commands and logs, no
 intermediate .obj files) on the AWS server:
-* wxWidgets 3.3.4: RHEL 10 static gtk3, Windows x64 and x86 static /MD
+* wxWidgets 3.3.4: RHEL 8, 9 and 10 static gtk3, Windows x64 and x86 static /MD
   (VS 2026): ~/3plibs/wxwindows/builds on the AWS server (also
   ~/3plibs/archives on the build workstation).
   wxWidgets-3.3.4_epdb_rhel10_static_gtk3_x86_64_2026-10-27.tar.gz
+  wxWidgets-3.3.4_epdb_rhel9_static_gtk3_x86_64_2026-10-28.tar.gz
+  wxWidgets-3.3.4_epdb_rhel8_static_gtk3_x86_64_2026-10-28.tar.gz
   wxWidgets-3.3.4_epdb_win64_vc_x64_lib_MD_vs2026_2026-10-27.tar.gz
   wxWidgets-3.3.4_epdb_win32_vc_lib_MD_vs2026_2026-10-27.tar.gz
 * OpenSSL 3.5.9 for Windows, x64 and x86, static, FIPS enabled:
