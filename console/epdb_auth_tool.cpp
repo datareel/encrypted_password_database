@@ -58,7 +58,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 
 // Global vars
 gxString program_name = "Encrypted Password Database Auth Tool";
-gxString version_str = "2026.103";
+gxString version_str = "2026.104";
 gxString copyright = "Copyright (c) Datareel Open Source";
 gxString copyright_dates = "2003-2026";
 gxString produced_by = "Datareel Open Source";

@@ -19,8 +19,8 @@
 ; install to remove; the installed program uses the same
 ; %USERPROFILE%\.encrypted_password_database as the unzipped programs.
 
-#define AppVersion "2026.103"
-#define AppVersionFile "2026_103"
+#define AppVersion "2026.104"
+#define AppVersionFile "2026_104"
 #define AppName "Encrypted Password Database"
 #define AppExe "encrypted_password_database.exe"
 

@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.103
+Release 2026.104
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -8,6 +8,41 @@ Supports Red Hat Enterprise Linux 8, 9, and 10
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
+
+RELEASE 2026.104: NEW GUI, UTF-8 TEXT, PRINTING
+-----------------------------------------------
+* A new GUI built with wxWidgets 3.3.4 (static) on RHEL 8, 9 and 10
+  and Windows: new main window with tabs (also on Windows) and a
+  details pane, an Unlock Database dialog with a smart card picker that
+  lists the cards with no PIN, a two-column record form with
+  multi-line Security questions, Account information and Notes, a
+  Command Builder for automation, SVG icons and high DPI support, and
+  windows and dialogs that stay on smaller screens. See THE GUI below.
+* Text is UTF-8 everywhere. GUI text is now UTF-8 on Windows too
+  (Windows 10 version 1903 or later is needed), the same as Linux and
+  epdb_auth_tool. Windows 2026.103 and older show non-ASCII values that
+  are new or edited with this version as the wrong characters. Text
+  written in the ANSI code page by an older Windows version is still
+  shown and is saved as UTF-8 when the record is changed.
+* String order: the compares the database index uses now give the same
+  order on Linux and Windows (fcrypt 2026.107). Databases with
+  non-ASCII titles that were last written on Windows by 2026.103 or
+  older should have their index rebuilt once: the GUI offers it when
+  the database is opened, or run epdb_auth_tool --rebuild-index. See
+  REBUILD THE INDEX OF DATABASES LAST WRITTEN ON WINDOWS below.
+* Printing: a new Print dialog with a card layout (the default) or a
+  table, all records, the search results or the selected rows, the
+  passwords left out unless ticked, the paper, orientation, margins,
+  header and page numbers, kept for each database.
+* CSV export and import keep line breaks in quoted fields (RFC 4180).
+* Several databases can be open at once, each in its own tab, on
+  Windows and Linux.
+* epdb_auth_tool --rebuild-index, and "Index order" in --db-info.
+* Bundled fcrypt 2026.107: fcrypt --smartcard-list and --smartcard-match
+  list the cards, cert IDs and PIN status with no login and no PIN.
+* The database format does not change. Planned for the next release
+  (DBv3): the smart card certificate fingerprint and longer multi-line
+  fields.
 
 RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
 -------------------------------------------------------------
@@ -68,8 +103,8 @@ RELEASE 2026.103: KEY MANAGEMENT, RECORDS, LOGS AND AUTOMATION
   unchanged: the new settings use bytes 2026.102 and older never read
   (see db_auth.h) and 2026.102 opens databases written by this release.
 
-REBUILD THE INDEX OF DATABASES LAST WRITTEN ON WINDOWS (gui-phase3)
--------------------------------------------------------------------
+REBUILD THE INDEX OF DATABASES LAST WRITTEN ON WINDOWS
+------------------------------------------------------
 Databases with titles that have characters beyond ASCII (accents,
 umlauts, other alphabets) and that were last written by the Windows
 version 2026.103 or older should have their index rebuilt once. The
@@ -88,8 +123,8 @@ database with self-destruct on, or files that cannot be written, gets a
 message only. Databases written only on Linux, or with ASCII titles
 only, do not need it.
 
-THE GUI (DEVELOPMENT BRANCH gui-phase3, NOT YET RELEASED)
----------------------------------------------------------
+THE GUI (RELEASE 2026.104)
+--------------------------
 The GUI was redesigned. Every earlier menu item and accelerator is kept.
 * Main window: menus File, Edit, Records (was Database), View, Users,
   Security, Tools and Help. The toolbar has New, Open, Lock, Add, Edit,
@@ -507,7 +542,7 @@ INSTALLING ON WINDOWS
 ---------------------
 Windows installer (64-bit, administrator install):
 
-https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_windows_setup.exe
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_104_windows_setup.exe
 
 The setup installs the GUI, epdb_auth_tool.exe, smartcard_list.bat and
 the README files to C:\Program Files\DataReel\Encrypted Password
@@ -515,7 +550,7 @@ Database, adds Start Menu shortcuts, installs the Microsoft Visual C++
 x64 runtime if it is missing, and can add the program folder to the
 system PATH (optional task) and a desktop shortcut. Silent install:
 
-encrypted_password_database_2026_103_windows_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS="addpath"
+encrypted_password_database_2026_104_windows_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS="addpath"
 
 Upgrading: releases before 2026.102 were zip files with no installer.
 Install the setup, then delete the old unzipped EXE files (or keep
@@ -529,7 +564,7 @@ info, then Run anyway.
 
 Or download and unzip the 64-bit Windows binaries:
 
-https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_windows_binaries.zip
+https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_104_windows_binaries.zip
 
 The "encrypted_password_database.exe" and "epdb_auth_tool.exe" are
 standalone EXE files that can be run with no installer needed. They
@@ -548,9 +583,9 @@ to your user account without root access. To install from the command
 line:
 
 cd ${HOME}/Downloads
-wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_103_rhel_8_9_10_binaries.tar.gz
-tar xvfz encrypted_password_database_2026_103_rhel_8_9_10_binaries.tar.gz
-cd encrypted_password_database_2026_103_rhel_8_9_10_binaries
+wget https://datareel.com/downloads/encrypted_password_database/encrypted_password_database_2026_104_rhel_8_9_10_binaries.tar.gz
+tar xvfz encrypted_password_database_2026_104_rhel_8_9_10_binaries.tar.gz
+cd encrypted_password_database_2026_104_rhel_8_9_10_binaries
 ./rh_install.sh
 
 The installer lists any system libraries that are missing. Most
