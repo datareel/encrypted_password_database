@@ -432,8 +432,8 @@ w103_found() {
     python3 -I -c "
 import json, subprocess, sys
 found = 0
-for r in json.load(open('recs.json')):
-    p = subprocess.run([sys.argv[1], '--password-file=w103_pw.txt', '--non-interactive', '--get-field=%s:username' % r['title'], 'w103.ehd'], capture_output=True)
+for r in json.load(open('recs.json', encoding='utf-8')):
+    p = subprocess.run([sys.argv[1], '--password-file=w103_pw.txt', '--non-interactive', '--get-field=%s:username' % r['title'], 'w103.ehd'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     found += p.returncode == 0 and p.stdout.decode('utf-8').strip() == r['username']
 print(found)" ${TOOL}
 }
