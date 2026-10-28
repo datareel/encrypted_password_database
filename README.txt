@@ -101,7 +101,10 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
   the time set in Preferences (30 seconds by default). The status bar
   shows how the database was unlocked (for example "Unlocked with smart
   card CAC (slot 1)"), the number of records, the format and the
-  auto-lock countdown.
+  auto-lock countdown. The tabs are the same on Windows and Linux; on
+  Windows the Window menu also lists them, and Ctrl+Tab or Ctrl+F6 go
+  to the next tab (Shift for the one before). The title bar names the
+  database in front ("Encrypted Password Database - name.ehd").
 * Unlock Database (File > Open, Ctrl+O): the database file (with the
   recent files) and one unlock method, Password, Key file, Private key
   or Smart card. Only that method's fields are shown, so methods cannot
@@ -190,6 +193,12 @@ The GUI was redesigned. Every earlier menu item and accelerator is kept.
 * High DPI: the icons are SVGs drawn at the screen scale, every dialog
   uses sizers and the system font, window and column sizes are kept in
   DIPs, and the Windows program is per-monitor DPI aware.
+* Small screens: the main window is kept on the screen, at startup and
+  when the display changes (for example an RDP session moved to the VM
+  console), and is maximized when its saved size is larger than the
+  screen. A dialog larger than the screen scrolls, with its buttons
+  visible, and the Command Builder puts the command below the options
+  on a narrow screen.
 * Built with wxWidgets 3.3.4 (static) on RHEL 10 and Windows.
 
 BEHAVIOR CHANGES IN RELEASE 2026.103
