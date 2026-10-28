@@ -42,9 +42,13 @@ void EPDBSetUTF8Locale()
 {
 #if defined (__WIN32__)
   // The manifest sets the process code page to UTF-8 (Windows 10 1903
-  // and later), the C runtime locale follows it
-  setlocale(LC_CTYPE, ".UTF8");
+  // and later), which is what wxString converts with on Windows. The C
+  // runtime locale stays "C": the database index compares keys with
+  // tolower() and isdigit(), and a UTF-8 runtime locale changes how they
+  // treat bytes above 127, so the index walk skipped records.
 #else
+  // glibc classifies the bytes above 127 the same in the "C" and UTF-8
+  // locales, so the index compares keys as before
   if(!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "en_US.UTF-8");
 #endif
 }
