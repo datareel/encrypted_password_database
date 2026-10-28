@@ -403,7 +403,6 @@ MainFrame::MainFrame(wxWindow *parent,
   unlock_dlg = new UnlockDialog(this);
 
 #ifdef __USE_MSW_PRINTING__
-  mswpage = InitMSWPagePanel(this);
 #endif
 
 #ifdef __USE_APP_POSTSCRIPT_PRINTING__
@@ -579,7 +578,6 @@ void MainFrame::OnCloseWindow(wxCloseEvent& event)
   if(sframe) sframe->Destroy();
 
 #ifdef __USE_MSW_PRINTING__
-  if(mswpage) mswpage->Destroy();
 #endif
 
 #ifdef __USE_APP_POSTSCRIPT_PRINTING__
@@ -2143,66 +2141,6 @@ void MainFrame::OnStats(wxCommandEvent& event)
 }
 
 #ifdef __USE_MSW_PRINTING__
-int MainFrame::MSWTestPaperSize()
-// Helper functions used to ensure that selected paper size is
-// supported by the specified printer. Returns true if the paper
-// size is supported or false if the paper size is not supported.
-{
-  CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  wxPaperSize paper_size = print_config->print_data.GetPaperId();
-  switch(paper_size) {
-    case wxPAPER_LETTER: 
-      break;
-    case wxPAPER_LEGAL:
-      break;
-    case wxPAPER_TABLOID:
-      break;
-    case wxPAPER_A3:
-      break;
-    case wxPAPER_A4:
-      break;
-      
-    default:
-      ProgramError->Message("The selected paper size is not \
-supported by this printer\n");
-     return 0;
-  };
-
-  return 1;
-}
-
-void MainFrame::MSWPrint()
-{
-  if(!MSWTestPaperSize()) return;
-
-  CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  mswPrintout printout_init;
-  if(!printout_init.InitPrintout()) {
-    wxMessageBox("There was an error initializing the printer.\nPerhaps your current \
-printer is not set correctly?", "Initializing Printer", wxOK);
-    return;
-  }
-
-  wxPrintDialogData printDialogData(print_config->print_data);
-  wxPrinter printer(&printDialogData);
-  mswPrintout printout(progcfg->ProgramName.c_str());
-  
-  if(!printer.Print(this, &printout, TRUE)) {
-    if(wxPrinter::GetLastError() == wxPRINTER_ERROR)
-      wxMessageBox("There was a problem printing.\nPerhaps your current \
-printer is not set correctly?", "Printing", wxOK);
-    else
-      wxMessageBox("Print operation canceled", "Printing", wxOK);
-  }
-  else {
-    print_config->print_data = printer.GetPrintDialogData().GetPrintData();
-  }
-}
-
 void MainFrame::OnMSWPrint(wxCommandEvent& WXUNUSED(event))
 // 10/27/2026: The Print dialog: layout, records, fields, page, header
 {
@@ -2237,48 +2175,6 @@ void MainFrame::OnMSWPrintPreview(wxCommandEvent& WXUNUSED(event))
   EPDBRunPrint(this, child_frame, job, 1);
 }
 
-void MainFrame::MSWPrintPreview()
-{
-  if(!MSWTestPaperSize()) return;
-
-  CryptDBDocument *child_frame = ActiveChild();
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  mswPrintout printout_init;
-  if(!printout_init.InitPrintPreview()) {
-    wxMessageBox("There was an error initializing the printer.\nPerhaps your current \
-printer is not set correctly?", "Initializing Printer", wxOK);
-    return;
-  }
-
-  wxPrintDialogData printDialogData(print_config->print_data);
-
-  // Pass two printout objects: for preview, and possible printing.
-  wxPrintPreview *preview = \
-    new wxPrintPreview(new mswPrintout(progcfg->ProgramName.c_str()),
-		       new mswPrintout(progcfg->ProgramName.c_str()),
-		       &printDialogData);
-  
-  if(!preview->Ok()) {
-    delete preview;
-    wxMessageBox("There was a problem previewing.\nPerhaps your current \
-printer is not set correctly?", "Previewing", wxOK);
-    return;
-  }
-
-  // Set the percentage preview zoom to the most accurate screen
-  // representation of the page that will be printed.
-  preview->SetZoom(100);
-
-  wxPreviewFrame *preview_frame = new wxPreviewFrame(preview, this,
-						     progcfg->ProgramName.c_str());
-  preview_frame->SetIcons(EPDBAppIcons()); // 10/27/2026
-  preview_frame->Centre(wxBOTH);
-  preview_frame->Initialize();
-  preview_frame->Show(TRUE);
-  preview_frame->Maximize(TRUE); // Maximize frame, WIN32 only
-}
-
 void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& WXUNUSED(event))
 // 10/27/2026: The page settings are in the Print dialog
 {
@@ -2290,30 +2186,21 @@ void MainFrame::OnMSWPrintPageSetup(wxCommandEvent& WXUNUSED(event))
   PrintRecords();
 }
 
-void MainFrame::OnMSWPrintSetup(wxCommandEvent& event)
+void MainFrame::OnMSWPrintSetup(wxCommandEvent& WXUNUSED(event))
+// The system printer dialog. 10/27/2026: Its printer, paper and
+// orientation are kept for the database, the Print dialog sets the paper
+// and orientation it prints with.
 {
   CryptDBDocument *child_frame = ActiveChild();
-
   if(!child_frame) {
     ProgramError->Message("No database is currently open\n");
     return;
   }
-
-  MSWPrintingParameters *print_config = &child_frame->print_config;
-
-  // Set the printer paper size and orientation
-  print_config->SetPaperSize();
-  print_config->SetOrientation();
-  
-  wxPrintDialogData printDialogData(print_config->print_data);
-  wxPrintDialog printerDialog(this, & printDialogData);
-  
-  // TODO: Is this deprciated
-  //  printerDialog.GetPrintDialogData().SetSetupDialog(TRUE);
-  printerDialog.ShowModal();
-  
-  print_config->print_data = \
-    printerDialog.GetPrintDialogData().GetPrintData();
+  wxPrintDialogData printDialogData(child_frame->print_data);
+  wxPrintDialog printerDialog(this, &printDialogData);
+  if(printerDialog.ShowModal() == wxID_OK) {
+    child_frame->print_data = printerDialog.GetPrintDialogData().GetPrintData();
+  }
 }
 #endif // __USE_MSW_PRINTING__
 

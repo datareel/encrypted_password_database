@@ -990,7 +990,7 @@ void EPDBRunPrint(wxWindow *parent, CryptDBDocument *doc, EPDBPrintJob &job, int
     wxMessageBox("There are no records to print.", "Print", wxOK | wxICON_INFORMATION, parent);
     return;
   }
-  wxPrintData &pd = doc->print_config.print_data;
+  wxPrintData &pd = doc->print_data;
   pd.SetPaperId((wxPaperSize)job.settings.paper);
   pd.SetOrientation(job.settings.landscape ? wxLANDSCAPE : wxPORTRAIT);
   wxPrintDialogData data(pd);

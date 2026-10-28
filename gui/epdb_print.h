@@ -47,6 +47,8 @@ paper.
 
 #include <vector>
 #include <memory>
+#include <wx/print.h>
+#include <wx/printdlg.h>
 
 enum { EPDB_PRINT_CARDS = 0, EPDB_PRINT_TABLE };
 enum { EPDB_PRINT_ALL = 0, EPDB_PRINT_SEARCH, EPDB_PRINT_SELECTED };

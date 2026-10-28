@@ -77,7 +77,7 @@ public: // Public Member functions
   CryptDBGrid *GridFrame();
   gxDatabaseParms *DBParms();
 #ifdef __USE_MSW_PRINTING__
-  MSWPrintingParameters print_config;
+  wxPrintData print_data; // 10/27/2026: The printer, paper and orientation used last
 #endif
   wxGrid *GetGrid();
   int LoadGridObject(INFOHOG &infohog);

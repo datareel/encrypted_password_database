@@ -48,8 +48,6 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)lprinter.h \
 	    $(APP_PATH)$(PATHSEP)lp_panel.h \
 	    $(APP_PATH)$(PATHSEP)mciplay.h \
-	    $(APP_PATH)$(PATHSEP)mswpage.h \
-	    $(APP_PATH)$(PATHSEP)mswprint.h \
 	    $(APP_PATH)$(PATHSEP)m_doc.h \
 	    $(APP_PATH)$(PATHSEP)m_frame.h \
 	    $(APP_PATH)$(PATHSEP)m_grid.h \
@@ -85,8 +83,6 @@ PROJECT_DEP = $(APP_PATH)$(PATHSEP)$(PROJECT).h \
 	    $(APP_PATH)$(PATHSEP)lp_panel.cpp \
 	    $(APP_PATH)$(PATHSEP)mciplay.cpp \
 	    $(APP_PATH)$(PATHSEP)merge.cpp \
-	    $(APP_PATH)$(PATHSEP)mswpage.cpp \
-	    $(APP_PATH)$(PATHSEP)mswprint.cpp \
 	    $(APP_PATH)$(PATHSEP)m_doc.cpp \
 	    $(APP_PATH)$(PATHSEP)m_frame.cpp \
 	    $(APP_PATH)$(PATHSEP)m_grid.cpp \

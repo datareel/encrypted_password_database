@@ -121,9 +121,6 @@ public: // Event handlers
   void OnMSWPrintSetup(wxCommandEvent& event);
 
   // Helper functions
-  int MSWTestPaperSize();
-  void MSWPrint();
-  void MSWPrintPreview();
   void PrintRecords(); // 10/27/2026: The Print dialog
   void CheckIndexOrder(CryptDBDocument *doc); // 10/27/2026: Offer to rebuild an index in a different key order
 #endif
@@ -215,7 +212,6 @@ public: // Public data members
   AdduserPanel *add_user_panel;
   
 #ifdef __USE_MSW_PRINTING__
-  MSWPagePanel *mswpage;
 #endif
   
 #ifdef __USE_APP_POSTSCRIPT_PRINTING__

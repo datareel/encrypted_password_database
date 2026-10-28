@@ -967,8 +967,6 @@ void BtreeKeySearch(INFOHOGKEY &key, int item, POD *pod,
 #include "lp_panel.cpp"
 #include "mciplay.cpp"
 #include "merge.cpp"
-#include "mswpage.cpp"
-#include "mswprint.cpp"
 #include "m_doc.cpp"
 #include "m_grid.cpp"
 #include "m_tbar.cpp"
