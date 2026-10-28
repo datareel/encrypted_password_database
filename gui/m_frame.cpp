@@ -38,7 +38,7 @@ Main frame for this application.
 // The event tables connect the wxWindows events with the functions (event
 // handlers) which process them. It can be also done at run-time, but for the
 // simple menu events like this the static method is much simpler.
-BEGIN_EVENT_TABLE(MainFrame, wxMDIParentFrame)
+BEGIN_EVENT_TABLE(MainFrame, EPDBMDIParentFrame)
   // Frame event handlers
   EVT_CLOSE(MainFrame::OnCloseWindow)
 
@@ -175,7 +175,7 @@ MainFrame::MainFrame(wxWindow *parent,
 		     const wxPoint& pos,
 		     const wxSize& size,
 		     const long style)
-  : wxMDIParentFrame(parent, id, title, pos, size,
+  : EPDBMDIParentFrame(parent, id, title, pos, size,
 		     style | wxNO_FULL_REPAINT_ON_RESIZE)
 {
   // Set the frame icon
@@ -347,9 +347,24 @@ MainFrame::MainFrame(wxWindow *parent,
   GetMenuBar()->Check(WXAPPFW_VIEW_SHOW_PASSWORDS, progcfg->show_passwords != 0);
 
   // 10/27/2026: Ctrl+Shift+Z also redoes
+#ifdef EPDB_AUI_MDI
+  // 10/27/2026: Ctrl+Tab and Ctrl+F6 go to the next database tab, with
+  // Shift to the one before, as with the classic MDI windows
+  wxAcceleratorEntry accel_entries[5];
+  accel_entries[0].Set(wxACCEL_CTRL | wxACCEL_SHIFT, (int)'Z', WXAPPFW_EDIT_REDO);
+  const int next_tab = wxWindow::NewControlId(), prev_tab = wxWindow::NewControlId();
+  accel_entries[1].Set(wxACCEL_CTRL, WXK_TAB, next_tab);
+  accel_entries[2].Set(wxACCEL_CTRL, WXK_F6, next_tab);
+  accel_entries[3].Set(wxACCEL_CTRL | wxACCEL_SHIFT, WXK_TAB, prev_tab);
+  accel_entries[4].Set(wxACCEL_CTRL | wxACCEL_SHIFT, WXK_F6, prev_tab);
+  wxAcceleratorTable accel(5, accel_entries);
+  Bind(wxEVT_MENU, [this](wxCommandEvent &) { ActivateNext(); }, next_tab);
+  Bind(wxEVT_MENU, [this](wxCommandEvent &) { ActivatePrevious(); }, prev_tab);
+#else
   wxAcceleratorEntry accel_entries[1];
   accel_entries[0].Set(wxACCEL_CTRL | wxACCEL_SHIFT, (int)'Z', WXAPPFW_EDIT_REDO);
   wxAcceleratorTable accel(1, accel_entries);
+#endif
   SetAcceleratorTable(accel);
 
   // Set the menu defaults
@@ -2944,11 +2959,11 @@ int MainFrame::DatabaseIsOpen(gxString &dbname)
 
 CryptDBDocument *MainFrame::get_active_child()
 {
-  wxMDIChildFrame *child_frame = GetActiveChild();
+  EPDBMDIChildFrame *child_frame = GetActiveChild();
   gxListNode<CryptDBDocument *> *ptr = progcfg->child_frame_list.GetHead();
 
   while(ptr) {
-    wxMDIChildFrame *cf_ptr = (wxMDIChildFrame *)ptr->data;
+    EPDBMDIChildFrame *cf_ptr = (EPDBMDIChildFrame *)ptr->data;
     if(child_frame == cf_ptr) {
       DBStringConfig::crypt_key = ptr->data->DBParms()->crypt_key;
       return ptr->data;

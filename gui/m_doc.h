@@ -39,10 +39,10 @@ Document controls
 class CryptDBGrid;
 class DetailsPane;
 
-class CryptDBDocument : public wxMDIChildFrame
+class CryptDBDocument : public EPDBMDIChildFrame
 {
 public:
-  CryptDBDocument(wxMDIParentFrame *parent, const wxString& title, 
+  CryptDBDocument(EPDBMDIParentFrame *parent, const wxString& title, 
 		  const wxPoint& pos, const wxSize& size, const long style);
   ~CryptDBDocument();
 

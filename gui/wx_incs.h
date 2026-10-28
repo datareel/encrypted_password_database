@@ -140,6 +140,18 @@ version 2.X
 
 // --------------------------------------------------------------
 
+// 10/27/2026: On Windows the open databases are tabs (wxAuiMDIParentFrame),
+// as they are on GTK; define EPDB_NO_AUI_MDI for the classic MDI windows
+#if defined(__WXMSW__) && !defined(EPDB_NO_AUI_MDI)
+#include <wx/aui/tabmdi.h>
+#define EPDB_AUI_MDI 1
+typedef wxAuiMDIParentFrame EPDBMDIParentFrame;
+typedef wxAuiMDIChildFrame EPDBMDIChildFrame;
+#else
+typedef wxMDIParentFrame EPDBMDIParentFrame;
+typedef wxMDIChildFrame EPDBMDIChildFrame;
+#endif
+
 #endif  // __WX_INCS_HPP__ 
 // ----------------------------------------------------------- //
 // ------------------------------- //

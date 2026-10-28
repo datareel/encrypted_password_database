@@ -35,7 +35,7 @@ Main frame for this application.
 
 #include "app_defs.h"
 
-class MainFrame : public wxMDIParentFrame
+class MainFrame : public EPDBMDIParentFrame
 {
 public:
   MainFrame(wxWindow *parent, const wxWindowID id, 

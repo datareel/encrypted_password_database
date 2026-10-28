@@ -35,7 +35,7 @@ Document controls
 // Note that MDI_NEW_WINDOW and MDI_ABOUT commands get passed
 // to the parent window for processing, so no need to
 // duplicate event handlers here.
-BEGIN_EVENT_TABLE(CryptDBDocument, wxMDIChildFrame)
+BEGIN_EVENT_TABLE(CryptDBDocument, EPDBMDIChildFrame)
   EVT_MENU(WXAPPFW_MDI_CHILD_QUIT, CryptDBDocument::OnQuit)
   EVT_MENU(WXAPPFW_MDI_REFRESH, CryptDBDocument::OnRefresh)
   EVT_MENU(WXAPPFW_MDI_CHANGE_POSITION, CryptDBDocument::OnChangePosition)
@@ -63,11 +63,11 @@ BEGIN_EVENT_TABLE(CryptDBDocument, wxMDIChildFrame)
   // EVT_GRID_EDITOR_CREATED(CryptDBDocument::OnEditorCreated)	
 END_EVENT_TABLE()
 
-CryptDBDocument::CryptDBDocument(wxMDIParentFrame *parent, 
+CryptDBDocument::CryptDBDocument(EPDBMDIParentFrame *parent, 
 				 const wxString& title,
 				 const wxPoint& pos, const wxSize& size,
 				 const long style)
-  : wxMDIChildFrame(parent, CHILD_FRAME_ID, title, pos, size,
+  : EPDBMDIChildFrame(parent, CHILD_FRAME_ID, title, pos, size,
 		    style | wxNO_FULL_REPAINT_ON_RESIZE)
 {
   grid_frame =(CryptDBGrid *)0;
@@ -114,7 +114,7 @@ CryptDBDocument::CryptDBDocument(wxMDIParentFrame *parent,
   s->Add(bar, 0, wxEXPAND | wxALL, FromDIP(6));
   s->Add(splitter, 1, wxEXPAND);
   SetSizer(s);
-#ifdef __WXMSW__
+#if defined(__WXMSW__) && !defined(EPDB_AUI_MDI)
   // 10/27/2026: Database windows fill the main window on Windows, as
   // the GTK tabs do. The window is still restored with its own button.
   Maximize(true);
