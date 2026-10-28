@@ -192,8 +192,11 @@ void ChangePanel::CommitChanges()
   INFOHOG_t prev_name(dbstring2->c_str(dest));
   if(CaseICmp(dbstring1->c_str(dest1), dbstring2->c_str(dest2)) != 0) {
     change_grid_name = 1;
-    wxString name = curr_name.c_str(dest);
-    if(child_frame->GridFrame()->FindGridPosition(name) != -1) {
+    wxString name = EPDBFromDB(curr_name.c_str(dest));
+    // 10/27/2026: An older ANSI title saved again as UTF-8 is the same
+    // name, not a rename to a name that exists
+    int same_text = name.IsSameAs(EPDBFromDB(prev_name.c_str(dest1)), false);
+    if(!same_text && child_frame->GridFrame()->FindGridPosition(name) != -1) {
       gxString gbuf;
       gbuf << clear << "Error changing " << prev_name.c_str(dest) << "\n"
 	   << "The database " << curr_name.c_str(dest) 
@@ -227,7 +230,7 @@ void ChangePanel::CommitChanges()
   }
 
   if(change_grid_name) {
-    wxString name = prev_name.c_str(dest);
+    wxString name = EPDBFromDB(prev_name.c_str(dest));
     int row_number = child_frame->GridFrame()->FindGridPosition(name);
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Prev Grid Name = " << prev_name.c_str(dest) << "\n";
@@ -236,7 +239,7 @@ void ChangePanel::CommitChanges()
     child_frame->GridFrame()->MoveCell(curr_object, row_number);
   }
   else {
-    wxString name = curr_name.c_str(dest);
+    wxString name = EPDBFromDB(curr_name.c_str(dest));
     int row_number = child_frame->GridFrame()->FindGridPosition(name);
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Curr Grid Name = " << curr_name.c_str(dest) << "\n";
@@ -293,11 +296,11 @@ void ChangePanel::OnRevert(wxCommandEvent &WXUNUSED(event))
     if(prev_object.GetMemberLen(0) != sizeof(INFOHOG_t)) return;
 
     INFOHOG_t *dbstring = (INFOHOG_t *)prev_object.GetMember(0);
-    db_input[0]->SetValue(dbstring->c_str(dest));
+    db_input[0]->SetValue(EPDBFromDB(dbstring->c_str(dest)));
     for(int i = 1; i < MaxPanelMembers; i++) {
       if(infohog_a[count]->GetMemberLen(i) != sizeof(INFOHOG_t)) {
 	dbstring = (INFOHOG_t *)infohog_a[count]->GetMember(i);
-	db_input[i]->SetValue(dbstring->c_str(dest));
+	db_input[i]->SetValue(EPDBFromDB(dbstring->c_str(dest)));
       }
     }
   }
@@ -322,7 +325,7 @@ void ChangePanel::LoadPanel(INFOHOG &ob)
     if(ob.GetMemberLen(i) == sizeof(INFOHOG_t)) {
       INFOHOG_t *dbstring = (INFOHOG_t *)ob.GetMember(i);
       if(!dbstring->is_null()) {
-	db_input[i]->SetValue(dbstring->c_str(dest));
+	db_input[i]->SetValue(EPDBFromDB(dbstring->c_str(dest)));
       }
     }
   }

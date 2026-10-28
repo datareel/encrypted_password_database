@@ -482,9 +482,7 @@ void CryptDBDocument::OnCellLeftDClick(wxGridEvent& event)
     INFOHOG infohog(DBParms()->pod, NumDataMembers);
     wxString sbuf;
 
-    INFOHOG_t key(grid_frame->m_grid->GetCellValue(DBParms()->current_row, 0));
-    infohog.SetMember(&key, sizeof(key), 0);
-    if(!infohog.FindObject()) {
+    if(!EPDBFindTitle(infohog, grid_frame->m_grid->GetCellValue(DBParms()->current_row, 0))) {
       if(DBParms()->display_status) {
 	*(frame->statusWin) << "Could not find item: " 
 			    << grid_frame->m_grid->GetCellValue(DBParms()->current_row, 0)
@@ -757,9 +755,7 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
 	}
       }
 
-      INFOHOG_t search_key2(DBParms()->prev_name.c_str());
-      infohog.SetMember(&search_key2, sizeof(search_key2), 0);
-      if(!infohog.FindObject()) { 
+      if(!EPDBFindTitle(infohog, DBParms()->prev_name)) { 
 	*(frame->statusWin) << "Could not change object " << DBParms()->prev_name.c_str()
 			    << "\n" << "Object not found in the database" 
 			    << "\n";
@@ -864,9 +860,7 @@ int CryptDBDocument::change_cell_value(wxGridEvent& event)
       }
     }
 
-    INFOHOG_t key(my_current_name.c_str());
-    infohog.SetMember(&key, sizeof(key), 0);
-    if(!infohog.FindObject()) { 
+    if(!EPDBFindTitle(infohog, my_current_name)) { 
       *(frame->statusWin) << "Could not change object " << my_current_name
 			  << "\n" << "Object not found in the database" 
 			  << "\n";

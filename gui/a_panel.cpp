@@ -216,7 +216,7 @@ void AddPanel::LoadPanel(INFOHOG &ob)
     if(ob.GetMemberLen(i) == sizeof(INFOHOG_t)) {
       INFOHOG_t *dbstring = (INFOHOG_t *)ob.GetMember(i);
       if(!dbstring->is_null()) {
-	db_input[i]->SetValue(dbstring->c_str(dest));
+	db_input[i]->SetValue(EPDBFromDB(dbstring->c_str(dest)));
       }
     }
   }

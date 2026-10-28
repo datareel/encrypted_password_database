@@ -194,23 +194,20 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
     }
     SecureWipe(rec);
     
-    // Copy contents of the array to temporary holding buffer
-    sbuf = LineBuffer;
-    
-    // Strip all line feeds and carriage returns
-    wxStrStripChar(sbuf, '\r');
-    wxStrStripChar(sbuf, '\n');
-
-    // Trim all leading and trailing spaces
-    sbuf.Trim(); sbuf.Trim(FALSE);
+    // 10/27/2026: The line as bytes, not converted to text, so values in
+    // any encoding are kept as they are
+    gxString gxbuf(LineBuffer);
+    gxbuf.FilterChar('\r');
+    gxbuf.FilterChar('\n');
+    gxbuf.TrimLeadingSpaces();
+    gxbuf.TrimTrailingSpaces();
     
     // Parse the text line
-    if(sbuf != "") {
+    if(!gxbuf.is_null()) {
       // Ensure that the template does not get added
-      if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
+      if(has_grid_labels(gxbuf.c_str(), child_frame)) continue; 
       // 10/25/2026: Count the lines the import reads, ParseCVSLine() has
       // no word limits
-      gxString gxbuf = (const char *)sbuf.c_str();
       unsigned n = 0;
       gxString *fields = ParseCVSLine(gxbuf, n);
       if(fields) {
@@ -369,14 +366,15 @@ Exiting the import operation");
     // Copy contents of the array to temporary holding buffer
     // 10/27/2026: A record with quoted line breaks or doubled quotes is
     // split exactly, older single line records as before
-    sbuf = rfc ? wxString::FromUTF8(rec.c_str()) : wxString(LineBuffer);
-    
-    // Strip all line feeds and carriage returns
-    wxStrStripChar(sbuf, '\r');
-    wxStrStripChar(sbuf, '\n');
-
-    // Trim all leading and trailing spaces
-    sbuf.Trim(); sbuf.Trim(FALSE);
+    // 10/27/2026: Kept as bytes, not converted to text, so values in any
+    // encoding are imported as they are
+    gxString gxbuf(rfc ? rec.c_str() : LineBuffer);
+    if(!rfc) {
+      gxbuf.FilterChar('\r');
+      gxbuf.FilterChar('\n');
+    }
+    gxbuf.TrimLeadingSpaces();
+    gxbuf.TrimTrailingSpaces();
 
     if(csv_array != 0) { // Free memory with every line read
       delete[] csv_array;
@@ -384,12 +382,11 @@ Exiting the import operation");
     }
     
     // Parse the text line
-    if(sbuf != "") {
+    if(!gxbuf.is_null()) {
 
       // Ensure that the template does not get added
-      if(has_grid_labels(sbuf.c_str(), child_frame)) continue; 
+      if(has_grid_labels(gxbuf.c_str(), child_frame)) continue; 
 
-      gxString gxbuf = sbuf;
       if(rfc) {
 	unsigned n = 0;
 	int open = 0, has_rfc = 0;
@@ -410,11 +407,12 @@ Exiting the import operation");
 	// 10/25/2026: Undo the formula escaping added by the export
 	for(i = 0; i < num; i++) UnescapeCSVFormula(csv_array[i]);
 
-	sbuf = csv_array[0].c_str();
-	// Trim all leading and trailing spaces
-	sbuf.Trim(); sbuf.Trim(FALSE);	 
+	// Trim all leading and trailing spaces (10/27/2026: as bytes)
+	gxString title(csv_array[0]);
+	title.TrimLeadingSpaces();
+	title.TrimTrailingSpaces();
 
-	INFOHOG_t ob(sbuf.c_str()); 
+	INFOHOG_t ob(title.c_str()); 
 	infohog.SetMember(&ob, sizeof(ob), 0); // Set the item name
 
 	// Set the other data members

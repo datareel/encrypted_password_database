@@ -39,6 +39,7 @@ extern "C" void gdk_set_program_class(const char *program_class); // GDK
 bool WinApp::OnInit(void)
 {
   SecureProcessSetup(); // 10/25/2026: Private files, no core dumps
+  EPDBSetUTF8Locale();  // 10/27/2026: wxString char* conversions are UTF-8
 
 #ifdef __WXGTK__
   // 10/27/2026: A fixed Wayland app_id and X11 WM_CLASS, whatever the

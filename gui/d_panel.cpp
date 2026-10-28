@@ -285,9 +285,7 @@ int DisplayPanel::ReReadObject(INFOHOG &infohog)
     return 0;
   }
 
-  INFOHOG_t search_key2(db_input[0]->GetValue().c_str());
-  infohog.SetMember(&search_key2, sizeof(search_key2), 0);
-  if(!infohog.FindObject()) { 
+  if(!EPDBFindTitle(infohog, db_input[0]->GetValue())) { 
 #ifdef __APP_DEBUG_VERSION__
     *(frame->statusWin) << "Error finding object" << "\n";
 #endif
@@ -481,7 +479,7 @@ void DisplayPanel::LoadPanel(INFOHOG &ob)
     if(ob.GetMemberLen(i) == sizeof(INFOHOG_t)) {
       INFOHOG_t *dbstring = (INFOHOG_t *)ob.GetMember(i);
       if(!dbstring->is_null()) {
-	db_input[i]->SetValue(dbstring->c_str(dest));
+	db_input[i]->SetValue(EPDBFromDB(dbstring->c_str(dest)));
       }
     }
   }

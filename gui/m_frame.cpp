@@ -1319,9 +1319,7 @@ void MainFrame::OnCut(wxCommandEvent& event)
 								     child_frame->GridFrame()->dbparms.current_col);
   if(!CopyToClipboard(clipData)) return;
 
-  INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
-  infohog.SetMember(&key, sizeof(key), 0);
-  if(!infohog.FindObject()) {
+  if(!EPDBFindTitle(infohog, child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0))) {
     ebuf << clear << "Could not find item: " 
 	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
 	 << " in the database";
@@ -1424,9 +1422,7 @@ void MainFrame::OnPaste(wxCommandEvent& event)
   }
   
   wxString sbuf;
-  INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
-  infohog.SetMember(&key, sizeof(key), 0);
-  if(!infohog.FindObject()) {
+  if(!EPDBFindTitle(infohog, child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0))) {
     ebuf << clear << "Could not find item: " 
 	 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
 	 << " in the database";
@@ -1755,9 +1751,7 @@ void MainFrame::OnChangeObject(wxCommandEvent& event)
 
   INFOHOG infohog(child_frame->GetPOD());
   wxString sbuf;
-  INFOHOG_t key(child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0));
-  infohog.SetMember(&key, sizeof(key), 0);
-  if(!infohog.FindObject()) {
+  if(!EPDBFindTitle(infohog, child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0))) {
     *(statusWin) << "Could not find item: " 
 		 << child_frame->GridFrame()->m_grid->GetCellValue(child_frame->GridFrame()->dbparms.current_row, 0)
 		 << " in the database" << "\n";
@@ -1813,10 +1807,11 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
     for(int n = 0; n < child_frame->GridFrame()->m_grid->GetNumberRows();) {
       if(child_frame->GridFrame()->m_grid->IsInSelection(n , 0)) {
 	if(child_frame->GridFrame()->m_grid->GetCellValue(n, 0) != "") {
-	  key = child_frame->GridFrame()->m_grid->GetCellValue(n, 0);
-	  infohog.SetMember(&key, sizeof(key), 0);
+	  // 10/27/2026: The UTF-8 key, or the key of an older ANSI record
+	  EPDBFindTitle(infohog, child_frame->GridFrame()->m_grid->GetCellValue(n, 0));
 	  GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
-	  gxString undo_name = (const char *)child_frame->GridFrame()->m_grid->GetCellValue(n, 0).c_str();
+	  char kdest[DBStringLength];
+	  gxString undo_name = ((INFOHOG_t *)infohog.GetMember(0))->c_str(kdest);
 	  GUIUndoBefore(child_frame, undo_name, undo_mark);
 	  if(!infohog.DeleteObject()) {
 	    *(statusWin) << "Could not find item: "
@@ -1869,8 +1864,11 @@ void MainFrame::OnDeleteObject(wxCommandEvent& event)
   if(yn == wxNO) return;
 
   if(child_frame->GridFrame()->dbparms.current_name != "") {
+    // 10/27/2026: The UTF-8 key, or the key of an older ANSI record
+    EPDBFindTitle(infohog, child_frame->GridFrame()->dbparms.current_name);
     GUIUndoMark undo_mark; // 10/27/2026: Undo and the access log
-    gxString undo_name = (const char *)child_frame->GridFrame()->dbparms.current_name.c_str();
+    char kdest[DBStringLength];
+    gxString undo_name = ((INFOHOG_t *)infohog.GetMember(0))->c_str(kdest);
     GUIUndoBefore(child_frame, undo_name, undo_mark);
     if(!infohog.DeleteObject()) {
       *(statusWin) << "Could not find item: " << child_frame->GridFrame()->dbparms.current_name

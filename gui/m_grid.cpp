@@ -926,7 +926,7 @@ void CryptDBGrid::LoadCell(INFOHOG &infohog, int row_number)
 #endif
 	  }
 	}
-	m_grid->SetCellValue(row_number, i, cell_str.c_str());
+	m_grid->SetCellValue(row_number, i, EPDBFromDB(cell_str.c_str())); // 10/27/2026
 	::wxYield();
       }
       else {
