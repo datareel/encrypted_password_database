@@ -33,6 +33,7 @@ Crash-safe saves, see epdb_journal.h
 #include "gxdlcode.h"
 
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <vector>
 #include "epdb_journal.h"
@@ -40,6 +41,14 @@ Crash-safe saves, see epdb_journal.h
 #include "futils.h"
 #include "m_globals.h"
 #include "fckeymgmt.h"
+
+#if defined (__WIN32__)
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/file.h>
+#endif
 
 // Page cache for a save. A save pins the pages it changes, the rest
 // is a read cache for the save only.
@@ -61,11 +70,118 @@ struct EPDBJournalEntry {
   gxdJournal *j;
   int depth;
   unsigned long writes; // Data file writes when the save began
+  int locked;           // Holds the writer lock
 };
 
 static std::vector<EPDBJournalEntry> epdb_journals;
 static unsigned long epdb_journaled_saves = 0;
 static gxString epdb_journal_error;
+
+// --------------------------------------------------------------
+// 10/31/2026: Writer lock, see EPDBLockDatabase()
+// --------------------------------------------------------------
+struct EPDBLockEntry {
+  gxString path; // Absolute path of the data file
+  int count;     // Holders in this program
+#if defined (__WIN32__)
+  HANDLE h;
+#else
+  int fd;
+#endif
+};
+
+static std::vector<EPDBLockEntry> epdb_locks;
+
+static int epdb_lock_find(const gxString &path)
+{
+  for(size_t i = 0; i < epdb_locks.size(); i++) {
+    if(epdb_locks[i].path == path) return (int)i;
+  }
+  return -1;
+}
+
+int EPDBLockDatabase(const char *data_file, gxString &err)
+{
+  if(!data_file) return -1;
+  gxString path = FC_abs_path(data_file);
+  int i = epdb_lock_find(path);
+  if(i >= 0) { // Held by this program already
+    epdb_locks[i].count++;
+    return 0;
+  }
+  EPDBLockEntry e;
+  e.path = path;
+  e.count = 1;
+#if defined (__WIN32__)
+  // A byte far past the end of the file, so the lock never blocks
+  // reads and writes of the file itself. The handle allows the file to
+  // be renamed over (file replacements) and deleted.
+  e.h = CreateFileA(data_file, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+		    NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if(e.h == INVALID_HANDLE_VALUE) {
+    err << clear << "Cannot open " << data_file << " to lock it";
+    return -1;
+  }
+  OVERLAPPED ov;
+  memset(&ov, 0, sizeof(ov));
+  ov.OffsetHigh = 0x40000000;
+  if(!LockFileEx(e.h, LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &ov)) {
+    DWORD le = GetLastError();
+    CloseHandle(e.h);
+    if(le == ERROR_LOCK_VIOLATION || le == ERROR_IO_PENDING) {
+      err << clear << "The database " << data_file << " is open in another program";
+      return 1;
+    }
+    err << clear << "Cannot lock " << data_file;
+    return -1;
+  }
+#else
+  // flock() locks belong to this open file, so the database's own file
+  // descriptors are not affected. The kernel releases the lock when the
+  // program ends, also after kill -9.
+  e.fd = open(data_file, O_RDONLY|O_CLOEXEC);
+  if(e.fd < 0) {
+    err << clear << "Cannot open " << data_file << " to lock it";
+    return -1;
+  }
+  if(flock(e.fd, LOCK_EX|LOCK_NB) != 0) {
+    int busy = (errno == EWOULDBLOCK);
+    close(e.fd);
+    if(busy) {
+      err << clear << "The database " << data_file << " is open in another program";
+      return 1;
+    }
+    err << clear << "Cannot lock " << data_file;
+    return -1;
+  }
+#endif
+  epdb_locks.push_back(e);
+  return 0;
+}
+
+void EPDBUnlockDatabase(const char *data_file)
+{
+  if(!data_file) return;
+  int i = epdb_lock_find(FC_abs_path(data_file));
+  if(i < 0) return;
+  if(--epdb_locks[i].count > 0) return;
+#if defined (__WIN32__)
+  OVERLAPPED ov;
+  memset(&ov, 0, sizeof(ov));
+  ov.OffsetHigh = 0x40000000;
+  UnlockFileEx(epdb_locks[i].h, 0, 1, 0, &ov);
+  CloseHandle(epdb_locks[i].h);
+#else
+  flock(epdb_locks[i].fd, LOCK_UN);
+  close(epdb_locks[i].fd);
+#endif
+  epdb_locks.erase(epdb_locks.begin() + i);
+}
+
+int EPDBDatabaseLocked(const char *data_file)
+{
+  return data_file && epdb_lock_find(FC_abs_path(data_file)) >= 0;
+}
 
 gxString EPDBJournalName(const char *data_file)
 {
@@ -144,10 +260,32 @@ static int epdb_finish_swaps(const char *data_file, gxString &msg)
   return rv;
 }
 
+static int epdb_recover_locked(const char *data_file, gxString &msg);
+
 int EPDBRecoverDatabase(const char *data_file, gxString &msg)
+// 10/31/2026: Only while holding the writer lock. A database that
+// another program has open for writing is left to that program.
 {
   msg.Clear();
   if(!data_file) return -1;
+  if(!EPDBRecoveryPending(data_file)) return 0;
+  gxString lerr;
+  int lrv = EPDBLockDatabase(data_file, lerr);
+  if(lrv == 1) return 0; // The program writing it finishes its own saves
+  if(lrv != 0) {
+    // Cannot lock, for example a read-only file system: nothing can be
+    // written either, say what is waiting
+    msg << clear << data_file << ": an interrupted save is waiting to be finished, "
+	<< "open the database with write access";
+    return 1;
+  }
+  int rv = epdb_recover_locked(data_file, msg);
+  EPDBUnlockDatabase(data_file);
+  return rv;
+}
+
+static int epdb_recover_locked(const char *data_file, gxString &msg)
+{
   int rv = epdb_finish_swaps(data_file, msg);
   if(rv != 0) return rv;
   gxString jname = EPDBJournalName(data_file);
@@ -215,6 +353,8 @@ static void epdb_journal_register(gxDatabase *f, POD *pod, const char *data_file
   e.j = 0;
   e.depth = 0;
   e.writes = 0;
+  gxString lerr;
+  e.locked = (EPDBLockDatabase(data_file, lerr) == 0); // Normally held already
   epdb_journals.push_back(e);
 }
 
@@ -291,6 +431,7 @@ void EPDBJournalUnregister(gxDatabase *f)
       EPDBSaveEnd(f);
     }
     epdb_journal_close(e);
+    if(e.locked) EPDBUnlockDatabase(e.path.c_str());
     epdb_journals.erase(epdb_journals.begin() + i);
     return;
   }

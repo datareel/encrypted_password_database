@@ -1723,6 +1723,12 @@ int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
 {
   err.Clear();
   backup_data_file.Clear();
+  // 10/31/2026: Not while another program writes the database
+  EPDBLockScope write_lock(data_file);
+  if(!write_lock.Held()) {
+    err << clear << write_lock.err;
+    return -1;
+  }
   MemoryBuffer secret(secret_in);
   gxString dfile(data_file);
   gxString ifile = ReplaceFileExtension(dfile, ".ehx");
@@ -2179,6 +2185,12 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
 {
   err.Clear();
   backup_data_file.Clear();
+  // 10/31/2026: Not while another program writes the database
+  EPDBLockScope write_lock(data_file);
+  if(!write_lock.Held()) {
+    err << clear << write_lock.err;
+    return -1;
+  }
   gxString dfile(data_file);
   if(epdb_check_db_name(dfile, err) != 0) return -1;
   if(!EPDBIsKeyset(keyset)) {
@@ -2505,6 +2517,12 @@ int EPDBRekey(const char *data_file, const MemoryBuffer &old_keyset_in, const Me
   err.Clear();
   backup_data_file.Clear();
   new_keyset.Clear(1);
+  // 10/31/2026: Not while another program writes the database
+  EPDBLockScope write_lock(data_file);
+  if(!write_lock.Held()) {
+    err << clear << write_lock.err;
+    return -1;
+  }
   gxString dfile(data_file);
   if(epdb_check_db_name(dfile, err) != 0) return -1;
   MemoryBuffer old_keyset(old_keyset_in);

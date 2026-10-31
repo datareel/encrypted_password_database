@@ -25,6 +25,11 @@
 #     build opens unchanged, and a database saved by this build opens in
 #     the old build.
 #  6. The time of a save, with and without the journal.
+#  7. Writer lock: while one program has the database open for writing,
+#     a second read-write open and a record change are refused with
+#     "open in another program", a read-only open works, and after a
+#     kill -9 of the writer the next open gets the lock and finishes
+#     its save.
 NEW_DIR=$(cd $(dirname $0) && pwd)
 ROUNDS=${1:-60}
 OLD_DIR=$2
@@ -230,6 +235,31 @@ if [ -n "${OLD_DIR}" ]; then
     ${OLD_TOOL} ${A} --db-list crash.ehd > /dev/null 2>>${logFILE}
     check $? "the old build opens the database used for the kill -9 rounds"
 fi
+
+# 7. Writer lock
+${TESTDB} create lock.ehd "${PW}" 20 >>${logFILE} 2>&1
+${JT} writer lock.ehd "${PW}" 0 > acked.txt 2>>${logFILE} &
+pid=$!
+for i in $(seq 1 300); do [ -s acked.txt ] && break; sleep_ms 10; done
+out=$(${JT} verify lock.ehd "${PW}" 0 2>&1)
+echo "${out}" | grep -q "open in another program"
+check $? "a second read-write open is refused while a writer has the database open"
+printf 'username=x\n' | ${TOOL} ${A} --add-record=Second lock.ehd > lock_out.txt 2>&1
+rv=$?
+[ ${rv} -ne 0 ] && grep -q "open in another program" lock_out.txt
+check $? "epdb_auth_tool --add-record is refused while a writer has the database open"
+${TOOL} ${A} --check-version lock.ehd >>${logFILE} 2>&1
+check $? "a read-only open works while a writer has the database open"
+kill -0 ${pid} 2>/dev/null
+check $? "the writer kept running"
+kill -9 ${pid} 2>/dev/null
+wait ${pid} 2>/dev/null
+acked=$(tail -1 acked.txt 2>/dev/null)
+out=$(${JT} verify lock.ehd "${PW}" ${acked:-0} 2>&1)
+echo "${out}" | grep -q '^PASS'
+check $? "after kill -9 of the writer the lock is free and the next open finishes its save (${out})"
+printf 'username=x\n' | ${TOOL} ${A} --add-record=After lock.ehd >>${logFILE} 2>&1
+check $? "a record change works after the writer is gone"
 
 # 6. Time of a save
 for m in 0 2 1; do

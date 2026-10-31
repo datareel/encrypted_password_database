@@ -310,6 +310,12 @@ int EPDBRecordBatch(const char *data_file, const MemoryBuffer &key, gxList<EPDBR
 		    unsigned &num_done, gxString &err)
 {
   num_done = 0;
+  // 10/31/2026: Not while another program writes the database
+  EPDBLockScope write_lock(data_file);
+  if(!write_lock.Held()) {
+    err << clear << write_lock.err;
+    return EPDB_REC_ERROR;
+  }
   gxString dfile(data_file);
   if(dfile.length() < 5 || CaseICmp(gxString(dfile.c_str() + dfile.length() - 4), ".ehd") != 0) {
     err << clear << "The database file name must end in .ehd";
@@ -635,6 +641,13 @@ int EPDBRebuildIndex(const char *data_file, const MemoryBuffer &key, POD *pod_in
   gxString tfile = ifile;
   tfile << ".rebuild";
   futils_remove(tfile.c_str());
+  // 10/31/2026: Not while another program writes the database (a
+  // caller with the database open holds the lock already)
+  EPDBLockScope write_lock(data_file);
+  if(!write_lock.Held()) {
+    err << clear << write_lock.err;
+    return -1;
+  }
   POD *pod = pod_in;
   if(!pod) {
     pod = EPDBOpenPOD(dfile, ifile, gxDBASE_READWRITE, err);

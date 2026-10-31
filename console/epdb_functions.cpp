@@ -705,12 +705,14 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
     return 0;
   }
   
-  // 10/31/2026: Finish a save or file replacement that a crash interrupted
+  // 10/31/2026: Take the writer lock, finish a save or file replacement
+  // that a crash interrupted
   if(EPDBOpenRecover(database_file.c_str(), err_string, mode) != 0) return 0;
 
   POD *pod = new POD;
   if(!pod) {
     err_string << clear << "Could not create new POD object";
+    if(mode == gxDBASE_READWRITE) EPDBUnlockDatabase(database_file.c_str());
     return 0;
   }
 
@@ -729,6 +731,7 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
   if(err != gxDBASE_NO_ERROR) {
     delete pod;
     err_string << clear << gxDatabaseExceptionMessage(err);
+    if(mode == gxDBASE_READWRITE) EPDBUnlockDatabase(database_file.c_str());
     return 0;
   }
 
@@ -736,21 +739,35 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
   if(pod->RebuildIndex() && mode == gxDBASE_READWRITE) {
     delete pod;
     err_string << clear << "Index file need to be rebuilt " << index_file.c_str();
+    EPDBUnlockDatabase(database_file.c_str());
     return 0;
   }
   
   // 10/31/2026: Saves to a database open for writing are journaled.
-  // Close it with CloseEPDB_POD().
-  if(mode == gxDBASE_READWRITE) EPDBJournalRegister(pod, database_file.c_str());
+  // Close it with CloseEPDB_POD(). The registration holds the lock.
+  if(mode == gxDBASE_READWRITE) {
+    EPDBJournalRegister(pod, database_file.c_str());
+    EPDBUnlockDatabase(database_file.c_str());
+  }
   return pod;
 }
 
 int EPDBOpenRecover(const char *data_file, gxString &err_string, gxDatabaseAccessMode mode)
-// 10/31/2026: Called before a database is opened. Finishes a save or
-// file replacement that a crash interrupted. A database that needs it
-// but cannot be written opens read-only with a warning. Returns 0, or
-// -1 with "err_string" set if the database must not be opened.
+// 10/31/2026: Called before a database is opened. For a read-write
+// open, takes the writer lock (released by the caller if the open
+// fails, else held by the journal registration): a database open for
+// writing in another program is refused. Finishes a save or file
+// replacement that a crash interrupted. A database that needs it but
+// cannot be written opens read-only with a warning. Returns 0, or -1
+// with "err_string" set if the database must not be opened.
 {
+  if(mode == gxDBASE_READWRITE) {
+    gxString lerr;
+    if(EPDBLockDatabase(data_file, lerr) != 0) {
+      err_string << clear << lerr;
+      return -1;
+    }
+  }
   gxString msg;
   int rv = EPDBRecoverDatabase(data_file, msg);
   if(rv == 0) {
@@ -762,6 +779,7 @@ int EPDBOpenRecover(const char *data_file, gxString &err_string, gxDatabaseAcces
     return 0;
   }
   err_string << clear << msg;
+  if(mode == gxDBASE_READWRITE) EPDBUnlockDatabase(data_file);
   return -1;
 }
 
@@ -797,6 +815,7 @@ gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMo
   gxDatabase *f = new gxDatabase;
   if(!f) {
     err_string << clear << "ERROR: Cannot create database object";
+    if(mode == gxDBASE_READWRITE) EPDBUnlockDatabase(fname);
     return 0;
   }
 
@@ -804,11 +823,16 @@ gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMo
   if(err != gxDBASE_NO_ERROR) {
     err_string << clear << gxDatabaseExceptionMessage(err);
     delete f;
+    if(mode == gxDBASE_READWRITE) EPDBUnlockDatabase(fname);
     return 0;
   }
 
-  // 10/31/2026: Saves are journaled, close it with CloseEPDB()
-  if(mode == gxDBASE_READWRITE) EPDBJournalRegister(f, fname);
+  // 10/31/2026: Saves are journaled, close it with CloseEPDB(). The
+  // registration holds the writer lock.
+  if(mode == gxDBASE_READWRITE) {
+    EPDBJournalRegister(f, fname);
+    EPDBUnlockDatabase(fname);
+  }
   return f;
 }
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string)

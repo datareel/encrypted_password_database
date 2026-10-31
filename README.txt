@@ -40,8 +40,15 @@ CHANGES AFTER RELEASE 2026.104 (NOT RELEASED YET): CRASH-SAFE SAVES
   sync at all), more on a busy disk. One change in the GUI is one save.
 * The database format is unchanged: older releases open databases
   saved by this version, and this version opens older databases
-  without changing them. Do not run two programs that change the same
-  database at the same time.
+  without changing them.
+* Only one program can have a database open for writing. The GUI or
+  epdb_auth_tool takes a lock on the .ehd file when it opens it for
+  writing (released when it closes it, or by the system if it stops);
+  another program that tries gets "The database ... is open in another
+  program": the GUI then opens it read-only, epdb_auth_tool changes
+  (records, users, rekey, upgrade, index rebuild) stop. Reading the
+  database is not blocked. Releases before this one do not check the
+  lock.
 * Built with fcrypt 2026.107 and the bundled DataReel 6.3, which adds
   the journal (datareel branch 6.3-oodb-backport).
 * Tests: console/linux/run_journal_tests.sh (kill -9 at random moments

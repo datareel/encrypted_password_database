@@ -64,6 +64,21 @@ Read-only opens never create a journal. EPDBRecoverDatabase() is
 called before any open and needs write access only when there is an
 interrupted save or file replacement to finish.
 
+Only one program may change a database at a time (10/31/2026). A
+read-write open takes an exclusive, non-blocking writer lock on the
+.ehd file (flock() on Linux, LockFileEx() on a byte far past the end
+of the file on Windows), held until the database is closed; the
+operating system releases it if the program dies, also after kill -9.
+A second read-write open is refused with "The database ... is open in
+another program" (the GUI then opens it read-only). Read-only opens
+never take the lock. Recovery runs only while holding the lock, so it
+never replays the journal of a program that is still writing, and the
+file replacements (rekey, remove user, upgrade, epdb_auth_tool record
+changes, index rebuild) hold it too. The access log, failed-open
+counter and self-destruct writes by file name do not wait for the
+lock: they write as before, so holding a database open cannot stop
+the failed-open counter.
+
 The files of an interrupted file replacement (rekey, remove user,
 format upgrade, epdb_auth_tool record changes, see epdb_replace_db()
 in db_auth.cpp) are also finished by EPDBRecoverDatabase(): a marker
@@ -84,6 +99,36 @@ the originals.
 // see EPDBJournalRegister()
 typedef void (*EPDBResealFunction)(void *data);
 
+// 10/31/2026: Writer lock. Returns 0 if the lock is held (counted: a
+// program that holds it already gets it again), 1 if another program
+// holds it ("err" says the database is open in another program), or -1
+// on an error. Every successful EPDBLockDatabase() needs an
+// EPDBUnlockDatabase().
+int EPDBLockDatabase(const char *data_file, gxString &err);
+void EPDBUnlockDatabase(const char *data_file);
+int EPDBDatabaseLocked(const char *data_file); // Held by this program
+
+class EPDBLockScope
+// Holds the writer lock while the object exists
+{
+public:
+  EPDBLockScope(const char *data_file) {
+    file = data_file;
+    rv = EPDBLockDatabase(data_file, err);
+  }
+  ~EPDBLockScope() { if(rv == 0) EPDBUnlockDatabase(file.c_str()); }
+  int Held() const { return rv == 0; }
+  gxString err;
+
+private:
+  EPDBLockScope(const EPDBLockScope &) { }
+  void operator=(const EPDBLockScope &) { }
+
+private:
+  gxString file;
+  int rv;
+};
+
 // The journal file of a database: "<data_file>.jnl"
 gxString EPDBJournalName(const char *data_file);
 
@@ -98,7 +143,8 @@ int EPDBRecoveryPending(const char *data_file);
 int EPDBRecoverDatabase(const char *data_file, gxString &msg);
 
 // Registers a database this program opened read-write, so its saves
-// are journaled. "reseal" (optional) is called with "reseal_data"
+// are journaled. It holds the writer lock until it is unregistered
+// (take the lock before the open, see EPDBLockDatabase()). "reseal" (optional) is called with "reseal_data"
 // before each outermost save is written, when the save changed the
 // data file. Unregister before the files are closed: it ends a save
 // left open.
