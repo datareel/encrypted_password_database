@@ -60,6 +60,13 @@ settings and auth area, like the .ehd file. It is created owner-only
 Windows), emptied after each save and removed when the database is
 closed.
 
+The journal names the files recovery writes, so a journal is only
+replayed if no other user could have written it (10/31/2026): on Linux
+the journal must belong to this user and neither it nor its directory
+may be writable by the group or others, and on every system it may only
+name this database's .ehd and .ehx files. Otherwise the database opens
+read-only with a warning.
+
 Read-only opens never create a journal. EPDBRecoverDatabase() is
 called before any open and needs write access only when there is an
 interrupted save or file replacement to finish.

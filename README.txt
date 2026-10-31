@@ -32,7 +32,13 @@ CHANGES AFTER RELEASE 2026.104 (NOT RELEASED YET): CRASH-SAFE SAVES
   leave a new index with the old data file).
 * The journal file holds the same encrypted records and keys as the
   database files. It is created owner-only (mode 600 on Linux, only
-  the current user on Windows). A read-only open never creates it. A
+  the current user on Windows). An interrupted save is only finished
+  from a journal no other user could have written: on Linux the journal
+  and its directory must not be writable by the group or others, and on
+  every system the journal may only name this database's .ehd and .ehx
+  files. Otherwise the database opens read-only with a warning. Keep
+  databases in a directory only you can write (the default
+  ~/.encrypted_password_database/docs is). A read-only open never creates it. A
   database with an unfinished save that cannot be written opens
   read-only with a warning.
 * A save takes about 4 ms on an SSD (the journal and file syncs and

@@ -35,6 +35,7 @@ Crash-safe saves, see epdb_journal.h
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 #include <vector>
 #include "epdb_journal.h"
 #include "gxdjrnl.h"
@@ -48,6 +49,7 @@ Crash-safe saves, see epdb_journal.h
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #endif
 
 // Page cache for a save. A save pins the pages it changes, the rest
@@ -262,6 +264,73 @@ static int epdb_finish_swaps(const char *data_file, gxString &msg)
 
 static int epdb_recover_locked(const char *data_file, gxString &msg);
 
+static gxString epdb_dir_of(const gxString &path)
+{
+  const char *p = path.c_str();
+  const char *slash = strrchr(p, '/');
+#if defined (__WIN32__)
+  const char *bs = strrchr(p, '\\');
+  if(bs && (!slash || bs > slash)) slash = bs;
+#endif
+  if(!slash) return gxString(".");
+  if(slash == p) return gxString("/");
+  gxString dir;
+  dir.InsertAt(0, p, (unsigned)(slash - p));
+  return dir;
+}
+
+static int epdb_journal_trusted(const char *data_file, const char *jname, gxString &why)
+// 10/31/2026: The journal names the files that recovery writes. A
+// journal is only replayed if no other user could have written it: on
+// Linux the journal and its directory must not be writable by the group
+// or others, and the journal must belong to this user. On every system
+// the journal may only name this database's .ehd and .ehx files.
+{
+  gxString jpath = FC_abs_path(jname);
+#if !defined (__WIN32__)
+  struct stat js, ds;
+  gxString dir = epdb_dir_of(jpath);
+  if(stat(jname, &js) != 0 || stat(dir.c_str(), &ds) != 0) {
+    why << clear << "cannot check " << jname;
+    return 0;
+  }
+  if(js.st_uid != geteuid() || (js.st_mode & (S_IWGRP|S_IWOTH))) {
+    why << clear << jname << " is not owned by you or can be written by other users";
+    return 0;
+  }
+  if(ds.st_mode & (S_IWGRP|S_IWOTH)) {
+    why << clear << "the directory " << dir << " can be written by other users";
+    return 0;
+  }
+#endif
+  // The file names in the journal header (gxdjrnl.cpp WriteHeader())
+  FILE *fp = fopen(jname, "rb");
+  if(!fp) {
+    why << clear << "cannot read " << jname;
+    return 0;
+  }
+  unsigned char fixed[24];
+  int ok = fread(fixed, 1, sizeof(fixed), fp) == sizeof(fixed);
+  uint32_t nfiles = 0;
+  if(ok) memcpy(&nfiles, fixed + 16, 4);
+  if(nfiles < 1 || nfiles > 2) ok = 0;
+  gxString dpath = FC_abs_path(data_file);
+  gxString ipath = FC_abs_path(ReplaceFileExtension(gxString(data_file), ".ehx").c_str());
+  for(uint32_t i = 0; ok && i < nfiles; i++) {
+    uint32_t len = 0;
+    if(fread(&len, 1, 4, fp) != 4 || len == 0 || len > 4096) { ok = 0; break; }
+    char *name = new char[len + 1];
+    if(fread(name, 1, len, fp) != len) ok = 0;
+    name[len] = 0;
+    gxString n(name);
+    delete[] name;
+    if(ok && n != dpath && n != ipath) ok = 0;
+  }
+  fclose(fp);
+  if(!ok) why << clear << jname << " names files that are not this database";
+  return ok;
+}
+
 int EPDBRecoverDatabase(const char *data_file, gxString &msg)
 // 10/31/2026: Only while holding the writer lock. A database that
 // another program has open for writing is left to that program.
@@ -290,6 +359,13 @@ static int epdb_recover_locked(const char *data_file, gxString &msg)
   if(rv != 0) return rv;
   gxString jname = EPDBJournalName(data_file);
   if(!epdb_journal_has_data(jname.c_str())) return 0;
+  gxString why;
+  if(!epdb_journal_trusted(data_file, jname.c_str(), why)) {
+    if(!msg.is_null()) msg << "; ";
+    msg << data_file << ": an interrupted save was not finished: " << why
+	<< ". The database opens read-only; check the journal and remove it";
+    return 1;
+  }
   gxString ifile = ReplaceFileExtension(gxString(data_file), ".ehx");
   if(!FC_file_writable(data_file) || !FC_file_writable(ifile.c_str()) ||
      !FC_file_writable(jname.c_str())) {

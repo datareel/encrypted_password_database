@@ -30,6 +30,10 @@
 #     "open in another program", a read-only open works, and after a
 #     kill -9 of the writer the next open gets the lock and finishes
 #     its save.
+#  8. A journal that another user could have written is not replayed:
+#     the journal's directory writable by the group, or a journal that
+#     names another database's files. The database opens read-only with
+#     a warning and is not changed.
 NEW_DIR=$(cd $(dirname $0) && pwd)
 ROUNDS=${1:-60}
 OLD_DIR=$2
@@ -260,6 +264,47 @@ echo "${out}" | grep -q '^PASS'
 check $? "after kill -9 of the writer the lock is free and the next open finishes its save (${out})"
 printf 'username=x\n' | ${TOOL} ${A} --add-record=After lock.ehd >>${logFILE} 2>&1
 check $? "a record change works after the writer is gone"
+
+# 8. Journals that are not trusted
+make_pending() { # $1 = database name; leaves a journal with a save in it
+    for i in $(seq 1 60); do
+	rm -f $1.ehd $1.ehx $1.ehd.jnl
+	${TESTDB} create $1.ehd "${PW}" 20 >>${logFILE} 2>&1
+	${JT} writer $1.ehd "${PW}" 0 > /dev/null 2>>${logFILE} &
+	pid=$!
+	sleep_ms $(rand_ms 400 1500)
+	kill -9 ${pid} 2>/dev/null
+	wait ${pid} 2>/dev/null
+	pending $1.ehd.jnl && return 0
+    done
+    return 1
+}
+mkdir -p shared
+if (cd shared && make_pending gw); then
+    chmod g+w shared
+    sum_before=$(cat shared/gw.ehd shared/gw.ehx | sha256sum)
+    ${TOOL} ${A} --db-list shared/gw.ehd > gw_out.txt 2>&1
+    sum_after=$(cat shared/gw.ehd shared/gw.ehx | sha256sum)
+    grep -q "can be written by other users" gw_out.txt && [ "${sum_before}" = "${sum_after}" ] && pending shared/gw.ehd.jnl
+    check $? "a journal in a directory the group can write is not replayed, the database is not changed"
+    chmod g-w shared
+    ${TOOL} ${A} --db-list shared/gw.ehd > /dev/null 2>gw_out2.txt
+    grep -q "finished a save" gw_out2.txt && [ ! -f shared/gw.ehd.jnl ]
+    check $? "it is replayed once only the owner can write the directory"
+else
+    fail "could not stop a save part way for the directory test"
+fi
+if make_pending other; then
+    ${TESTDB} create victim.ehd "${PW}" 20 >>${logFILE} 2>&1
+    cp other.ehd.jnl victim.ehd.jnl
+    sum_before=$(cat victim.ehd victim.ehx other.ehd other.ehx | sha256sum)
+    ${TOOL} ${A} --db-list victim.ehd > v_out.txt 2>&1
+    sum_after=$(cat victim.ehd victim.ehx other.ehd other.ehx | sha256sum)
+    grep -q "names files that are not this database" v_out.txt && [ "${sum_before}" = "${sum_after}" ]
+    check $? "a journal that names another database's files is not replayed, no file is changed"
+else
+    fail "could not stop a save part way for the foreign journal test"
+fi
 
 # 6. Time of a save
 for m in 0 2 1; do
