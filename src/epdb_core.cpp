@@ -35,6 +35,7 @@ Encrypted Password Database core functions, see epdb_core.h
 #include "m_globals.h"
 #include "epdb_core.h"
 #include "fcfile.h"
+#include "epdb_journal.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -213,6 +214,7 @@ static int EPDBSetField(INFOHOG &ih, unsigned i, const MemoryBuffer &key, const 
 
 int EPDBApplyRecordOp(POD *pod, const MemoryBuffer &key, const EPDBRecordOp &op_in, EPDBRecord *before, gxString &err)
 {
+  EPDBSave save(pod); // 10/31/2026: Crash-safe save, see epdb_journal.h
   EPDBKeyScope scope(key);
   EPDBRecordOp &op = (EPDBRecordOp &)op_in;
   op.result = 0;
@@ -808,6 +810,17 @@ void EPDBLog(EPDBLogContext &ctx, const char *data_file, const char *action, con
   if(code == FC_ACTION_NONE) return; // Not kept in the file, such as export or get-field
   gxString why;
   if(!key || !EPDBIsKeyset(*key)) why = "in-file log unavailable (no key)";
+  else if(EPDBJournalFind(data_file)) {
+    // 10/31/2026: Through the database this program has open read-write,
+    // so the log entry is part of its journaled saves
+    gxDatabase *rf = EPDBJournalFind(data_file);
+    FCRingEntry r;
+    r.action = code;
+    r.auth = FC_auth_code(ctx.auth.c_str());
+    r.result = ok;
+    gxString err;
+    if(EPDBRingAppend(rf, *key, r, slot.c_str(), err) != 0) why << clear << "in-file log unavailable (" << err << ")";
+  }
   else {
     gxDatabase f;
     if(!FC_file_writable(data_file) || f.Open(data_file, gxDBASE_READWRITE) != gxDBASE_NO_ERROR) {
@@ -1087,6 +1100,7 @@ gxString EPDBUndoStack::RedoLabel()
 
 int EPDBUndoStack::Apply(POD *pod, const MemoryBuffer &key, gxList<EPDBRecordOp> &ops, gxString &err)
 {
+  EPDBSave save(pod); // 10/31/2026: One undo or redo step is one save
   for(gxListNode<EPDBRecordOp> *o = ops.GetHead(); o; o = o->next) {
     int rv = EPDBApplyRecordOp(pod, key, o->data, 0, err);
     if(rv != EPDB_REC_OK) return rv;

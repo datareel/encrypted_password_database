@@ -39,6 +39,7 @@ results in dialogs and wires them to the menus.
 #define __EPDB_GUI_HOOKS_HPP__
 
 #include "epdb_core.h"
+#include "epdb_journal.h" // 10/31/2026: Crash-safe saves
 
 // Auth method and user of the last open, for log entries
 struct GUIAuthInfo {
@@ -69,23 +70,34 @@ void GUIUndoClear(CryptDBDocument *doc);
 // settings): asks to clear the undo history. Returns 0 if the user said no.
 int GUIConfirmClearUndo(CryptDBDocument *doc, const char *action);
 // The snapshot and record pair around a record change
+// 10/31/2026: A record change between GUIUndoBefore() and GUIUndoAfter()
+// is one crash-safe save (epdb_journal.h), written by GUIUndoAfter() or,
+// if the change failed and returned early, when the mark goes away
 struct GUIUndoMark {
-  GUIUndoMark() { exists = 0; doc = 0; }
-  ~GUIUndoMark() { before.Wipe(); }
+  GUIUndoMark() { exists = 0; doc = 0; save_db = 0; }
+  ~GUIUndoMark() { before.Wipe(); if(save_db) EPDBSaveEnd(save_db); }
   CryptDBDocument *doc;
   EPDBRecord before;
   int exists;
+  gxDatabase *save_db;
 };
 void GUIUndoBefore(CryptDBDocument *doc, const gxString &name, GUIUndoMark &mark);
 void GUIUndoAfter(GUIUndoMark &mark, const gxString &after_name, const char *action);
 // Name (key member) of a record object
 gxString GUIObjectName(INFOHOG &ih);
-// Ends an undo group when it goes out of scope, for functions with many returns
+// Ends an undo group when it goes out of scope, for functions with many returns.
+// 10/31/2026: The group (an import or a merge) is also one crash-safe save.
 struct GUIUndoGroupGuard {
   GUIUndoGroupGuard(CryptDBDocument *doc, const char *label);
   ~GUIUndoGroupGuard();
   CryptDBDocument *d;
+  gxDatabase *save_db;
 };
+// 10/31/2026: Writes the v2 database MAC of a document in each save,
+// see EPDBJournalRegister()
+void GUIJournalReseal(void *doc);
+// 10/31/2026: Ends a save and shows an error if it could not be written
+int GUISaveEnd(gxDatabase *f);
 // Undo or redo the last change of the active document
 void GUIUndo(CryptDBDocument *doc, int redo);
 // Saves one setting in the config file (.cfg on Linux, .ini on Windows)

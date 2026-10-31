@@ -40,6 +40,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 #endif // __USE_ANSI_CPP__
 
 #include "epdb_functions.h"
+#include "epdb_journal.h"
 #include "fcfile.h"
 #include "fckeymgmt.h"
 #include "epdb_core.h"
@@ -706,10 +707,7 @@ int main(int argc, char **argv)
 	cerr << "WARNING: Resealed " << fname.c_str() << ". Its current contents, including any changes made "
 	     << "outside this program, are now accepted as valid." << "\n" << flush;
       }
-      if(f) {
-	f->Close();
-	delete f;
-      }
+      if(f) CloseEPDB(f); // 10/31/2026: Writes the journaled save
       ptr = ptr->next;
       continue;
     }
@@ -773,14 +771,12 @@ int main(int argc, char **argv)
       if(db_auth.AddRSAKeyToStaticArea(file_key, public_key, public_key_len, add_username) != 0) {
 	cerr << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n" << flush;
 	ERROR_LEVEL++;
-	f->Close();
-	delete f;
+	CloseEPDB(f); // 10/31/2026: Writes the journaled save
 	ptr = ptr->next;
 	continue; 
       }
       cerr << "Public RSA key for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
-      f->Close();
-      delete f;
+      CloseEPDB(f); // 10/31/2026: Writes the journaled save
     }
 
  #ifdef __ENABLE_SMART_CARD__
@@ -811,14 +807,12 @@ int main(int argc, char **argv)
       if(db_auth.AddSmartCardCertToStaticArea(&sc, use_smartcard_cert_file, file_key, add_username) != 0){
 	cerr << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
 	ERROR_LEVEL++;
-	f->Close();
-	delete f;
+	CloseEPDB(f); // 10/31/2026: Writes the journaled save
 	ptr = ptr->next;
 	continue; 
       }
       cerr << "Smart card cert for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
-      f->Close();
-      delete f;
+      CloseEPDB(f); // 10/31/2026: Writes the journaled save
     }
 #endif // __ENABLE_SMART_CARD__
 
@@ -2287,6 +2281,7 @@ static int SetDatabaseOptions(const gxString &fname, MemoryBuffer &file_key)
     cerr << "ERROR: " << err.c_str() << "\n" << flush;
     return -1;
   }
+  EPDBSave save(f); // 10/31/2026: The options are one crash-safe save
   EPDBHeaderExt x;
   EPDBReadExt(f, x);
   int rv = 0;
@@ -2320,8 +2315,11 @@ static int SetDatabaseOptions(const gxString &fname, MemoryBuffer &file_key)
   }
   if(rv == 0 && (self_destruct >= 0 || self_destruct_attempts) && EPDBWriteControl(f, c, err) != 0) rv = -1;
   if(rv == 0 && EPDBWriteExt(f, x, file_key, err) != 0) rv = -1;
-  f->Close();
-  delete f;
+  if(save.End() != 0) {
+    err << clear << EPDBJournalLastError();
+    if(rv == 0) rv = -1;
+  }
+  CloseEPDB(f);
   if(rv == 0 && FC_fsync_file(fname.c_str()) != 0) {
     err << clear << "Cannot flush " << fname.c_str();
     rv = -1;

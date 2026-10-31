@@ -344,8 +344,7 @@ static int AddRSA(const char *fname, const char *password, const char *pubkey_fi
   db_auth.f = f;
   int rv = db_auth.AddRSAKeyToStaticArea(secret, public_key, public_key_len, gxString(username), 0, use_oaep);
   if(rv != 0) cerr << "ERROR: " << db_auth.err.c_str() << "\n";
-  f->Close();
-  delete f;
+  CloseEPDB(f); // 10/31/2026
   return rv != 0;
 }
 
@@ -438,7 +437,7 @@ static int UndoTest(const char *fname, const char *password)
   if(u.CanUndo() || u.CanRedo()) { cerr << "FAIL: Clear() empties both stacks" << "\n"; fails++; }
   pod->Flush();
   if(EPDBIsKeyset(ks) && EPDBSeal(pod->OpenDataFile(), ks, err) != 0) { cerr << "FAIL: seal" << "\n"; fails++; }
-  delete pod;
+  CloseEPDB_POD(pod); // 10/31/2026
   cout << (fails ? "UNDOTEST FAIL" : "UNDOTEST PASS") << "\n";
   return fails ? 1 : 0;
 }

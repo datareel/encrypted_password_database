@@ -35,6 +35,7 @@ Encrypted database auth functions
 #include "m_globals.h"
 #include "db_auth.h"
 #include "fcfile.h"
+#include "epdb_journal.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -243,6 +244,7 @@ int DatabaseUserAuth::WriteStaticDataArea()
     err << clear << "Error database pointer is null for DB auth";
     return ERROR_LEVEL;
   }
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
 
   FAU_t start_of_auth_data = f->FileHeaderSize() + DB_CONFIG_STATIC_AREA_SIZE;
   gxDatabaseError db_error;
@@ -1104,6 +1106,7 @@ int EPDBInitV2(gxDatabase *f, const MemoryBuffer &secret, MemoryBuffer &keyset, 
 // the keyset for the secret. The database MAC is set by EPDBSeal().
 // Returns 0 if successful.
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   MemoryBuffer &s = (MemoryBuffer &)secret;
   if(s.length() < AES_MIN_SECRET_LEN) {
     err << clear << "The password or key is too short";
@@ -1340,6 +1343,7 @@ int EPDBSeal(gxDatabase *f, const MemoryBuffer &keyset, gxString &err)
 // Computes and stores the database MAC. Call after every change to a v2
 // database. Returns 0 if successful.
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   unsigned char mac[EPDB_V2_MAC_LEN];
   if(EPDBComputeMAC(f, keyset, mac, err) != 0) return -1;
   if(f->Write(mac, sizeof(mac), epdb_header_address(f) + EPDB_V2_MAC_OFFSET) != gxDBASE_NO_ERROR ||
@@ -1703,16 +1707,10 @@ static int epdb_upgrade_copy(POD *old_pod, POD *new_pod, MemoryBuffer &secret, M
   return EPDBSeal(nf, keyset, err);
 }
 
-static int epdb_replace_file(const char *from, const char *to)
-// 10/26/2026: Rename from to to, replacing an existing file. On Windows
-// rename() fails when the target exists. Returns 0 if successful.
-{
-#if defined (__UNIX__)
-  return rename(from, to);
-#else
-  return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH) ? 0 : -1;
-#endif
-}
+// 10/31/2026: The upgrade replaces the files with epdb_swap_files() (was
+// epdb_replace_file(), two renames that a crash could stop half way)
+static int epdb_swap_files(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			   const gxString &tifile, gxString &err);
 
 int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
 		gxString &backup_data_file, gxString &err)
@@ -1846,8 +1844,9 @@ int EPDBUpgrade(const char *data_file, const MemoryBuffer &secret_in,
 
   // Replace the original files
   if(rv == 0) {
-    if(epdb_replace_file(tifile.c_str(), ifile.c_str()) != 0 || epdb_replace_file(tdfile.c_str(), dfile.c_str()) != 0) {
-      err << clear << "Cannot replace the database files. The original database is in the backup files "
+    // 10/31/2026: Crash-safe replacement, see epdb_swap_files()
+    if(epdb_swap_files(dfile, ifile, tdfile, tifile, err) != 0) {
+      err << ". The original database is in the backup files "
 	  << bdfile.c_str() << " and " << bifile.c_str();
       backup_data_file = bdfile;
       secret.Clear(1);
@@ -1911,6 +1910,7 @@ static void epdb_put_ext(unsigned char *hdr, const EPDBHeaderExt &x)
 
 int EPDBWriteExt(gxDatabase *f, const EPDBHeaderExt &x, const MemoryBuffer &keyset, gxString &err)
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   unsigned char hdr[EPDB_V2_HEADER_LEN];
   if(EPDBReadHeader(f, hdr) != 1) {
     err << clear << "The database is not a v2 database";
@@ -1945,6 +1945,7 @@ int EPDBReadControl(const char *data_file, FCControlBlock &c)
 
 int EPDBWriteControl(gxDatabase *f, const FCControlBlock &c, gxString &err)
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   unsigned char buf[FC_CTL_LEN];
   FC_ctl_write(buf, c);
   if(f->Write(buf, sizeof(buf), epdb_config_address(f, EPDB_CTL_OFFSET)) != gxDBASE_NO_ERROR ||
@@ -1959,6 +1960,10 @@ int EPDBWriteControl(const char *data_file, const FCControlBlock &c, gxString &e
 // Opens the data file for writing, writes the control block and
 // flushes it to disk
 {
+  // 10/31/2026: Through the open database when this program has it
+  // open read-write, so the write is part of its journaled saves
+  gxDatabase *rf = EPDBJournalFind(data_file);
+  if(rf) return EPDBWriteControl(rf, c, err);
   gxDatabase f;
   if(f.Open(data_file, gxDBASE_READWRITE) != gxDBASE_NO_ERROR) {
     err << clear << "Cannot open " << data_file << " for writing";
@@ -1999,6 +2004,7 @@ static int epdb_ring_io(gxDatabase *f, unsigned char *ring, int write)
 
 int EPDBRingInit(gxDatabase *f, const MemoryBuffer &keyset, gxString &err)
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
   unsigned char *ring = new unsigned char[len];
   int ok = FC_ring_init(ring, len, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), EPDBKeysetID(keyset), EPDB_V2_ID_LEN) &&
@@ -2011,6 +2017,7 @@ int EPDBRingInit(gxDatabase *f, const MemoryBuffer &keyset, gxString &err)
 int EPDBRingAppend(gxDatabase *f, const MemoryBuffer &keyset, const FCRingEntry &e,
 		   const char *slot_username, gxString &err)
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   unsigned len = FC_ring_size(EPDB_RING_ENTRIES);
   unsigned char *ring = new unsigned char[len];
   int ok = epdb_ring_io(f, ring, 0);
@@ -2053,6 +2060,45 @@ static int epdb_copy_db(const gxString &dfile, const gxString &ifile, const gxSt
   return 0;
 }
 
+static int epdb_swap_files(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
+			   const gxString &tifile, gxString &err)
+// 10/31/2026: Renames the checked temporary files over the originals,
+// index first. Both temporary files are synced first, then a marker
+// file "<tdfile>.swap" is written and synced: if a crash stops the
+// renames, EPDBRecoverDatabase() (epdb_journal.cpp) finishes them the
+// next time the database is opened. Returns 0 if successful.
+{
+  if(FC_fsync_file(tdfile.c_str()) != 0 || FC_fsync_file(tifile.c_str()) != 0) {
+    err << clear << "Cannot flush " << tdfile.c_str() << " to disk";
+    return -1;
+  }
+  gxString marker = tdfile;
+  marker << ".swap";
+  gxString tmp = marker;
+  tmp << ".tmp";
+  FILE *fp = fopen(tmp.c_str(), "wb");
+  if(!fp) {
+    err << clear << "Cannot create " << tmp.c_str();
+    return -1;
+  }
+  fputs("EPDB file replacement in progress\n", fp);
+  fclose(fp);
+  if(FC_replace_file(tmp.c_str(), marker.c_str(), err) != 0) { // Synced, with its directory
+    futils_remove(tmp.c_str());
+    return -1;
+  }
+  if(FC_replace_file(tifile.c_str(), ifile.c_str(), err) != 0) {
+    futils_remove(marker.c_str()); // Nothing replaced
+    return -1;
+  }
+  if(FC_replace_file(tdfile.c_str(), dfile.c_str(), err) != 0) {
+    // The marker stays, the next open finishes the replacement
+    return -1;
+  }
+  futils_remove(marker.c_str());
+  return 0;
+}
+
 static int epdb_replace_db(const gxString &dfile, const gxString &ifile, const gxString &tdfile,
 			   const gxString &tifile, int keep_backup, const char *tag,
 			   gxString &backup_data_file, gxString &err)
@@ -2070,17 +2116,19 @@ static int epdb_replace_db(const gxString &dfile, const gxString &ifile, const g
       return -1;
     }
   }
-  if(FC_replace_file(tifile.c_str(), ifile.c_str(), err) != 0) {
-    if(keep_backup) {
+  // 10/31/2026: Crash-safe replacement, see epdb_swap_files()
+  if(epdb_swap_files(dfile, ifile, tdfile, tifile, err) != 0) {
+    gxString marker = tdfile;
+    marker << ".swap";
+    if(futils_exists(marker.c_str())) {
+      err << ". The index file was replaced, the replacement is finished the next time the "
+	  << "database is opened";
+      if(keep_backup) backup_data_file = bdfile;
+    }
+    else if(keep_backup) {
       futils_remove(bdfile.c_str());
       futils_remove(bifile.c_str());
     }
-    return -1;
-  }
-  if(FC_replace_file(tdfile.c_str(), dfile.c_str(), err) != 0) {
-    err << ". The index file was replaced, restore both files from the backup "
-	<< (keep_backup ? bdfile.c_str() : "(none kept)");
-    if(keep_backup) backup_data_file = bdfile;
     return -1;
   }
   if(keep_backup) backup_data_file = bdfile;
@@ -2199,6 +2247,7 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
 int EPDBRemoveUserInPlace(gxDatabase *f, const MemoryBuffer &key, gxUINT32 block_type,
 			  const gxString &username, gxString &err)
 {
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   DatabaseUserAuth db_auth;
   db_auth.f = f;
   if(db_auth.LoadStaticDataBlocks() != 0) {

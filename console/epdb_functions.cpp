@@ -40,6 +40,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 #endif // __USE_ANSI_CPP__
 
 #include "epdb_functions.h"
+#include "epdb_journal.h"
 #include <ctype.h>
 
 #if defined (__UNIX__)
@@ -704,6 +705,9 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
     return 0;
   }
   
+  // 10/31/2026: Finish a save or file replacement that a crash interrupted
+  if(EPDBOpenRecover(database_file.c_str(), err_string, mode) != 0) return 0;
+
   POD *pod = new POD;
   if(!pod) {
     err_string << clear << "Could not create new POD object";
@@ -735,7 +739,47 @@ POD *OpenEPDB_POD(gxString &fname, gxString &data_ext, gxString &index_ext, char
     return 0;
   }
   
+  // 10/31/2026: Saves to a database open for writing are journaled.
+  // Close it with CloseEPDB_POD().
+  if(mode == gxDBASE_READWRITE) EPDBJournalRegister(pod, database_file.c_str());
   return pod;
+}
+
+int EPDBOpenRecover(const char *data_file, gxString &err_string, gxDatabaseAccessMode mode)
+// 10/31/2026: Called before a database is opened. Finishes a save or
+// file replacement that a crash interrupted. A database that needs it
+// but cannot be written opens read-only with a warning. Returns 0, or
+// -1 with "err_string" set if the database must not be opened.
+{
+  gxString msg;
+  int rv = EPDBRecoverDatabase(data_file, msg);
+  if(rv == 0) {
+    if(!msg.is_null()) cerr << "NOTE: " << msg.c_str() << "\n" << flush;
+    return 0;
+  }
+  if(rv == 1 && mode != gxDBASE_READWRITE) {
+    cerr << "WARNING: " << msg.c_str() << "\n" << flush;
+    return 0;
+  }
+  err_string << clear << msg;
+  return -1;
+}
+
+void CloseEPDB_POD(POD *pod)
+// 10/31/2026: Writes a save left open, then closes and deletes "pod"
+{
+  if(!pod) return;
+  EPDBJournalUnregister(pod);
+  delete pod;
+}
+
+void CloseEPDB(gxDatabase *f)
+// 10/31/2026: Writes a save left open, then closes and deletes "f"
+{
+  if(!f) return;
+  EPDBJournalUnregister(f);
+  f->Close();
+  delete f;
 }
 
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMode mode)
@@ -746,6 +790,8 @@ gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMo
     err_string << clear << "Encrypted password database file " << fname << " does not exist or cannot be read";
     return 0;
   }
+
+  if(EPDBOpenRecover(fname, err_string, mode) != 0) return 0; // 10/31/2026
 
   gxDatabaseError err;
   gxDatabase *f = new gxDatabase;
@@ -761,6 +807,8 @@ gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMo
     return 0;
   }
 
+  // 10/31/2026: Saves are journaled, close it with CloseEPDB()
+  if(mode == gxDBASE_READWRITE) EPDBJournalRegister(f, fname);
   return f;
 }
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string)

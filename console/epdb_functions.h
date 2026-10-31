@@ -58,6 +58,10 @@ int ExportListObjectsEPDB(POD *pod, char delimiter = 0, char filter_char = 0, ch
 unsigned SearchEPDB(gxBtree *btx, int item, POD *pod, INFOHOG_t &ob, int find_all = 0);
 void KeySearchEPDB(INFOHOGKEY &key, int item, POD *pod, INFOHOG_t &ob, unsigned &objects_found, int find_all = 0);
 gxDatabase *OpenEPDB(const char *fname, gxString &err_string, gxDatabaseAccessMode mode = gxDBASE_READONLY);
+// 10/31/2026: Close databases opened for writing with these, see epdb_journal.h
+void CloseEPDB(gxDatabase *f);
+void CloseEPDB_POD(POD *pod);
+int EPDBOpenRecover(const char *data_file, gxString &err_string, gxDatabaseAccessMode mode);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxString &err_string);
 int UnlockEPDB(gxDatabase *f, MemoryBuffer &key, gxDatabaseConfig &db_config, gxString &err_string);
 void StoreObjectAddress(BtreeNode *n);

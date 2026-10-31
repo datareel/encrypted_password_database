@@ -9,6 +9,45 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
+CHANGES AFTER RELEASE 2026.104 (NOT RELEASED YET): CRASH-SAFE SAVES
+--------------------------------------------------------------------
+* Every save is all or nothing, also after a crash, kill or power
+  loss: a record add, change or delete (GUI, epdb_auth_tool, undo and
+  redo), a whole import or merge, settings, the access log, users and
+  the self-destruct settings. Each save is written through a
+  write-ahead journal file, <name>.ehd.jnl, that exists while the
+  database is open for writing: the changes go to the journal and are
+  synced, then to the .ehd and .ehx files, which are synced, then the
+  journal is emptied. Closing the database removes it. If a crash
+  stops a save, the next open of the database finishes it. See
+  include/epdb_journal.h.
+* The v2 database MAC is now updated in each save. It used to be
+  updated when the database was closed, so a crash while the database
+  was open gave an integrity warning on the next open.
+* The rekey, remove user, upgrade and epdb_auth_tool record changes,
+  which write temporary files and rename them over the database, sync
+  both temporary files first and write a marker file
+  (<name>.<change>.ehd.swap) while the files are renamed. A crash
+  between the two renames is finished on the next open (it used to
+  leave a new index with the old data file).
+* The journal file holds the same encrypted records and keys as the
+  database files. It is created owner-only (mode 600 on Linux, only
+  the current user on Windows). A read-only open never creates it. A
+  database with an unfinished save that cannot be written opens
+  read-only with a warning.
+* A save takes about 4 ms on an SSD (the journal and file syncs and
+  the MAC, measured with run_journal_tests.sh; it was 0.2 ms with no
+  sync at all), more on a busy disk. One change in the GUI is one save.
+* The database format is unchanged: older releases open databases
+  saved by this version, and this version opens older databases
+  without changing them. Do not run two programs that change the same
+  database at the same time.
+* Built with fcrypt 2026.107 and the bundled DataReel 6.3, which adds
+  the journal (datareel branch 6.3-oodb-backport).
+* Tests: console/linux/run_journal_tests.sh (kill -9 at random moments
+  during saves and during epdb_auth_tool record changes, journal file
+  mode, read-only databases, old builds, save time).
+
 RELEASE 2026.104: NEW GUI, UTF-8 TEXT, PRINTING
 -----------------------------------------------
 * A new GUI built with wxWidgets 3.3.4 (static) on RHEL 8, 9 and 10
