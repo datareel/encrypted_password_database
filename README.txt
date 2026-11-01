@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.104
+Release 2026.105
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -9,8 +9,8 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
-CHANGES AFTER RELEASE 2026.104 (NOT RELEASED YET): CRASH-SAFE SAVES
---------------------------------------------------------------------
+RELEASE 2026.105: CRASH-SAFE SAVES
+----------------------------------
 * Every save is all or nothing, also after a crash, kill or power
   loss: a record add, change or delete (GUI, epdb_auth_tool, undo and
   redo), a whole import or merge, settings, the access log, users and
@@ -55,7 +55,7 @@ CHANGES AFTER RELEASE 2026.104 (NOT RELEASED YET): CRASH-SAFE SAVES
   (records, users, rekey, upgrade, index rebuild) stop. Reading the
   database is not blocked. Releases before this one do not check the
   lock.
-* Built with fcrypt 2026.107 and the bundled DataReel 6.3, which adds
+* Built with fcrypt 2026.108 and the bundled DataReel 6.3, which adds
   the journal (datareel branch 6.3-oodb-backport).
 * Tests: console/linux/run_journal_tests.sh (kill -9 at random moments
   during saves and during epdb_auth_tool record changes, journal file
