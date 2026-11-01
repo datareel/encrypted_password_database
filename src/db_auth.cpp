@@ -1371,7 +1371,8 @@ struct EPDBAddressList {
     addr[num++] = a;
     return 1;
   }
-  void Sort() { qsort(addr, num, sizeof(FAU_t), Cmp); }
+  // 10/31/2026: Not for an empty list (qsort() of a null pointer, UBSan)
+  void Sort() { if(num > 1) qsort(addr, num, sizeof(FAU_t), Cmp); }
   static int Cmp(const void *a, const void *b) {
     FAU_t x = *(const FAU_t *)a, y = *(const FAU_t *)b;
     return x < y ? -1 : (x > y ? 1 : 0);
