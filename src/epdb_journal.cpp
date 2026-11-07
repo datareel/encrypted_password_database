@@ -115,13 +115,19 @@ int EPDBLockDatabase(const char *data_file, gxString &err)
   e.path = path;
   e.count = 1;
 #if defined (__WIN32__)
-  // A byte far past the end of the file, so the lock never blocks
-  // reads and writes of the file itself. The handle allows the file to
-  // be renamed over (file replacements) and deleted.
-  e.h = CreateFileA(data_file, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
-		    NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  // 11/06/2026: The lock is on "<data_file>.lock", the file
+  // epdb_auth_tool's --lock-timeout lock uses (FC_lock_file(), byte 0),
+  // on a byte far past that one, not on the data file: Windows cannot
+  // rename a file over one that has an open handle, so a lock handle on
+  // the data file made every file replacement (record changes, rekey,
+  // upgrade) fail. The lock file keeps the lock with the name across
+  // replacements.
+  gxString lname(data_file);
+  lname << ".lock";
+  e.h = CreateFileA(lname.c_str(), GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+		    NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if(e.h == INVALID_HANDLE_VALUE) {
-    err << clear << "Cannot open " << data_file << " to lock it";
+    err << clear << "Cannot open " << lname.c_str() << " to lock " << data_file;
     return -1;
   }
   OVERLAPPED ov;
@@ -431,6 +437,13 @@ static void epdb_journal_register(gxDatabase *f, POD *pod, const char *data_file
   e.writes = 0;
   gxString lerr;
   e.locked = (EPDBLockDatabase(data_file, lerr) == 0); // Normally held already
+  // 11/06/2026: An empty journal left by a program that stopped between
+  // saves holds nothing to recover (EPDBRecoverDatabase() leaves it).
+  // With the writer lock no other program can be using it: remove it,
+  // so a clean close leaves no journal file.
+  if(e.locked && futils_exists(e.jname.c_str()) && !epdb_journal_has_data(e.jname.c_str())) {
+    futils_remove(e.jname.c_str());
+  }
   epdb_journals.push_back(e);
 }
 

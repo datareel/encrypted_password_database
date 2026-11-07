@@ -48,8 +48,9 @@ RELEASE 2026.105: CRASH-SAFE SAVES
   saved by this version, and this version opens older databases
   without changing them.
 * Only one program can have a database open for writing. The GUI or
-  epdb_auth_tool takes a lock on the .ehd file when it opens it for
-  writing (released when it closes it, or by the system if it stops);
+  epdb_auth_tool takes a lock when it opens it for writing: on the .ehd
+  file on Linux, on the <name>.ehd.lock file on Windows (released when
+  it closes it, or by the system if it stops);
   another program that tries gets "The database ... is open in another
   program": the GUI then opens it read-only, epdb_auth_tool changes
   (records, users, rekey, upgrade, index rebuild) stop. Reading the

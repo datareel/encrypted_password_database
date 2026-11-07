@@ -82,6 +82,7 @@ start=0
 bad=0
 jnl_seen=0
 recovered=0
+jnl_left=0
 for r in $(seq 1 ${ROUNDS}); do
     ${JT} writer crash.ehd "${PW}" ${start} > acked.txt 2>>${logFILE} &
     pid=$!
@@ -103,8 +104,13 @@ for r in $(seq 1 ${ROUNDS}); do
 	break
     fi
     start=${found}
+    # 11/06/2026: verify opens for writing and closes cleanly: no journal
+    # is left, also when the writer was killed between saves (an empty
+    # journal)
+    [ -f crash.ehd.jnl ] && jnl_left=$((jnl_left+1))
 done
 check ${bad} "${ROUNDS} kill -9 rounds of GUI-style saves: every reported save is there, no half save (${start} saves, ${jnl_seen} kills stopped a save after it reached the journal and the open finished ${recovered})"
+check ${jnl_left} "no journal file is left after the open that follows a kill (${jnl_left} of ${ROUNDS} rounds left one)"
 
 # 2. epdb_auth_tool record changes (temporary files renamed over the
 # database) killed at random moments

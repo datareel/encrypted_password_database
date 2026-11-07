@@ -73,8 +73,10 @@ interrupted save or file replacement to finish.
 
 Only one program may change a database at a time (10/31/2026). A
 read-write open takes an exclusive, non-blocking writer lock on the
-.ehd file (flock() on Linux, LockFileEx() on a byte far past the end
-of the file on Windows), held until the database is closed; the
+.ehd file (flock() on Linux; on Windows LockFileEx() on a byte far
+past byte 0 of "<name>.ehd.lock", the file epdb_auth_tool's
+--lock-timeout lock uses, because Windows cannot rename a file over one
+that has an open handle), held until the database is closed; the
 operating system releases it if the program dies, also after kill -9.
 A second read-write open is refused with "The database ... is open in
 another program" (the GUI then opens it read-only). Read-only opens
