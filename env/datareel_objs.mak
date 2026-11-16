@@ -100,6 +100,14 @@ gxdfptr$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdfptr.cpp $(GXDFPTR_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdfptr.cpp
 
+gxdjrnl$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdjrnl.cpp $(GXDJRNL_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
+	$(DATAREEL_SRC_PATH)gxdjrnl.cpp
+
+gxdpcache$(OBJ_EXT):    $(DATAREEL_SRC_PATH)gxdpcache.cpp $(GXDPCACHE_DEP)
+	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
+	$(DATAREEL_SRC_PATH)gxdpcache.cpp
+
 gxdlcode$(OBJ_EXT):	$(DATAREEL_SRC_PATH)gxdlcode.cpp $(GXDLCODE_DEP)
 	$(CPP) $(COMPILE_ONLY) $(COMPILE_FLAGS) \
 	$(DATAREEL_SRC_PATH)gxdlcode.cpp
@@ -333,7 +341,9 @@ DATAREEL_DATABASE_CORE_OBJECTS =  gxint32$(OBJ_EXT) \
 	gxdbase$(OBJ_EXT) \
 	gxderror$(OBJ_EXT) \
 	gxdfp64$(OBJ_EXT) \
-	gxdfptr$(OBJ_EXT)
+	gxdfptr$(OBJ_EXT) \
+	gxdjrnl$(OBJ_EXT) \
+	gxdpcache$(OBJ_EXT)
 
 # RDBMS library components
 DATAREEL_RDBMS_OBJECTS =  gxrdbdef$(OBJ_EXT) \

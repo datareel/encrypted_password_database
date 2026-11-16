@@ -507,10 +507,32 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
   // Close the current database
   if(pod) {
-    delete pod;
+    EPDBJournalUnregister(pod); delete pod;
     pod = 0;
   }
   
+  // 10/31/2026: Writer lock, see epdb_journal.h. A database open for
+  // writing in another program opens read-only here.
+  gxString lock_err;
+  int write_lock = futils_exists(data_file.c_str()) ? EPDBLockDatabase(data_file.c_str(), lock_err) : -2;
+  if(write_lock == 1 && frame) {
+    *(frame->statusWin) << "WARNING: " << lock_err.c_str() << ", it is opened read-only" << "\n";
+  }
+
+  // 10/31/2026: Finish a save or file replacement that a crash
+  // interrupted, see epdb_journal.h. A database that needs it but cannot
+  // be written opens read-only.
+  {
+    gxString rmsg;
+    int rrv = EPDBRecoverDatabase(data_file.c_str(), rmsg);
+    if(!rmsg.is_null() && frame) *(frame->statusWin) << (rrv == 0 ? "NOTE: " : "WARNING: ") << rmsg.c_str() << "\n";
+    if(rrv < 0) {
+      if(write_lock == 0) EPDBUnlockDatabase(data_file.c_str());
+      if(display_errors) ProgramError->Message(rmsg.c_str());
+      return 0;
+    }
+  }
+
   pod = new POD;
   if(!pod) {
     if(display_errors) {
@@ -526,8 +548,10 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 
   FAU_t static_data_size = (FAU_t)(DB_CONFIG_STATIC_AREA_SIZE + DB_AUTH_STATIC_AREA_SIZE);
 
-  // Create or open an existing database using a single index file
-  gxDatabaseError err = pod->Open(data_file.c_str(), 
+  // Create or open an existing database using a single index file.
+  // 10/31/2026: Not for writing while another program writes it.
+  gxDatabaseError err = (write_lock == 1) ? gxDBASE_FILE_NOT_WRITEABLE :
+    pod->Open(data_file.c_str(), 
 				  index_file.c_str(), key_type,
 				  InfoHogNodeOrder, gxDBASE_READWRITE, 
 				  InfoHogUseIndexFile, 
@@ -536,6 +560,7 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 			  child_frame->DBParms()->database_revision,
 			  child_frame->DBParms()->database_revision);
 
+  int opened_rw = (err == gxDBASE_NO_ERROR); // 10/31/2026
   if(err != gxDBASE_NO_ERROR) {
 
     ::wxYield();
@@ -555,8 +580,9 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
   }
 
   if(err != gxDBASE_NO_ERROR) {
-    delete pod;
+    EPDBJournalUnregister(pod); delete pod;
     pod = 0; // Signal that there are no database files open
+    if(write_lock == 0) EPDBUnlockDatabase(data_file.c_str());
     if(display_errors) {
       ProgramError->Message(gxDatabaseExceptionMessage(err));
     }
@@ -574,12 +600,21 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
     }
 #endif
     if(!RebuildIndexFile(index_file, pod, display_errors)) {
-      delete pod;
+      EPDBJournalUnregister(pod); delete pod;
       pod = 0; // Signal that there are no database files open
+      if(write_lock == 0) EPDBUnlockDatabase(data_file.c_str());
       return 0;
     }
   }
   
+  // 10/31/2026: Saves to a database opened for writing are journaled,
+  // each with its own MAC update (GUIJournalReseal())
+  if(opened_rw) {
+    child_frame->DBParms()->pod = pod;
+    EPDBJournalRegister(pod, data_file.c_str(), GUIJournalReseal, child_frame); // Holds the lock
+  }
+  if(write_lock == 0) EPDBUnlockDatabase(data_file.c_str());
+
   // 10/25/2026: Check the integrity of a v2 database before using it
   if(pod->Exists() && EPDBIsKeyset(child_frame->DBParms()->crypt_key)) {
     gxString v2_err;
@@ -597,12 +632,12 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
 			    wxYES_NO | wxNO_DEFAULT | wxCENTRE | wxICON_WARNING);
       if(yn != wxYES || child_frame->DBParms()->admin_rights == 0) {
 	if(frame) *(frame->statusWin) << "The database was not opened" << "\n";
-	delete pod;
+	EPDBJournalUnregister(pod); delete pod;
 	return 0;
       }
       if(EPDBSeal(pod->OpenDataFile(), child_frame->DBParms()->crypt_key, v2_err) != 0) {
 	ProgramError->Message(v2_err.c_str());
-	delete pod;
+	EPDBJournalUnregister(pod); delete pod;
 	return 0;
       }
       if(frame) {
@@ -622,7 +657,7 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
     AES_fillrand(static_data, static_data_size);
     err = pod->OpenDataFile()->Write(static_data, static_data_size, pod->OpenDataFile()->FileHeaderSize());
     if(err != gxDBASE_NO_ERROR) {
-      delete pod;
+      EPDBJournalUnregister(pod); delete pod;
       delete static_data;
       pod = 0; // Signal that there are no database files open
       if(display_errors) {
@@ -640,7 +675,7 @@ POD *OpenDatabase(CryptDBDocument *child_frame,
     MemoryBuffer keyset;
     gxString v2_err;
     if(EPDBInitV2(pod->OpenDataFile(), child_frame->DBParms()->crypt_key, keyset, v2_err) != 0) {
-      delete pod;
+      EPDBJournalUnregister(pod); delete pod;
       pod = 0;
       if(display_errors) {
 	sbuf << clear << "Error creating the database" << "\n" << v2_err.c_str();

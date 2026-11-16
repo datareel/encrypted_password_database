@@ -146,6 +146,10 @@ void GUIUndoBefore(CryptDBDocument *doc, const gxString &name, GUIUndoMark &mark
   mark.doc = doc;
   mark.exists = 0;
   if(!doc || !doc->GetPOD()) return;
+  if(!mark.save_db) { // 10/31/2026: The change is one crash-safe save
+    mark.save_db = doc->GetPOD()->OpenDataFile();
+    EPDBSaveBegin(mark.save_db);
+  }
   mark.exists = EPDBUndoStack::Snapshot(doc->GetPOD(), doc->DBParms()->crypt_key, name, mark.before);
 }
 
@@ -156,6 +160,25 @@ void GUIUndoAfter(GUIUndoMark &mark, const gxString &after_name, const char *act
   doc->undo_stack.Changed(doc->GetPOD(), doc->DBParms()->crypt_key, mark.exists, mark.before, after_name);
   mark.before.Wipe();
   if(action) GUILog(doc, action, after_name, 1);
+  if(mark.save_db) { // 10/31/2026: Write the save, with the MAC and log entry
+    GUISaveEnd(mark.save_db);
+    mark.save_db = 0;
+  }
+}
+
+void GUIJournalReseal(void *doc)
+{
+  ResealDocument((CryptDBDocument *)doc);
+}
+
+int GUISaveEnd(gxDatabase *f)
+{
+  if(EPDBSaveEnd(f) == 0) return 0;
+  gxString m;
+  m << clear << "The change could not be saved: " << EPDBJournalLastError();
+  if(frame) *(frame->statusWin) << "ERROR: " << m.c_str() << "\n";
+  ProgramError->Message(m.c_str());
+  return -1;
 }
 
 gxString GUIObjectName(INFOHOG &ih)
@@ -170,12 +193,18 @@ gxString GUIObjectName(INFOHOG &ih)
 GUIUndoGroupGuard::GUIUndoGroupGuard(CryptDBDocument *doc, const char *label)
 {
   d = doc;
+  save_db = 0;
   if(d) d->undo_stack.BeginGroup(label);
+  if(d && d->GetPOD()) { // 10/31/2026: The whole group is one crash-safe save
+    save_db = d->GetPOD()->OpenDataFile();
+    EPDBSaveBegin(save_db);
+  }
 }
 
 GUIUndoGroupGuard::~GUIUndoGroupGuard()
 {
   if(d) d->undo_stack.EndGroup();
+  if(save_db) GUISaveEnd(save_db);
 }
 
 void GUIUndo(CryptDBDocument *doc, int redo)
@@ -185,6 +214,8 @@ void GUIUndo(CryptDBDocument *doc, int redo)
   gxString label = redo ? u.RedoLabel() : u.UndoLabel();
   if(label.is_null()) return;
   gxString err;
+  gxDatabase *save_db = doc->GetPOD()->OpenDataFile();
+  EPDBSaveBegin(save_db); // 10/31/2026: The undo or redo is one crash-safe save
   int rv = redo ? u.Redo(doc->GetPOD(), doc->DBParms()->crypt_key, err) :
     u.Undo(doc->GetPOD(), doc->DBParms()->crypt_key, err);
   doc->GetPOD()->Flush();
@@ -192,6 +223,7 @@ void GUIUndo(CryptDBDocument *doc, int redo)
   gxString detail;
   detail << label;
   GUILog(doc, redo ? "redo" : "undo", gxString(), rv == EPDB_REC_OK, detail.c_str());
+  GUISaveEnd(save_db);
   if(rv != EPDB_REC_OK) {
     gxString m;
     m << clear << (redo ? "Redo" : "Undo") << " of \"" << label << "\" failed: " << err;

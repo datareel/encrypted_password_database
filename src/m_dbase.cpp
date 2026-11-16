@@ -32,6 +32,7 @@ Application database code
 // ----------------------------------------------------------- // 
 #include "m_globals.h"
 #include "m_dbase.h"
+#include "epdb_journal.h" // 10/31/2026
 
 // Global data structures used to organize and store data file nodes addresses
 gxList<FAU> db_search_dllist;            // Doubly linked list
@@ -997,6 +998,7 @@ int gxDatabaseConfig::Flush(gxDatabase *f)
 int gxDatabaseConfig::WriteConfig(gxDatabase *f, int flushdb)
 {
   if(!TestStaticArea(f)) return 0;
+  EPDBSave save(f); // 10/31/2026: Crash-safe save, see epdb_journal.h
   
   if(f->Write(this, this->SizeOf(), (FAU_t)f->FileHeaderSize()) != gxDBASE_NO_ERROR) {
     return 0;

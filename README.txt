@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.104
+Release 2026.105
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -8,6 +8,73 @@ Supports Red Hat Enterprise Linux 8, 9, and 10
 The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
+
+NEXT RELEASE (NOT RELEASED YET): DATAREEL 6.4
+--------------------------------------------
+* Built with fcrypt main (f1abf0a: fcrypt 2026.108 + the bundled DataReel
+  6.4 beta 1, tag 6.4-beta1). The DataReel 6.x library and its file
+  formats are the same as 6.3: databases made by 2026.105 and by this
+  build open with either. The program version is unchanged.
+* Tests (11/15/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build and this
+  build side by side, each with the other as the "old" build:
+  run_cli_tests 162 passed with the same 4 by-design old-build checks
+  failing on both (they expect an old build without format v2);
+  run_journal_tests with 60 kill -9 rounds, the writer lock and the
+  cross-build opens: 25 of 25 on both. The same suites under ASan +
+  UBSan report no errors. The GUI compiles and links.
+
+RELEASE 2026.105: CRASH-SAFE SAVES
+----------------------------------
+* Every save is all or nothing, also after a crash, kill or power
+  loss: a record add, change or delete (GUI, epdb_auth_tool, undo and
+  redo), a whole import or merge, settings, the access log, users and
+  the self-destruct settings. Each save is written through a
+  write-ahead journal file, <name>.ehd.jnl, that exists while the
+  database is open for writing: the changes go to the journal and are
+  synced, then to the .ehd and .ehx files, which are synced, then the
+  journal is emptied. Closing the database removes it. If a crash
+  stops a save, the next open of the database finishes it. See
+  include/epdb_journal.h.
+* The v2 database MAC is now updated in each save. It used to be
+  updated when the database was closed, so a crash while the database
+  was open gave an integrity warning on the next open.
+* The rekey, remove user, upgrade and epdb_auth_tool record changes,
+  which write temporary files and rename them over the database, sync
+  both temporary files first and write a marker file
+  (<name>.<change>.ehd.swap) while the files are renamed. A crash
+  between the two renames is finished on the next open (it used to
+  leave a new index with the old data file).
+* The journal file holds the same encrypted records and keys as the
+  database files. It is created owner-only (mode 600 on Linux, only
+  the current user on Windows). An interrupted save is only finished
+  from a journal no other user could have written: on Linux the journal
+  and its directory must not be writable by the group or others, and on
+  every system the journal may only name this database's .ehd and .ehx
+  files. Otherwise the database opens read-only with a warning. Keep
+  databases in a directory only you can write (the default
+  ~/.encrypted_password_database/docs is). A read-only open never creates it. A
+  database with an unfinished save that cannot be written opens
+  read-only with a warning.
+* A save takes about 4 ms on an SSD (the journal and file syncs and
+  the MAC, measured with run_journal_tests.sh; it was 0.2 ms with no
+  sync at all), more on a busy disk. One change in the GUI is one save.
+* The database format is unchanged: older releases open databases
+  saved by this version, and this version opens older databases
+  without changing them.
+* Only one program can have a database open for writing. The GUI or
+  epdb_auth_tool takes a lock when it opens it for writing: on the .ehd
+  file on Linux, on the <name>.ehd.lock file on Windows (released when
+  it closes it, or by the system if it stops);
+  another program that tries gets "The database ... is open in another
+  program": the GUI then opens it read-only, epdb_auth_tool changes
+  (records, users, rekey, upgrade, index rebuild) stop. Reading the
+  database is not blocked. Releases before this one do not check the
+  lock.
+* Built with fcrypt 2026.108 and the bundled DataReel 6.3, which adds
+  the journal (datareel branch 6.3-oodb-backport).
+* Tests: console/linux/run_journal_tests.sh (kill -9 at random moments
+  during saves and during epdb_auth_tool record changes, journal file
+  mode, read-only databases, old builds, save time).
 
 RELEASE 2026.104: NEW GUI, UTF-8 TEXT, PRINTING
 -----------------------------------------------

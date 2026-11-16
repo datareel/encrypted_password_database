@@ -1244,6 +1244,7 @@ void MainFrame::OnUpgrade(wxCommandEvent& WXUNUSED(event))
   // The v1 key is the database secret
   MemoryBuffer secret(child_frame->DBParms()->crypt_key);
   ResealDocument(child_frame);
+  EPDBJournalUnregister(child_frame->GetPOD()); // 10/31/2026
   child_frame->GetPOD()->Close();
   child_frame->Close(TRUE);
 

@@ -214,6 +214,7 @@ int ResealDocument(CryptDBDocument *doc)
 CryptDBDocument::~CryptDBDocument()
 {
   ResealDocument(this); // 10/25/2026: Seal the changes of a v2 database
+  EPDBJournalUnregister(GetPOD()); // 10/31/2026
   GetPOD()->Close(); // Close the open database
 
   // 10/25/2026: Wipe this database's key
