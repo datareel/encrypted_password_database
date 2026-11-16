@@ -9,6 +9,20 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
+NEXT RELEASE (NOT RELEASED YET): DATAREEL 6.4
+--------------------------------------------
+* Built with fcrypt main (f1abf0a: fcrypt 2026.108 + the bundled DataReel
+  6.4 beta 1, tag 6.4-beta1). The DataReel 6.x library and its file
+  formats are the same as 6.3: databases made by 2026.105 and by this
+  build open with either. The program version is unchanged.
+* Tests (11/15/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build and this
+  build side by side, each with the other as the "old" build:
+  run_cli_tests 162 passed with the same 4 by-design old-build checks
+  failing on both (they expect an old build without format v2);
+  run_journal_tests with 60 kill -9 rounds, the writer lock and the
+  cross-build opens: 25 of 25 on both. The same suites under ASan +
+  UBSan report no errors. The GUI compiles and links.
+
 RELEASE 2026.105: CRASH-SAFE SAVES
 ----------------------------------
 * Every save is all or nothing, also after a crash, kill or power
