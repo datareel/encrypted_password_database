@@ -46,3 +46,12 @@ a.out
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Build outputs (11/15/2026)
+console/linux/epdb_auth_tool
+console/linux/epdb_test_db
+console/linux/epdb_journal_test
+gui/linux/encrypted_password_database
+fcrypt/console/linux/fcrypt
+fcrypt/console/linux/fdecrypt
+fcrypt/console/linux/fmigrate
