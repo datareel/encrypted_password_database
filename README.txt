@@ -2,7 +2,8 @@ Encrypted Password Database
 
 Release 2026.106
 
-Supports Windows 11 and Windows Server 2022 or later (64-bit)
+Supports Windows 11, Windows Server 2022 and Windows Server 2025 (64-bit)
+Supports Windows 10 version 1903 or later and Windows 11 (32-bit, legacy)
 Supports Red Hat Enterprise Linux 8, 9, and 10
 
 The Encrypted Password Database is an enterprise level application for
@@ -26,6 +27,10 @@ RELEASE 2026.106: DATAREEL 6.4.1
   instead of "open in another program" (exit 4). Nothing was written
   in that case. In 300 tries during nonstop saves, 2026.105 gave the
   wrong error 184 times and this release 0 times.
+* Windows installers for 64-bit and, new, 32-bit Windows
+  (encrypted_password_database_2026_106_windows_setup.exe and
+  ..._windows_32bit_setup.exe). The 32-bit setup installs in Program
+  Files (x86) and uses the same user data folder.
 * Windows: epdb_auth_tool reads record and field names from the wide
   command line in UTF-8 and writes UTF-8 console output.
 * Tests (11/17/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build (main
