@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.105
+Release 2026.106
 
 Supports Windows 11 and Windows Server 2022 or later (64-bit)
 Supports Red Hat Enterprise Linux 8, 9, and 10
@@ -9,19 +9,26 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
-NEXT RELEASE (NOT RELEASED YET): DATAREEL 6.4
---------------------------------------------
-* Built with fcrypt main (f1abf0a: fcrypt 2026.108 + the bundled DataReel
-  6.4 beta 1, tag 6.4-beta1). The DataReel 6.x library and its file
-  formats are the same as 6.3: databases made by 2026.105 and by this
-  build open with either. The program version is unchanged.
-* Tests (11/15/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build and this
-  build side by side, each with the other as the "old" build:
-  run_cli_tests 162 passed with the same 4 by-design old-build checks
-  failing on both (they expect an old build without format v2);
-  run_journal_tests with 60 kill -9 rounds, the writer lock and the
-  cross-build opens: 25 of 25 on both. The same suites under ASan +
-  UBSan report no errors. The GUI compiles and links.
+RELEASE 2026.106: DATAREEL 6.4.1
+--------------------------------
+* Built with fcrypt 2026.108 (fcrypt main a6dd5a3) and the bundled
+  DataReel 6.4.1 (the 6.4 release plus FD_CLOEXEC on gxSocket
+  sockets). The crash-safe saves of release 2026.105 (write-ahead
+  journal, writer lock, journal trust check) now run on the DataReel
+  6.4.1 library. The DataReel 6.x file formats are the same as 6.3:
+  databases made by 2026.105 and by this release open with either.
+* Windows: epdb_auth_tool reads record and field names from the wide
+  command line in UTF-8 and writes UTF-8 console output.
+* Tests (11/17/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build (main
+  2624452) and this build side by side, each with the other as the
+  "old" build: run_cli_tests 162 passed with the same 4 by-design
+  old-build checks failing on both (they expect an old build without
+  format v2); run_journal_tests with 60 kill -9 rounds, the writer
+  lock and the cross-build opens: 25 of 25 on both;
+  run_smartcard_tests on a SoftHSM2 token: 52 passed on both (the
+  "cert ID on two cards" check needs a second token with the same
+  cert ID and fails on both with a one-token setup). The console tool
+  and the GUI build with no new warnings.
 
 RELEASE 2026.105: CRASH-SAFE SAVES
 ----------------------------------
