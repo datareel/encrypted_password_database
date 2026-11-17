@@ -12,8 +12,10 @@ management.
 RELEASE 2026.106: DATAREEL 6.4.1
 --------------------------------
 * Built with fcrypt 2026.108 (fcrypt main a6dd5a3) and the bundled
-  DataReel 6.4.1 (the 6.4 release plus FD_CLOEXEC on gxSocket
-  sockets). The crash-safe saves of release 2026.105 (write-ahead
+  DataReel 6.4.1 (6.4.1 branch 6241e3a: the 6.4 release plus
+  FD_CLOEXEC on gxSocket sockets and the thread fixes: running state
+  set before a thread starts, monotonic timed waits, sleeps without a
+  locked mutex). The crash-safe saves of release 2026.105 (write-ahead
   journal, writer lock, journal trust check) now run on the DataReel
   6.4.1 library. The DataReel 6.x file formats are the same as 6.3:
   databases made by 2026.105 and by this release open with either.
