@@ -11,7 +11,7 @@ management.
 
 RELEASE 2026.106: DATAREEL 6.4.1
 --------------------------------
-* Built with fcrypt 2026.108 (fcrypt main a6dd5a3) and the bundled
+* Built with fcrypt 2026.109 (fcrypt main 7c0ae56) and the bundled
   DataReel 6.4.1 (6.4.1 branch 6241e3a: the 6.4 release plus
   FD_CLOEXEC on gxSocket sockets and the thread fixes: running state
   set before a thread starts, monotonic timed waits, sleeps without a
