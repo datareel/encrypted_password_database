@@ -186,6 +186,10 @@ void set_delimiter_arg(const gxString &equal_arg, char &delimiter_char);
 int KeyManagementOps(const gxString &fname, MemoryBuffer &file_key, int is_v2);
 int ExtraOps(const gxString &fname, MemoryBuffer &file_key, int is_v2);
 int WillWrite(const gxString &fname);
+struct EPDBWriterLockHold { // 11/17/2026: Releases the writer lock at the end of one file's operations
+  gxString file;            // Set when the lock is held
+  ~EPDBWriterLockHold();
+};
 int DestroyedNow(const gxString &fname);
 static gxString AuthSlotName();
 int ReadOperationInput();
@@ -590,6 +594,26 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue;
       }
+    }
+    // 11/17/2026: A writer also takes the writer lock (EPDBLockDatabase())
+    // before the database is opened. The integrity check below reads the
+    // whole file, and without the lock it could read a database that
+    // another program (the GUI) is saving at that moment and report a
+    // MAC mismatch instead of "open in another program". The lock is
+    // counted, so the record, rekey and other calls that take it again
+    // later still work.
+    EPDBWriterLockHold writer_lock;
+    if(WillWrite(fname) && futils_exists(fname.c_str())) {
+      gxString lerr;
+      int lrv = EPDBLockDatabase(fname.c_str(), lerr);
+      if(lrv != 0) {
+	cerr << "ERROR: " << lerr.c_str() << "\n" << flush;
+	SetExit(lrv == 1 ? FC_EXIT_LOCKED : FC_EXIT_IO);
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
+      writer_lock.file = fname;
     }
     if(!SelfDestructPrecheck(fname)) {
       LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "refused before trying a credential", 0);
@@ -2157,6 +2181,11 @@ int ReadOperationInput()
     return 0;
   }
   return 1;
+}
+
+EPDBWriterLockHold::~EPDBWriterLockHold()
+{
+  if(!file.is_null()) EPDBUnlockDatabase(file.c_str());
 }
 
 int WillWrite(const gxString &fname)

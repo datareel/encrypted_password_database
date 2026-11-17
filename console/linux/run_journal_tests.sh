@@ -254,10 +254,17 @@ for i in $(seq 1 300); do [ -s acked.txt ] && break; sleep_ms 10; done
 out=$(${JT} verify lock.ehd "${PW}" 0 2>&1)
 echo "${out}" | grep -q "open in another program"
 check $? "a second read-write open is refused while a writer has the database open"
-printf 'username=x\n' | ${TOOL} ${A} --add-record=Second lock.ehd > lock_out.txt 2>&1
-rv=$?
-[ ${rv} -ne 0 ] && grep -q "open in another program" lock_out.txt
-check $? "epdb_auth_tool --add-record is refused while a writer has the database open"
+# 11/17/2026: 50 tries while the writer saves nonstop. Each one must be
+# refused as locked, never with an integrity error from reading a save
+# in progress (2026.105 took the writer lock after its integrity check)
+lock_ok=0
+for i in $(seq 1 50); do
+    printf 'username=x\n' | ${TOOL} ${A} --add-record=Second lock.ehd > lock_out.txt 2>&1
+    rv=$?
+    [ ${rv} -eq 4 ] && grep -q "open in another program" lock_out.txt && lock_ok=$((lock_ok + 1))
+done
+[ ${lock_ok} -eq 50 ]
+check $? "epdb_auth_tool --add-record is refused (exit 4) while a writer has the database open (${lock_ok} of 50)"
 ${TOOL} ${A} --check-version lock.ehd >>${logFILE} 2>&1
 check $? "a read-only open works while a writer has the database open"
 kill -0 ${pid} 2>/dev/null

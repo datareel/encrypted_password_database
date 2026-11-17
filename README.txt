@@ -17,6 +17,13 @@ RELEASE 2026.106: DATAREEL 6.4.1
   journal, writer lock, journal trust check) now run on the DataReel
   6.4.1 library. The DataReel 6.x file formats are the same as 6.3:
   databases made by 2026.105 and by this release open with either.
+* epdb_auth_tool takes the writer lock before it opens a database it
+  will change. 2026.105 took it after the integrity check, so a record
+  change while the GUI was saving could fail with "the database MAC
+  does not match" or "the index file does not match the data file"
+  instead of "open in another program" (exit 4). Nothing was written
+  in that case. In 300 tries during nonstop saves, 2026.105 gave the
+  wrong error 184 times and this release 0 times.
 * Windows: epdb_auth_tool reads record and field names from the wide
   command line in UTF-8 and writes UTF-8 console output.
 * Tests (11/17/2026, RHEL 10.2, gcc 14.4.1), the 2026.105 build (main
@@ -24,7 +31,8 @@ RELEASE 2026.106: DATAREEL 6.4.1
   "old" build: run_cli_tests 162 passed with the same 4 by-design
   old-build checks failing on both (they expect an old build without
   format v2); run_journal_tests with 60 kill -9 rounds, the writer
-  lock and the cross-build opens: 25 of 25 on both;
+  lock and the cross-build opens: 25 of 25 on both (the writer lock
+  check now runs 50 times during nonstop saves);
   run_smartcard_tests on a SoftHSM2 token: 52 passed on both (the
   "cert ID on two cards" check needs a second token with the same
   cert ID and fails on both with a one-token setup). The console tool
