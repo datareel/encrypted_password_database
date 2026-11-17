@@ -6,7 +6,7 @@
 // Compiler Used: MSVC, BCC32, GCC, HPUX aCC, SOLARIS CC
 // Produced By: DataReel Software Development Team
 // File Creation Date: 06/15/2003
-// Date Last Modified: 10/25/2026
+// Date Last Modified: 11/17/2026
 // Copyright (c) 2001-2026 DataReel Software Development
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
@@ -196,9 +196,79 @@ void ResetFailedOpens(const gxString &fname, const MemoryBuffer &file_key);
 void LogEvent(const gxString &fname, const char *action, const gxString &slot, const gxString &record,
 	      int ok, const char *detail, const MemoryBuffer *file_key);
 
+#if defined (__WIN32__)
+#include <windows.h>
+#include <shellapi.h>
+#pragma comment(lib, "shell32.lib")
+
+// 11/17/2026: Windows passes main() its arguments in the ANSI code page,
+// so a record name typed with letters outside ASCII (for example a
+// title with an accent) was stored in CP1252 while Linux stores UTF-8,
+// and the same name did not match across the two systems. The options
+// that name records and fields are taken from the wide (UTF-16) command
+// line and passed on in UTF-8. File names, user names and secrets are
+// left as they were: files open with the ANSI name, and passwords must
+// keep deriving the same keys for existing databases.
+static const char *epdb_utf8_options[] = {
+  "add-record", "update-record", "delete-record", "show-record",
+  "db-find-key", "db-find-all-key", "get-field", "field", 0
+};
+
+static int epdb_is_utf8_option(const char *a)
+{
+  if(!a || a[0] != '-' || a[1] != '-') return 0;
+  const char *name = a + 2;
+  size_t n = strcspn(name, "=");
+  for(int i = 0; epdb_utf8_options[i]; i++) {
+    if(strlen(epdb_utf8_options[i]) == n && _strnicmp(name, epdb_utf8_options[i], n) == 0) return 1;
+  }
+  return 0;
+}
+
+static void UseUtf8TextArgs(int argc, char **argv)
+{
+  int wargc = 0;
+  LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+  if(!wargv) return;
+  if(wargc == argc) {
+    for(int i = 1; i < argc; i++) {
+      if(!epdb_is_utf8_option(argv[i])) continue;
+      int len = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, 0, 0, 0, 0);
+      if(len <= 0) continue;
+      char *u = new char[len];
+      if(WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, u, len, 0, 0) > 0) {
+	argv[i] = u; // Kept for the life of the program
+      }
+      else {
+	delete[] u;
+      }
+    }
+  }
+  LocalFree(wargv);
+}
+
+static UINT epdb_console_cp = 0;
+static void RestoreConsoleCP() { if(epdb_console_cp) SetConsoleOutputCP(epdb_console_cp); }
+
+static void UseUtf8Console()
+// Record names are UTF-8: show them as UTF-8 on a console window. Output
+// sent to a file or a pipe is not changed.
+{
+  DWORD mode;
+  if(!GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode)) return;
+  epdb_console_cp = GetConsoleOutputCP();
+  if(epdb_console_cp != CP_UTF8 && SetConsoleOutputCP(CP_UTF8)) atexit(RestoreConsoleCP);
+  else epdb_console_cp = 0;
+}
+#endif
+
 int main(int argc, char **argv)
 {
   SecureProcessSetup(); // 10/25/2026: No core dumps with decrypted data
+#if defined (__WIN32__)
+  UseUtf8TextArgs(argc, argv); // 11/17/2026: record names in UTF-8
+  UseUtf8Console();
+#endif
 
   HOMEdir = getenv("HOME");
   USERNAME = getenv("USER");
