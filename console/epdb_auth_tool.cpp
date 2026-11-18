@@ -717,6 +717,15 @@ int main(int argc, char **argv)
 	f->Close();
 	delete f;
 	f = 0;
+	// 11/18/2026: A hybrid user opened without --pq-key, or an ML-KEM key
+	// file that cannot be read (wrong passphrase), is not a guess at the
+	// database: it is not counted as a failed open
+	if(db_auth.err.Find("give the user's ML-KEM key file") != -1 || (!db_auth.pq_key_file.is_null() && !db_auth.pq_key)) {
+	  SetExit(FC_EXIT_USAGE);
+	  ERROR_LEVEL++;
+	  ptr = ptr->next;
+	  continue;
+	}
 	LogEvent(fname, "open", AuthSlotName(), gxString(), 0, "RSA key did not open the database", 0);
 	CountFailedOpen(fname, "The RSA key did not open the database");
 	SetExit(DestroyedNow(fname) ? FC_EXIT_DESTROYED : FC_EXIT_AUTH);
