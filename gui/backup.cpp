@@ -58,7 +58,7 @@ void BackUp(wxWindow *parent)
     if(wxFileExists(dialog.GetPath())) {
       *(frame->statusWin) << "Removing existing file " << dialog.GetPath() << "\n";
       if(!wxRemoveFile(dialog.GetPath())) {
-	ProgramError->Message("Error overwriting exiting file\n");
+	ProgramError->Message("Error overwriting existing file\n");
 	return;
       }
     }
