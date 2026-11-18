@@ -214,7 +214,12 @@ Help pages: https://datareel.com/encrypted_password_database/help/install.php
    SHA256` and compare). Stop if it does not match.
 2. **RHEL 8, 9, 10:** unpack the `rhel_8_9_10_binaries.tar.gz` and run
    `./rh_install.sh` as the user (no root). It installs the GUI,
-   `epdb_auth_tool`, the desktop file and the icons for that user.
+   `epdb_auth_tool`, the desktop file and the icons for that user. On
+   RHEL 8 (2026.107 and later) it picks the build by the host's FIPS mode
+   (`fips-mode-setup --check`): `rhel8` (RHEL 8's FIPS-validated system
+   OpenSSL 1.1.1k, no quantum-resistant users) on a FIPS-mode host,
+   `rhel8_openssl35` (OpenSSL 3.5 built in, quantum-resistant users)
+   otherwise. Never change a host's FIPS mode to make an install work.
 3. **Windows:** run the setup (64-bit, or the 32-bit setup on 32-bit
    Windows). It installs the Visual C++ runtime if it is missing and can
    add the program folder to the PATH. Or unzip the binaries package.
