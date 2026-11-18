@@ -21,13 +21,54 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
   only. Also at
   https://datareel.com/encrypted_password_database/ai_assisted_guide.php
 * GUI: the backup error message says "existing file".
-* REQUIRED for this release: quantum-resistant access for RSA and smart
-  card users. A hybrid key block wraps the master key with both RSA-OAEP
-  and ML-KEM-1024 (NIST FIPS 203, OpenSSL 3.5), so a quantum computer
-  that breaks RSA cannot recover it; RSA-only users move to it with
-  --rekey. AES-256 fields, the MACs and the password and key file paths
-  are already quantum-resistant. Design: claude_code_docs
-  EPDB_2026_107_QUANTUM_DESIGN.md.
+* Quantum-resistant users (required for this release). An RSA key or
+  smart card user can also be given an ML-KEM-1024 key (NIST FIPS 203,
+  from OpenSSL 3.5): the user's key block then wraps the master key so
+  that BOTH the RSA key or card AND the ML-KEM key are needed to open the
+  database, and a future quantum computer that breaks RSA cannot recover
+  the master key from a copy of the file ("harvest now, decrypt later").
+  The master key is wrapped with AES-256 Key Wrap under
+  KEK = KBKDF-HMAC-SHA384(ss || r, "EPDB hybrid key block", database ID
+  || type || user || SHA-384(ct_rsa || ct_kem)), where ss comes from
+  ML-KEM-1024 encapsulation and r (32 random bytes) is RSA-OAEP SHA-256
+  encrypted to the user's RSA key or card cert; the block also carries an
+  HMAC-SHA256. AES-256 fields, the MACs and the password and key file
+  paths were already quantum-resistant.
+  - epdb_auth_tool --generate-pq-key=file makes a user's ML-KEM-1024 key:
+    file (PKCS#8 PEM encrypted with a passphrase, mode 600) and
+    file.pub.pem. They are the same key files as fcrypt 2026.110 and
+    later, so one key serves both programs.
+  - --add-rsa-key=pub.pem or --add-smartcard-cert(-file) with
+    --add-pq-public-key=user_pq.pub.pem adds a quantum-resistant user
+    ("RSA key + ML-KEM-1024" or "Smart Card + ML-KEM-1024").
+  - Open as that user with --rsa-key or --smartcard plus
+    --pq-key=file and --pq-key-passphrase-file, --pq-key-passphrase-fd
+    or the prompt. The ML-KEM key is loaded before the smart card is
+    used, so a missing or wrong ML-KEM key never costs a PIN try, and it
+    is not counted as a failed open.
+  - --rekey input "rsa:user=pub.pem,pq=user_pq.pub.pem" and
+    "smartcard:user=cert.pem,pq=user_pq.pub.pem" keep or make
+    quantum-resistant users. A quantum-resistant user must be given its
+    pq= in a rekey: it is never silently made RSA-only or card-only.
+  - --require-pq refuses to add, or keep in a rekey, a user without an
+    ML-KEM key.
+  - --list-users, --db-info (--json: quantum_resistant_users) and the
+    GUI's user list show the users' kind.
+  - GUI: Users > Add User takes the user's ML-KEM public key; the Unlock
+    dialog's private key and smart card pages take the ML-KEM key file
+    and passphrase (the file name is remembered per database).
+  - Older releases: 2026.106 and older still open these databases with
+    the password, the key file or a plain RSA or smart card user, show
+    the quantum-resistant users as Unknown and cannot open as them. A
+    user they add keeps the quantum-resistant users. Their --rekey,
+    however, does not know these users and leaves them out: rekey only
+    with 2026.107 or later (the rekey backup copy keeps the old users).
+  - New tests: console/linux/run_pq_tests.sh [old_build_dir]
+    (SC_MODULE, SC_PIN, SC_CERT for a SoftHSM2 smart card user).
+* Bundled fcrypt 2026.110 (fcrypt branch 2026.110): the ML-KEM-1024 key
+  files, and OpenSSL 3.5 LTS or later for every build. RHEL 8 builds
+  need RHEL 8.10 with the current updates, where the operating system's
+  OpenSSL is 3.5.
 * Bug fixes and security updates found while upgrading installations to
   2026.106 go into this release.
 
