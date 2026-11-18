@@ -94,11 +94,17 @@ Source: "{#StageDir}\README.txt"; DestDir: "{app}"; DestName: "README_windows.tx
 Source: "{#StageDir}\sha256sum.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\README.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+; 11/18/2026: The white paper and the AI-assisted guide files, as on the web site
+Source: "..\..\..\docs\security_design.html"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\..\AGENTS.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\..\CLAUDE.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\..\GEMINI.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#Redist}"; DestDir: "{tmp}"; DestName: "vc_redist.{#VcArch}.exe"; Flags: deleteafterinstall; Check: VCRuntimeNeeded
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{group}\README"; Filename: "{app}\README.txt"
+Name: "{group}\Security Design (white paper)"; Filename: "{app}\docs\security_design.html"
 Name: "{group}\List Smart Cards (no PIN)"; Filename: "{app}\smartcard_list.bat"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon

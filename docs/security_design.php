@@ -1,0 +1,221 @@
+<?php
+  // Encrypted Password Database (EPDB) security design white paper (new layout), 11/18/2026.
+  // Written from the EPDB 2026.107 source (include/db_auth.h, src/db_auth.cpp, src/epdb_journal.cpp,
+  // the bundled fcrypt) and README.txt; update it when the database format or the cryptography changes.
+  require_once $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_layout.php';
+  if ($dr2_classic = dr2_classic_page(__FILE__)) { include $dr2_classic; exit; }
+  $dr2_t = 'Encrypted Password Database (EPDB) security design';
+  $dr2_d = 'How the Encrypted Password Database protects passwords: the key hierarchy, AES-256-CBC field encryption with HMAC-SHA256, multi-user RSA and smart card access, crash-safe saves, access logs, the security measures and their limits.';
+  $PageTitle = $dr2_t . ' | DataReel Software Development';
+  $PageDescription = $dr2_d;
+  $CALLER_HAS_CSS_LINK = '/css/dr2_docs.css';
+  include $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_all_pages_header.php';
+  echo dr2_page_head(array('Home' => '/index.php', 'Password Database' => '/info_encrypted_password_database.php', 'Security design' => NULL), 'White paper', $dr2_t, $dr2_d);
+?>
+<style>
+.epdb-fig { margin: 18px 0 26px; overflow-x: auto; }
+.epdb-fig svg { display: block; width: 100%; max-width: 860px; height: auto; min-width: 560px; }
+.epdb-fig figcaption { color: var(--dr2-muted); font-size: 14px; margin-top: 6px; }
+.epdb-fig .b { fill: var(--dr2-surface-2); stroke: var(--dr2-border-strong); stroke-width: 1.5; }
+.epdb-fig .k { fill: var(--dr2-accent-soft); stroke: var(--dr2-accent); stroke-width: 1.5; }
+.epdb-fig text { fill: var(--dr2-text); font: 14px system-ui, -apple-system, "Segoe UI", sans-serif; }
+.epdb-fig text.s { fill: var(--dr2-muted); font-size: 12px; }
+.epdb-fig .a { stroke: var(--dr2-muted); stroke-width: 1.5; fill: none; marker-end: url(#epdb-arrow); }
+.epdb-fig marker path { fill: var(--dr2-muted); }
+</style>
+<article class="dr2-doc">
+
+<p><b>Release:</b> 2026.107 (database format v2). <b>Audience:</b> security reviewers, administrators and
+anyone deciding whether to trust EPDB with their passwords. The source code is published, so everything on
+this page can be checked against it; the design does not depend on keeping it secret.</p>
+
+<h2 id="overview">1. What EPDB protects, and from whom</h2>
+<p>An EPDB database is a pair of files, <code>name.ehd</code> (the records) and <code>name.ehx</code> (the
+index). Every record field is encrypted. The goals are:</p>
+<ul>
+<li><b>Confidentiality at rest:</b> someone who copies the files, a backup or a lost laptop's disk cannot read
+the passwords without a credential that opens the database.</li>
+<li><b>Integrity:</b> a change made to the files outside EPDB, such as an edited, removed, moved or added
+record, is detected when the database is opened.</li>
+<li><b>Separate credentials per person:</b> several administrators open the same database with their own RSA
+key or smart card, and one can be removed without sharing a new secret with the rest.</li>
+<li><b>No secrets in scripts:</b> scripts and services read one value at run time, with the credential in a
+file only their account can read, never on the command line.</li>
+<li><b>No lost saves:</b> a crash, kill or power loss never leaves a half-written database.</li>
+</ul>
+<p>EPDB does not protect against an attacker who controls the computer while the database is open (malware
+that reads the program's memory, the screen or the keyboard), against a weak password chosen for a
+password-only database, or against someone who already has a valid credential.</p>
+
+<h2 id="keys">2. The key hierarchy</h2>
+<p>Each database has one random 256-bit <b>master key</b>. Every credential is just a way to recover that
+master key, and the master key is never stored in the clear.</p>
+<figure class="epdb-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="Key hierarchy: a password or key file goes through PBKDF2 to the master key; an RSA private key or a smart card unwraps the master key from an RSA-OAEP key block; the master key derives four keys with KBKDF.">
+<defs><marker id="epdb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="b" x="10" y="20" width="200" height="56" rx="8"/><text x="110" y="44" text-anchor="middle">Password or key file</text><text class="s" x="110" y="62" text-anchor="middle">typed or read from a file</text>
+<rect class="b" x="10" y="110" width="200" height="56" rx="8"/><text x="110" y="134" text-anchor="middle">RSA private key</text><text class="s" x="110" y="152" text-anchor="middle">per user, with passphrase</text>
+<rect class="b" x="10" y="200" width="200" height="56" rx="8"/><text x="110" y="224" text-anchor="middle">Smart card (PKCS#11)</text><text class="s" x="110" y="242" text-anchor="middle">DoD CAC, PIV; PIN on the card</text>
+<rect class="b" x="260" y="20" width="200" height="56" rx="8"/><text x="360" y="44" text-anchor="middle">PBKDF2-HMAC-SHA256</text><text class="s" x="360" y="62" text-anchor="middle">600,000 rounds, 32-byte salt</text>
+<rect class="b" x="260" y="155" width="200" height="56" rx="8"/><text x="360" y="179" text-anchor="middle">RSA-OAEP key block</text><text class="s" x="360" y="197" text-anchor="middle">one per user, in the file</text>
+<rect class="k" x="510" y="85" width="140" height="64" rx="8"/><text x="580" y="113" text-anchor="middle">Master key</text><text class="s" x="580" y="131" text-anchor="middle">256-bit, random</text>
+<rect class="b" x="700" y="10" width="150" height="44" rx="8"/><text x="775" y="37" text-anchor="middle">Field encryption</text>
+<rect class="b" x="700" y="66" width="150" height="44" rx="8"/><text x="775" y="93" text-anchor="middle">Field MAC</text>
+<rect class="b" x="700" y="122" width="150" height="44" rx="8"/><text x="775" y="149" text-anchor="middle">Key check</text>
+<rect class="b" x="700" y="178" width="150" height="44" rx="8"/><text x="775" y="205" text-anchor="middle">Database MAC</text>
+<text class="s" x="580" y="190" text-anchor="middle">KBKDF-HMAC-SHA256</text>
+<path class="a" d="M210,48 L258,48"/><path class="a" d="M460,48 C490,48 490,100 508,104"/>
+<path class="a" d="M210,138 C235,138 235,175 258,178"/><path class="a" d="M210,228 C235,228 235,195 258,192"/>
+<path class="a" d="M460,183 C490,183 490,135 508,130"/>
+<path class="a" d="M650,105 C675,105 675,32 698,32"/><path class="a" d="M650,112 C675,112 675,88 698,88"/>
+<path class="a" d="M650,122 C675,122 675,144 698,144"/><path class="a" d="M650,130 C675,130 675,200 698,200"/>
+<text class="s" x="430" y="300" text-anchor="middle">Removing a user deletes their key block; --rekey makes a new master key and rewraps every kept user.</text>
+</svg>
+<figcaption>Figure 1. Every credential recovers the same master key; four working keys are derived from it.</figcaption>
+</figure>
+<ul>
+<li><b>Password or key file:</b> PBKDF2-HMAC-SHA256 with 600,000 iterations and a random 32-byte salt per
+database turns it into the master key. The iteration count slows down offline guessing; it does not make a
+short or common password safe.</li>
+<li><b>RSA keys and smart cards:</b> each such user has a key block in the database that holds the master key
+encrypted to that user's RSA public key with OAEP padding (SHA-256). An RSA user decrypts it with their
+private key file; a smart card user's card decrypts it with the private key that never leaves the card
+(PKCS#11). Adding a user needs only their public key or certificate. EC card keys are refused, because they
+cannot decrypt a wrapped key.</li>
+<li><b>Derived keys:</b> KBKDF-HMAC-SHA256 derives four independent keys from the master key: field
+encryption, field MAC, key check and database MAC, each with its own label, so no key is used for two
+purposes.</li>
+<li><b>Key check:</b> a value derived from the master key tells EPDB whether a credential is right before any
+record is decrypted, so a wrong credential fails cleanly and is counted (section 6).</li>
+</ul>
+
+<h2 id="fields">3. Field encryption and integrity</h2>
+<figure class="epdb-fig">
+<svg viewBox="0 0 860 170" role="img" aria-label="Field encryption: the field value and a random 16-byte IV go into AES-256-CBC with the field encryption key; HMAC-SHA256 with the field MAC key tags the IV and ciphertext; the stored field is the IV, the ciphertext and the tag.">
+<rect class="b" x="10" y="20" width="160" height="50" rx="8"/><text x="90" y="50" text-anchor="middle">Field value</text>
+<rect class="b" x="10" y="95" width="160" height="50" rx="8"/><text x="90" y="125" text-anchor="middle">Random 16-byte IV</text>
+<rect class="k" x="230" y="55" width="170" height="56" rx="8"/><text x="315" y="79" text-anchor="middle">AES-256-CBC</text><text class="s" x="315" y="97" text-anchor="middle">field encryption key</text>
+<rect class="k" x="460" y="55" width="160" height="56" rx="8"/><text x="540" y="79" text-anchor="middle">HMAC-SHA256</text><text class="s" x="540" y="97" text-anchor="middle">field MAC key</text>
+<rect class="b" x="680" y="40" width="170" height="86" rx="8"/><text x="765" y="70" text-anchor="middle">Stored field</text><text class="s" x="765" y="90" text-anchor="middle">IV | ciphertext | tag</text>
+<path class="a" d="M170,45 C200,45 200,75 228,78"/><path class="a" d="M170,120 C200,120 200,92 228,90"/>
+<path class="a" d="M400,83 L458,83"/><path class="a" d="M620,83 L678,83"/>
+</svg>
+<figcaption>Figure 2. Each field is encrypted with a fresh IV, then authenticated (encrypt-then-MAC).</figcaption>
+</figure>
+<ul>
+<li>Every field of every record (title, user name, password, notes and the other columns) is encrypted
+separately with AES-256 in CBC mode and a new random IV each time it is written.</li>
+<li>Each encrypted field carries an HMAC-SHA256 tag over the IV and ciphertext, checked before decryption,
+so a changed or swapped ciphertext is rejected instead of decrypted.</li>
+<li><b>Whole-database MAC:</b> a second HMAC-SHA256, kept in the database header, covers the header, the
+settings, the user key blocks and every record, bound to each record's place in the file and each field's
+number. Opening a database checks it and checks that the index lists exactly the records in the data file,
+so records cannot be removed, moved, added or hidden from the index without detection.</li>
+<li>If a check fails, EPDB refuses the database and says so. <code>--reseal-db</code> accepts the current
+contents only when an administrator knows why the file changed.</li>
+<li>Cryptography comes from OpenSSL 3.5 (an LTS release). Random values come from the OpenSSL random
+generator.</li>
+</ul>
+
+<h2 id="saves">4. Crash-safe saves and the writer lock</h2>
+<figure class="epdb-fig">
+<svg viewBox="0 0 860 150" role="img" aria-label="Crash-safe save: take the writer lock, write the changed pages to the journal and sync it, write the pages to the database files and sync them, then empty the journal.">
+<rect class="b" x="10" y="40" width="150" height="64" rx="8"/><text x="85" y="68" text-anchor="middle">Writer lock</text><text class="s" x="85" y="86" text-anchor="middle">one writer only</text>
+<rect class="b" x="220" y="40" width="190" height="64" rx="8"/><text x="315" y="68" text-anchor="middle">1. Changes to journal</text><text class="s" x="315" y="86" text-anchor="middle">name.ehd.jnl, synced</text>
+<rect class="b" x="470" y="40" width="190" height="64" rx="8"/><text x="565" y="68" text-anchor="middle">2. Changes to .ehd/.ehx</text><text class="s" x="565" y="86" text-anchor="middle">synced</text>
+<rect class="k" x="720" y="40" width="130" height="64" rx="8"/><text x="785" y="68" text-anchor="middle">3. Journal</text><text class="s" x="785" y="86" text-anchor="middle">emptied</text>
+<path class="a" d="M160,72 L218,72"/><path class="a" d="M410,72 L468,72"/><path class="a" d="M660,72 L718,72"/>
+<text class="s" x="430" y="135" text-anchor="middle">A crash in step 1 leaves the old database; a crash in step 2 is finished from the journal at the next open.</text>
+</svg>
+<figcaption>Figure 3. Every save is all or nothing.</figcaption>
+</figure>
+<ul>
+<li>Every change (a record, an import or merge, settings, users, the in-file access log) is written to a
+write-ahead journal first, then to the database, so a crash, kill or power loss leaves the state before or
+after the save, never a mix. Command line changes are made on a copy that replaces the database in steps
+that are finished at the next open.</li>
+<li>Only one program at a time can open a database for writing; others are refused with "open in another
+program" (exit code 4). Reading is not blocked.</li>
+<li>A journal is replayed only when the user owns it and no other user could have written it or its folder,
+so another account cannot plant changes through a journal.</li>
+</ul>
+
+<h2 id="users">5. Users, revocation and automation</h2>
+<ul>
+<li><b>Remove a user:</b> deletes that user's key block. A user who already recovered the master key could
+still use it, so the follow-up is <code>--rekey</code>: a new master key, every field encrypted again, every
+kept user rewrapped with their public key, and a new salt even when the password is kept.</li>
+<li><b>Password-less databases:</b> a rekey can drop the password, so that only the RSA and smart card users
+can open the database.</li>
+<li><b>Scripts and services:</b> <code>epdb_auth_tool</code> reads passwords, passphrases and PINs from files
+only the user can read or from file descriptors, never from the command line, and refuses to prompt in
+<code>--non-interactive</code> mode. <code>--get-field</code> writes only the one value requested, and it is
+never logged.</li>
+</ul>
+
+<h2 id="measures">6. Other security measures</h2>
+<ul>
+<li><b>Smart card PIN safeguards:</b> the PIN is sent at most once per run and never retried. A card that
+reports low or final PIN tries, or a locked PIN, is not used without asking, so EPDB never locks a CAC.</li>
+<li><b>Tamper-evident access log:</b> optional, records each open and change (time, user, method, action,
+result; never a password, PIN or record value). Entries are chained with HMAC-SHA256 keyed from the master
+key, so changed, removed, reordered or inserted entries are found. An optional encrypted copy of the last 160
+entries is kept in the database file.</li>
+<li><b>Self-destruct:</b> optional. After a set number of failed opens through EPDB's programs, the key blocks,
+the salt, the settings and every record are overwritten with random data.</li>
+<li><b>Files and memory:</b> on Linux the program's folders are mode 700 and its private files mode 600. The
+GUI locks itself after a set idle time and clears copied values from the clipboard after a set number of
+seconds; printing shows passwords only when that is ticked.</li>
+<li><b>Older databases:</b> format v1 databases (2025 and earlier) still open, with a warning, and upgrade to
+v2 with a backup copy kept.</li>
+</ul>
+
+<h2 id="limits">7. Limits, stated plainly</h2>
+<ul>
+<li>A database that opens with a password is only as strong as that password: anyone with a copy of the
+files can guess offline at the speed PBKDF2 allows. Use long random passwords, or RSA keys and smart cards.</li>
+<li>Self-destruct only counts guesses made through EPDB. It does not stop an offline attack on a copy, and
+the counter cannot be protected against someone who edits the file.</li>
+<li>Removing whole entries from the end of the access log cannot be detected.</li>
+<li>While a database is open, its keys are in the program's memory.</li>
+<li>Backups are encrypted the same way as the database, and they keep working with the credentials that
+opened them at the time, including those of users removed later.</li>
+</ul>
+
+<h2 id="fips">8. FIPS 140-3</h2>
+<p>EPDB uses only algorithms approved for FIPS 140-3 (AES-256, SHA-256, HMAC, PBKDF2, KBKDF, RSA-OAEP), and
+the Windows builds include the OpenSSL 3.5 FIPS provider. EPDB itself is not a FIPS-validated module and does
+not run in a FIPS-only mode, so it should not be described as FIPS compliant or FIPS validated. Sites that
+require FIPS-validated cryptography should check their policy with their security office. The companion
+file encryption tool, <a href="/info_fcrypt.php">fcrypt</a>, has a FIPS mode that uses the OpenSSL FIPS
+provider.</p>
+
+<h2 id="quantum">9. Quantum computing</h2>
+<p>A large quantum computer, if one is built, would change which parts of today&apos;s cryptography stay
+safe. Where EPDB stands in release 2026.107:</p>
+<ul>
+<li><b>Quantum-resistant:</b> AES-256 field encryption (the best known quantum attack roughly halves its
+strength, which leaves about 128 bits), HMAC-SHA256, PBKDF2 and the key derivation. A database opened only
+with a password or a key file uses no public-key cryptography.</li>
+<li><b>Quantum-resistant users:</b> an RSA key or smart card user can also be given an ML-KEM-1024 key
+(NIST FIPS 203, from OpenSSL 3.5). The user&apos;s key block then wraps the master key with AES-256 Key Wrap
+under a key derived (KBKDF-HMAC-SHA384) from both an ML-KEM-1024 shared secret and 32 random bytes that only
+the user&apos;s RSA key or card can decrypt, so an attacker must break both RSA and ML-KEM-1024. Opening needs
+the RSA key or card and the ML-KEM key file (<code>--pq-key</code>); the ML-KEM key files are made with
+<code>--generate-pq-key</code> and are the same files fcrypt uses.</li>
+<li><b>Plain RSA and smart card users are not quantum-resistant:</b> a quantum computer that can break RSA
+could recover the master key from such a block, also from a copy taken today (&quot;harvest now, decrypt
+later&quot;). Move them to quantum-resistant users with <code>--rekey</code>, and use <code>--require-pq</code>
+so that no RSA-only user is added or kept.</li>
+<li><b>Smart cards:</b> today&apos;s CAC and PIV cards hold RSA and elliptic-curve keys only, so the card half of
+a quantum-resistant block is RSA; the ML-KEM half is a key file the user keeps.</li>
+<li>This follows the NSA CNSA 2.0 and NIST guidance to move from RSA to ML-KEM with AES-256.</li>
+</ul>
+
+<h2 id="report">10. Reporting a security issue</h2>
+<p>Report security issues privately through the <a href="/contact.php">contact page</a>, not in public issue
+trackers. Fixes go into the next release; the <a href="help/README.txt">README</a> lists every release and
+what changed.</p>
+
+</article>
+<?php include $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_all_pages_footer.php'; ?>

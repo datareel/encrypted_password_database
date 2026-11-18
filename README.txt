@@ -21,6 +21,9 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
   only. Also at
   https://datareel.com/encrypted_password_database/ai_assisted_guide.php
 * GUI: the backup error message says "existing file".
+* Documentation in the source and the release packages: the security
+  design white paper (docs/security_design.html, with block diagrams)
+  and the AI-assisted guide files, the same text as the web site.
 * Quantum-resistant users (required for this release). An RSA key or
   smart card user can also be given an ML-KEM-1024 key (NIST FIPS 203,
   from OpenSSL 3.5): the user's key block then wraps the master key so
@@ -687,6 +690,21 @@ DOCUMENTATION
 For the latest updates and documents please visit the online help page:
 
 https://datareel.com/encrypted_password_database/help/
+
+Also in the source and in every release package (2026.107 and later):
+
+  docs/security_design.html  Security design white paper: the key
+                             hierarchy, field encryption and MACs,
+                             crash-safe saves, quantum-resistant users,
+                             the other security measures, their limits
+                             and FIPS 140-3. Web copy:
+  https://datareel.com/encrypted_password_database/security_design.php
+  AGENTS.md, CLAUDE.md, GEMINI.md  AI-assisted install, build, upgrade
+                             and support. Web copy:
+  https://datareel.com/encrypted_password_database/ai_assisted_guide.php
+
+docs/security_design.php is the web site page; after changing it run
+python3 docs/make_security_design_html.py to update the HTML copy.
 
 
 INSTALLING ON WINDOWS
