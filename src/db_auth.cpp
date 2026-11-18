@@ -288,12 +288,11 @@ int EPDBBlockIsHybrid(gxUINT32 t)
 
 const char *EPDBBlockTypeName(gxUINT32 t)
 {
-  switch(t) {
-    case DB_AUTH_BLOCK_TYPE_RSA: return "RSA key";
-    case DB_AUTH_BLOCK_TYPE_SMARTCARD: return "Smart Card";
-    case DB_AUTH_BLOCK_TYPE_RSA_HYBRID: return "RSA key + ML-KEM-1024";
-    case DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID: return "Smart Card + ML-KEM-1024";
-  }
+  unsigned v = (unsigned)t; // gxUINT32 is a class
+  if(v == 1) return "RSA key";
+  if(v == 2) return "Smart Card";
+  if(v == 3) return "RSA key + ML-KEM-1024";
+  if(v == 4) return "Smart Card + ML-KEM-1024";
   return "Unknown";
 }
 
