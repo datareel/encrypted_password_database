@@ -50,13 +50,14 @@ HARDEN_CFLAGS = -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2
 HARDEN_LDFLAGS = -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
 # 11/18/2026: Two RHEL 8 builds (see env/linux.env): the system OpenSSL
 # 1.1.1k (FIPS mode hosts) by default, or OpenSSL 3.5 linked statically
-# with OPENSSL35_PREFIX=<prefix of build_openssl35.sh>
-ifneq ($(OPENSSL35_PREFIX),)
-OPENSSL_INC_PATH = -I$(OPENSSL35_PREFIX)/include
+# with OPENSSL35=1 (makefile_rhel8_openssl35, OPENSSL35_PREFIX)
+OPENSSL35_PREFIX ?= /opt/openssl-3.5
+ifeq ($(OPENSSL35),1)
+OPENSSL_INC_PATH = -I$(OPENSSL35_PREFIX)/include -DFC_OPENSSL_STATIC
 OPENSSL_LIBS = $(OPENSSL35_PREFIX)/lib64/libssl.a $(OPENSSL35_PREFIX)/lib64/libcrypto.a -ldl -pthread
 else
-OPENSSL_INC_PATH =
-OPENSSL_LIBS = -lssl -lcrypto
+OPENSSL_INC_PATH = -DFC_RHEL8_SYSTEM_OPENSSL
+OPENSSL_LIBS = -lssl -lcrypto -ldl
 endif
 COMPILE_FLAGS= -Wall $(OPENSSL_INC_PATH) $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2 $(HARDEN_CFLAGS)
 COMPILE_ONLY = -c

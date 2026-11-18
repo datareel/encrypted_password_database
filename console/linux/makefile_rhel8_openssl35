@@ -1,0 +1,12 @@
+# 11/18/2026: RHEL 8 build with OpenSSL 3.5 LTS linked statically (ML-KEM,
+# quantum-resistant users), for hosts not in FIPS mode. OPENSSL35_PREFIX is
+# the prefix of fcrypt/console/linux/build_openssl35.sh, default /opt/openssl-3.5.
+# Use a clean folder: the objects differ from the system OpenSSL build.
+all:
+	$(MAKE) -f makefile_rhel8 OPENSSL35=1
+
+install:
+	$(MAKE) -f makefile_rhel8 OPENSSL35=1 install
+
+clean:
+	$(MAKE) -f makefile_rhel8 OPENSSL35=1 clean
