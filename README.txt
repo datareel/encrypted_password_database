@@ -21,6 +21,13 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
   only. Also at
   https://datareel.com/encrypted_password_database/ai_assisted_guide.php
 * GUI: the backup error message says "existing file".
+* REQUIRED for this release: quantum-resistant access for RSA and smart
+  card users. A hybrid key block wraps the master key with both RSA-OAEP
+  and ML-KEM-1024 (NIST FIPS 203, OpenSSL 3.5), so a quantum computer
+  that breaks RSA cannot recover it; RSA-only users move to it with
+  --rekey. AES-256 fields, the MACs and the password and key file paths
+  are already quantum-resistant. Design: claude_code_docs
+  EPDB_2026_107_QUANTUM_DESIGN.md.
 * Bug fixes and security updates found while upgrading installations to
   2026.106 go into this release.
 
