@@ -32,11 +32,13 @@ Rewritten with sizers, the checks are the same as before.
 */
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
+#include "fcfile.h" // 11/18/2026: FC_pq_load_public_key()
 
 enum {
   ID_ADDUSER_METHOD = 761,
   ID_ADDUSER_RSA_BROWSE,
-  ID_ADDUSER_CERT_BROWSE
+  ID_ADDUSER_CERT_BROWSE,
+  ID_ADDUSER_PQ_BROWSE // 11/18/2026
 };
 
 enum { EPDB_ADDUSER_RSA = 0, EPDB_ADDUSER_CARD, EPDB_ADDUSER_CERT_FILE };
@@ -47,6 +49,7 @@ BEGIN_EVENT_TABLE(AdduserPanel, wxDialog)
   EVT_BUTTON(wxID_CANCEL, AdduserPanel::OnCancel)
   EVT_RADIOBOX(ID_ADDUSER_METHOD, AdduserPanel::OnMethod)
   EVT_BUTTON(ID_ADDUSER_RSA_BROWSE, AdduserPanel::OnRSAKeyFileBrowse)
+  EVT_BUTTON(ID_ADDUSER_PQ_BROWSE, AdduserPanel::OnPQKeyFileBrowse)
 #ifdef __ENABLE_SMART_CARD__
   EVT_BUTTON(ID_ADDUSER_CERT_BROWSE, AdduserPanel::OnCertFileBrowse)
 #endif
@@ -113,6 +116,16 @@ AdduserPanel::AdduserPanel(wxWindow *parent)
     if(!pages[i]) continue;
     top->Add(pages[i], 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
     pages[i]->Hide();
+  }
+  // 11/18/2026: Quantum-resistant (RSA key or smart card + ML-KEM-1024) users
+  {
+    wxBoxSizer *qs = new wxBoxSizer(wxVERTICAL);
+    qs->Add(new wxStaticText(this, wxID_ANY, "ML-KEM-1024 public key of the user (quantum-resistant user, optional)"), 0, wxBOTTOM, FromDIP(3));
+    qs->Add(EPDBFileRow(this, pq_public_input, b, ID_ADDUSER_PQ_BROWSE), 0, wxEXPAND);
+    qs->Add(EPDBNote(this, "With an ML-KEM key the user needs both the RSA key or smart card and the ML-KEM key "
+		     "to open the database. Make the key with epdb_auth_tool --generate-pq-key or fcrypt --generate-pq-key.", 460),
+	    0, wxTOP, FromDIP(4));
+    top->Add(qs, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, pad);
   }
   message = new wxStaticText(this, wxID_ANY, "");
   message->SetForegroundColour(EPDBWarningColour());
@@ -187,6 +200,13 @@ void AdduserPanel::OnRSAKeyFileBrowse(wxCommandEvent &WXUNUSED(event))
   if(dialog.ShowModal() == wxID_OK) rsa_key_input->SetValue(dialog.GetPath());
 }
 
+void AdduserPanel::OnPQKeyFileBrowse(wxCommandEvent &WXUNUSED(event))
+{
+  wxFileDialog dialog(this, "ML-KEM-1024 public key file", progcfg->docDir.c_str(), "",
+		      "PEM files (*.pem)|*.pem|All files|*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+  if(dialog.ShowModal() == wxID_OK) pq_public_input->SetValue(dialog.GetPath());
+}
+
 #ifdef __ENABLE_SMART_CARD__
 void AdduserPanel::OnCertFileBrowse(wxCommandEvent &WXUNUSED(event))
 {
@@ -212,6 +232,20 @@ int AdduserPanel::TestInput()
   if(user.IsEmpty()) {
     message->SetLabel("Enter the username");
     return 0;
+  }
+  // 11/18/2026: The ML-KEM public key of a quantum-resistant user
+  pq_public_file.Clear();
+  wxString pqf = pq_public_input->GetValue();
+  pqf.Trim().Trim(false);
+  if(!pqf.IsEmpty()) {
+    gxString kerr;
+    EVP_PKEY *k = FC_pq_load_public_key(pqf.utf8_str(), kerr);
+    if(!k) {
+      ProgramError->Message(kerr.c_str());
+      return 0;
+    }
+    EVP_PKEY_free(k);
+    pq_public_file = (const char *)pqf.utf8_str();
   }
 
   if(method == EPDB_ADDUSER_RSA) {

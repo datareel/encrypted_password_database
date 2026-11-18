@@ -670,6 +670,7 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
   if(add_user_panel->IsOK()) {
     if(add_user_panel->use_rsa_key) {
       db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+      db_auth.pq_public_file = add_user_panel->pq_public_file; // 11/18/2026
       rv = db_auth.AddRSAKeyToStaticArea(child_frame->DBParms()->crypt_key,
 					 add_user_panel->public_key, add_user_panel->public_key_len, add_user_panel->rsa_key_username);
       if(rv != 0) {
@@ -678,13 +679,15 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 	return;
       }
 
-      sbuf << clear << "Added RSA key access for user " << add_user_panel->rsa_key_username;
+      sbuf << clear << "Added RSA key access for user " << add_user_panel->rsa_key_username
+	   << (add_user_panel->pq_public_file.is_null() ? "" : " (quantum-resistant: RSA key + ML-KEM-1024)");
       ProgramError->Message(sbuf.c_str());
       GUILog(child_frame, "add-user", gxString(), 1, add_user_panel->rsa_key_username.c_str());
     }
 #ifdef __ENABLE_SMART_CARD__
     if(add_user_panel->use_smartcard) {
       db_auth.f = child_frame->DBParms()->pod->OpenDataFile();
+      db_auth.pq_public_file = add_user_panel->pq_public_file; // 11/18/2026
        rv = db_auth.AddSmartCardCertToStaticArea(&add_user_panel->sc, add_user_panel->use_cert_file,
 						 child_frame->DBParms()->crypt_key, add_user_panel->smartcard_username);
        if(rv != 0) {
@@ -692,7 +695,8 @@ void MainFrame::OnAddUsers(wxCommandEvent& event)
 	 ProgramError->Message(sbuf.c_str());
 	 return;
        }
-       sbuf << clear << "Added smart card access for user " << add_user_panel->smartcard_username; // 10/25/2026: Was rsa_key_username
+       sbuf << clear << "Added smart card access for user " << add_user_panel->smartcard_username // 10/25/2026: Was rsa_key_username
+	    << (add_user_panel->pq_public_file.is_null() ? "" : " (quantum-resistant: Smart Card + ML-KEM-1024)");
       ProgramError->Message(sbuf.c_str());
       GUILog(child_frame, "add-user", gxString(), 1, add_user_panel->smartcard_username.c_str());
     }
@@ -742,7 +746,7 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
   wxArrayString choices;
   std::vector<gxString> names;
   for(list_ptr = db_auth.static_block_list.GetHead(); list_ptr; list_ptr = list_ptr->next) {
-    int t = list_ptr->data.block_header.block_type;
+    int t = EPDBBlockBaseType(list_ptr->data.block_header.block_type); // 11/18/2026: Or hybrid
     if(t != 1 && t != 2) continue;
     int seen = 0;
     for(size_t k = 0; k < names.size(); k++) if(names[k] == list_ptr->data.username) seen = 1;
@@ -751,10 +755,9 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
     wxString kinds;
     for(gxListNode<StaticDataBlock> *q = db_auth.static_block_list.GetHead(); q; q = q->next) {
       if(!(q->data.username == list_ptr->data.username)) continue;
-      int qt = q->data.block_header.block_type;
-      if(qt != 1 && qt != 2) continue;
+      if(!EPDBBlockBaseType(q->data.block_header.block_type)) continue;
       if(!kinds.IsEmpty()) kinds << ", ";
-      kinds << (qt == 1 ? "RSA key" : "smart card");
+      kinds << EPDBBlockTypeName(q->data.block_header.block_type);
     }
     choices.Add(wxString::FromUTF8(list_ptr->data.username.c_str()) + "  (" + kinds + ")");
   }
@@ -769,7 +772,7 @@ void MainFrame::OnRemoveUsers(wxCommandEvent& event)
   gxString username = names[dialog.GetSelection()];
   int count = 0, found = 0;
   for(list_ptr = db_auth.static_block_list.GetHead(); list_ptr; list_ptr = list_ptr->next) {
-    if(list_ptr->data.block_header.block_type != 1 && list_ptr->data.block_header.block_type != 2) continue;
+    if(!EPDBBlockBaseType(list_ptr->data.block_header.block_type)) continue; // 11/18/2026: Or hybrid
     count++;
     if(list_ptr->data.username == username) found++;
   }
@@ -1086,8 +1089,7 @@ void MainFrame::OnListUsers(wxCommandEvent& event)
     *(frame->statusWin) << "---------------------" << "\n";
     gxString access_type = "Unknown";
     while(list_ptr) {
-      if(list_ptr->data.block_header.block_type == 1) access_type = "RSA key";
-      if(list_ptr->data.block_header.block_type == 2) access_type = "Smart Card";
+      access_type = EPDBBlockTypeName(list_ptr->data.block_header.block_type); // 11/18/2026
       *(frame->statusWin) << "Username: " << list_ptr->data.username.c_str() << " Access: " << access_type.c_str() << "\n";
       list_ptr = list_ptr->next;
     }

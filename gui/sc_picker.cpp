@@ -52,10 +52,17 @@ int EPDBReadCardUsers(const char *data_file, std::vector<EPDBCardUser> &users)
   int rv = db_auth.LoadStaticDataBlocks();
   if(rv == 0) {
     for(gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead(); p; p = p->next) {
-      if(p->data.block_header.block_type != 2) continue; // 2 is a smart card user
+      // 2 is a smart card user, 4 (11/18/2026) a smart card + ML-KEM-1024 user
+      if(EPDBBlockBaseType(p->data.block_header.block_type) != 2) continue;
       EPDBCardUser u;
       u.username = p->data.username.c_str();
       u.key_bits = (int)p->data.block_header.ciphertext_len * 8;
+      if(EPDBBlockIsHybrid(p->data.block_header.block_type)) {
+	// The RSA ciphertext length is in the hybrid block's header
+	const unsigned char *b = (const unsigned char *)p->data.rsa_ciphertext.m_buf();
+	u.key_bits = (p->data.rsa_ciphertext.length() >= 12 && b) ?
+	  (int)((((unsigned)b[8] << 24) | ((unsigned)b[9] << 16) | ((unsigned)b[10] << 8) | b[11]) * 8) : 0;
+      }
       users.push_back(u);
     }
   }

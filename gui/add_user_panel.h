@@ -51,6 +51,7 @@ public: // Event handlers
   void OnCancel(wxCommandEvent &event);
   void OnMethod(wxCommandEvent &event);
   void OnRSAKeyFileBrowse(wxCommandEvent &event);
+  void OnPQKeyFileBrowse(wxCommandEvent &event); // 11/18/2026
 #ifdef __ENABLE_SMART_CARD__
   void OnCertFileBrowse(wxCommandEvent &event);
 #endif // __ENABLE_SMART_CARD__
@@ -66,6 +67,7 @@ public: // Control objects
   wxTextCtrl *username_input;
   wxPanel *pages[3];
   wxTextCtrl *rsa_key_input;
+  wxTextCtrl *pq_public_input; // 11/18/2026: Quantum-resistant users
 #ifdef __ENABLE_SMART_CARD__
   SmartCardPicker *sc_picker;
   wxTextCtrl *sc_cert_input;
@@ -78,6 +80,7 @@ private: // Data members
 
 public:
   int use_rsa_key;
+  gxString pq_public_file; // 11/18/2026: ML-KEM-1024 public key, makes a quantum-resistant user
   gxString rsa_key_username;
   char public_key[RSA_max_keybuf_len];
   unsigned public_key_len = 0;
