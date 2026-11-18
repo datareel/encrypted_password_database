@@ -64,6 +64,7 @@ void EPDBRecentLoad(std::vector<EPDBRecentFile> &files)
     if(v.size() > 3) r.username = v[3];
     if(v.size() > 4) r.slot = v[4];
     if(v.size() > 5) r.cert_id = v[5];
+    if(v.size() > 6) r.pq_key_file = v[6]; // 11/18/2026
     files.push_back(r);
   }
 }
@@ -97,12 +98,12 @@ void EPDBRecentRemember(const EPDBRecentFile &file)
   wxString text = "# Encrypted Password Database recent files: path, unlock method, key file, username, slot, cert ID\n";
   text << EPDBRecentClean(file.path) << "\t" << EPDBRecentClean(file.method) << "\t" << EPDBRecentClean(file.key_file)
        << "\t" << EPDBRecentClean(file.username) << "\t" << EPDBRecentClean(file.slot) << "\t"
-       << EPDBRecentClean(file.cert_id) << "\n";
+       << EPDBRecentClean(file.cert_id) << "\t" << EPDBRecentClean(file.pq_key_file) << "\n";
   int n = 1;
   for(size_t i = 0; i < files.size() && n < EPDB_MAX_RECENT_FILES; i++) {
     if(files[i].path == file.path) continue;
     text << EPDBRecentClean(files[i].path) << "\t" << files[i].method << "\t" << files[i].key_file << "\t"
-	 << files[i].username << "\t" << files[i].slot << "\t" << files[i].cert_id << "\n";
+	 << files[i].username << "\t" << files[i].slot << "\t" << files[i].cert_id << "\t" << files[i].pq_key_file << "\n";
     n++;
   }
   wxScopedCharBuffer buf = text.utf8_str();

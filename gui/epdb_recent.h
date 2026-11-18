@@ -48,6 +48,7 @@ struct EPDBRecentFile
   wxString username;    // RSA key or smart card username
   wxString slot;        // Smart card slot
   wxString cert_id;     // Smart card cert ID
+  wxString pq_key_file; // 11/18/2026: ML-KEM key file of a quantum-resistant user
 };
 
 void EPDBRecentLoad(std::vector<EPDBRecentFile> &files);

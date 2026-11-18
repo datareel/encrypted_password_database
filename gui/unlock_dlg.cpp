@@ -44,7 +44,9 @@ enum {
   ID_UNLOCK_BROWSE_KEY,
   ID_UNLOCK_BROWSE_RSA,
   ID_UNLOCK_BROWSE_MODULE,
-  ID_UNLOCK_PICKER
+  ID_UNLOCK_PICKER,
+  ID_UNLOCK_BROWSE_PQ_RSA, // 11/18/2026
+  ID_UNLOCK_BROWSE_PQ_SC
 };
 
 static const char *epdb_method_names[] = { "password", "key-file", "rsa-key", "smartcard" };
@@ -57,6 +59,8 @@ wxBEGIN_EVENT_TABLE(UnlockDialog, wxDialog)
   EVT_BUTTON(ID_UNLOCK_BROWSE_KEY, UnlockDialog::OnBrowseKey)
   EVT_BUTTON(ID_UNLOCK_BROWSE_RSA, UnlockDialog::OnBrowseRSAKey)
   EVT_BUTTON(ID_UNLOCK_BROWSE_MODULE, UnlockDialog::OnBrowseModule)
+  EVT_BUTTON(ID_UNLOCK_BROWSE_PQ_RSA, UnlockDialog::OnBrowsePQKey)
+  EVT_BUTTON(ID_UNLOCK_BROWSE_PQ_SC, UnlockDialog::OnBrowsePQKey)
   EVT_RADIOBOX(ID_UNLOCK_METHOD, UnlockDialog::OnMethod)
   EVT_TEXT(ID_UNLOCK_FILE, UnlockDialog::OnFileChanged)
   EVT_COMBOBOX(ID_UNLOCK_FILE, UnlockDialog::OnFileChanged)
@@ -72,6 +76,8 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   is_ok = 0;
   open_failed = 0;
   method = EPDB_UNLOCK_PASSWORD;
+  pq_key_input[0] = pq_key_input[1] = 0; // 11/18/2026
+  pq_pass_input[0] = pq_pass_input[1] = 0;
   for(int i = 0; i < 4; i++) pages[i] = 0;
   SetIcons(EPDBAppIcons());
 
@@ -138,6 +144,14 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   g->Add(rsa_passphrase_input, 1, wxEXPAND);
   g->AddSpacer(0);
   g->Add(EPDBNote(p, "Leave the passphrase empty if the key has none."), 0);
+  // 11/18/2026: Quantum-resistant (RSA key + ML-KEM-1024) users
+  g->Add(new wxStaticText(p, wxID_ANY, "ML-KEM key file"), 0, wxALIGN_CENTER_VERTICAL);
+  g->Add(EPDBFileRow(p, pq_key_input[0], b, ID_UNLOCK_BROWSE_PQ_RSA), 1, wxEXPAND);
+  g->Add(new wxStaticText(p, wxID_ANY, "ML-KEM passphrase"), 0, wxALIGN_CENTER_VERTICAL);
+  pq_pass_input[0] = new PasswordEntry(p, wxID_ANY);
+  g->Add(pq_pass_input[0], 1, wxEXPAND);
+  g->AddSpacer(0);
+  g->Add(EPDBNote(p, "Only for quantum-resistant users (RSA key + ML-KEM-1024)."), 0);
   p->SetSizer(g);
   pages[EPDB_UNLOCK_RSA_KEY] = p;
 
@@ -156,6 +170,19 @@ UnlockDialog::UnlockDialog(wxWindow *parent)
   sc_hint = EPDBNote(p, "The PIN is sent to the card once. After a wrong PIN no more PINs are sent "
 		     "until the program is restarted, so the card is not locked.", 460);
   ps->Add(sc_hint, 0, wxTOP, FromDIP(4));
+  // 11/18/2026: Quantum-resistant (smart card + ML-KEM-1024) users
+  {
+    wxFlexGridSizer *qg = new wxFlexGridSizer(2, FromDIP(6), FromDIP(8));
+    qg->AddGrowableCol(1, 1);
+    qg->Add(new wxStaticText(p, wxID_ANY, "ML-KEM key file"), 0, wxALIGN_CENTER_VERTICAL);
+    qg->Add(EPDBFileRow(p, pq_key_input[1], b, ID_UNLOCK_BROWSE_PQ_SC), 1, wxEXPAND);
+    qg->Add(new wxStaticText(p, wxID_ANY, "ML-KEM passphrase"), 0, wxALIGN_CENTER_VERTICAL);
+    pq_pass_input[1] = new PasswordEntry(p, wxID_ANY);
+    qg->Add(pq_pass_input[1], 1, wxEXPAND);
+    ps->Add(qg, 0, wxEXPAND | wxTOP, FromDIP(8));
+    ps->Add(EPDBNote(p, "Only for quantum-resistant users (smart card + ML-KEM-1024). "
+		     "The ML-KEM key is checked before the PIN is sent.", 460), 0, wxTOP, FromDIP(4));
+  }
   sc_advanced = new wxCollapsiblePane(p, wxID_ANY, "Advanced", wxDefaultPosition, wxDefaultSize,
 				      wxCP_DEFAULT_STYLE | wxCP_NO_TLW_RESIZE);
   wxWindow *ap = sc_advanced->GetPane();
@@ -212,6 +239,7 @@ void UnlockDialog::ClearSecrets()
 {
   password_input->Clear();
   rsa_passphrase_input->Clear();
+  for(int i = 0; i < 2; i++) if(pq_pass_input[i]) pq_pass_input[i]->Clear();
 #ifdef __ENABLE_SMART_CARD__
   sc_pin_input->Clear();
 #endif
@@ -272,11 +300,13 @@ void UnlockDialog::LoadFileSettings()
     if(m == EPDB_UNLOCK_RSA_KEY) {
       if(!r.key_file.IsEmpty()) rsa_key_input->ChangeValue(r.key_file);
       if(!r.username.IsEmpty()) rsa_username_input->ChangeValue(r.username);
+      pq_key_input[0]->ChangeValue(r.pq_key_file); // 11/18/2026
     }
 #ifdef __ENABLE_SMART_CARD__
     if(m == EPDB_UNLOCK_SMART_CARD) {
       if(!r.username.IsEmpty()) sc_username_input->ChangeValue(r.username);
       if(!r.cert_id.IsEmpty()) sc_keyid_input->ChangeValue(r.cert_id);
+      pq_key_input[1]->ChangeValue(r.pq_key_file); // 11/18/2026
     }
 #endif
   }
@@ -402,6 +432,45 @@ void UnlockDialog::OnBrowseRSAKey(wxCommandEvent &WXUNUSED(event))
   if(dialog.ShowModal() == wxID_OK) rsa_key_input->SetValue(dialog.GetPath());
 }
 
+void UnlockDialog::OnBrowsePQKey(wxCommandEvent &event)
+// 11/18/2026: The ML-KEM-1024 private key of a quantum-resistant user
+{
+  int which = (event.GetId() == ID_UNLOCK_BROWSE_PQ_SC) ? 1 : 0;
+  wxFileDialog dialog(this, "Open ML-KEM-1024 private key file", progcfg->docDir.c_str(), "",
+		      "PEM files (*.pem)|*.pem|All files|*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+  if(dialog.ShowModal() == wxID_OK) pq_key_input[which]->SetValue(dialog.GetPath());
+}
+
+int UnlockDialog::SetPQKey(DatabaseUserAuth &db_auth, int which)
+// 11/18/2026: Gives db_auth the ML-KEM key of a quantum-resistant user,
+// if one was entered. Returns 0 if the fields are usable.
+{
+  wxString kf = pq_key_input[which]->GetValue();
+  if(kf.IsEmpty()) return 0;
+  gxString sbuf;
+  if(!futils_exists(kf.utf8_str()) || !futils_isfile(kf.utf8_str())) {
+    message->SetLabel("The ML-KEM key file does not exist or cannot be read");
+    return -1;
+  }
+  if(CheckPrivateKeyFile(kf.utf8_str(), sbuf) != 0) {
+    ProgramError->Message(sbuf.c_str());
+    return -1;
+  }
+  if(pq_pass_input[which]->GetValue().IsEmpty()) {
+    message->SetLabel("Enter the passphrase of the ML-KEM key");
+    return -1;
+  }
+  db_auth.pq_key_file = (const char *)kf.utf8_str();
+  wxScopedCharBuffer pp = pq_pass_input[which]->GetValue().utf8_str();
+  db_auth.pq_passphrase.Cat(pp.data(), pp.length());
+  pq_pass_input[which]->Clear();
+  if(db_auth.LoadPQPrivateKey() != 0) {
+    ProgramError->Message(db_auth.err.c_str());
+    return -1;
+  }
+  return 0;
+}
+
 void UnlockDialog::OnBrowseModule(wxCommandEvent &WXUNUSED(event))
 {
 #ifdef __ENABLE_SMART_CARD__
@@ -496,12 +565,14 @@ void UnlockDialog::Remember()
   if(method == EPDB_UNLOCK_RSA_KEY) {
     r.key_file = rsa_key_input->GetValue();
     r.username = rsa_username_input->GetValue();
+    r.pq_key_file = pq_key_input[0]->GetValue(); // 11/18/2026
   }
 #ifdef __ENABLE_SMART_CARD__
   if(method == EPDB_UNLOCK_SMART_CARD) {
     r.username = sc_username_input->GetValue();
     r.slot = progcfg->SC_slot.c_str();
     r.cert_id = progcfg->SC_cert_id.c_str();
+    r.pq_key_file = pq_key_input[1]->GetValue(); // 11/18/2026
   }
 #endif
   EPDBRecentRemember(r);
@@ -709,6 +780,7 @@ int UnlockDialog::RSAOpenDatabase(char private_key[RSA_max_keybuf_len], gxString
 
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
+  if(SetPQKey(db_auth, 0) != 0) return 0; // 11/18/2026: Quantum-resistant users
 
   rv = db_auth.DecryptWithRSAKey(private_key, private_key_len, rsa_key_username, passphrase);
   gui_last_auth.auth = "rsa-key";
@@ -805,6 +877,12 @@ int UnlockDialog::SmartCardOpenDatabase()
 
   DatabaseUserAuth db_auth;
   db_auth.f = &f; // Set the file pointer
+  // 11/18/2026: Quantum-resistant users. The ML-KEM key is loaded before
+  // the card is used, so a wrong key file or passphrase costs no PIN try.
+  if(SetPQKey(db_auth, 1) != 0) {
+    OPENSSL_cleanse(sc.pin, sizeof(sc.pin));
+    return 0;
+  }
 
   int sc_was_blocked = SC_login_blocked(); // 10/27/2026: For the failed open count
   rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);

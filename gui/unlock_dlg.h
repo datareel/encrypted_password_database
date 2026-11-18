@@ -46,6 +46,7 @@ enum EPDBUnlockMethod {
 };
 
 class PasswordEntry;
+class DatabaseUserAuth;
 class SmartCardPicker;
 
 class UnlockDialog : public wxDialog
@@ -69,6 +70,7 @@ private: // Event handlers
   void OnBrowseKey(wxCommandEvent &event);
   void OnBrowseRSAKey(wxCommandEvent &event);
   void OnBrowseModule(wxCommandEvent &event);
+  void OnBrowsePQKey(wxCommandEvent &event); // 11/18/2026
   void OnMethod(wxCommandEvent &event);
   void OnFileChanged(wxCommandEvent &event);
   void OnCardChanged(wxCommandEvent &event);
@@ -99,6 +101,11 @@ private:
   wxTextCtrl *rsa_username_input;
   wxTextCtrl *rsa_key_input;
   PasswordEntry *rsa_passphrase_input;
+  // 11/18/2026: The ML-KEM-1024 key of a quantum-resistant (hybrid) user,
+  // one pair on the RSA key page and one on the smart card page
+  wxTextCtrl *pq_key_input[2];
+  PasswordEntry *pq_pass_input[2];
+  int SetPQKey(DatabaseUserAuth &db_auth, int which); // 0 if the fields are usable
 #ifdef __ENABLE_SMART_CARD__
   SmartCardPicker *sc_picker;
   wxStaticText *sc_pin_label;
