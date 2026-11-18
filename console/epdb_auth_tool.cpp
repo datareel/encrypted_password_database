@@ -1124,6 +1124,8 @@ void DisplayVersion()
   cout << "Version number: 0x" << hex << OpenSSL_version_num() << dec << "\n" << flush;
   {
     gxString fips_err;
+    const char *e = getenv("EPDB_FIPS");
+    if(fips_request == FC_FIPS_AUTO && e && strcmp(e, "1") == 0) fips_request = FC_FIPS_ON;
     if(FC_crypto_init(fips_request, fips_err)) cout << FC_crypto_status().c_str() << "\n" << flush;
     else cout << "FIPS mode: " << fips_err.c_str() << "\n" << flush;
   }
