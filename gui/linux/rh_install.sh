@@ -40,13 +40,30 @@ fi
 
 echo "Red Hat version ${RHEL_VERSION}"
 
-if [ ! -f rhel${RHEL_VERSION}/encrypted_password_database ] || [ ! -f rhel${RHEL_VERSION}/epdb_auth_tool ]; then
-    echo "ERROR: Missing rhel${RHEL_VERSION} binaries, run this script from the unpacked package directory"
+# 11/18/2026: RHEL 8 has two builds. A host in FIPS mode gets rhel8 (RHEL 8's
+# system OpenSSL 1.1.1k, FIPS validated by Red Hat, no quantum-resistant
+# users); other hosts get rhel8_openssl35 (OpenSSL 3.5 LTS built in, with
+# ML-KEM-1024 quantum-resistant users). EPDB_BUILD=rhel8 or
+# EPDB_BUILD=rhel8_openssl35 chooses one.
+BUILD=rhel${RHEL_VERSION}
+FIPS=$(cat /proc/sys/crypto/fips_enabled 2>/dev/null || echo 0)
+if [ ${RHEL_VERSION} -eq 8 ]; then
+    if [ -n "${EPDB_BUILD}" ]; then BUILD=${EPDB_BUILD}
+    elif [ "${FIPS}" != "1" ] && [ -d rhel8_openssl35 ]; then BUILD=rhel8_openssl35; fi
+    if [ "${FIPS}" = "1" ] && [ "${BUILD}" = "rhel8_openssl35" ]; then
+        echo "ERROR: This host is in FIPS mode, use the rhel8 build (RHEL 8 system OpenSSL, FIPS validated)"
+        exit 1
+    fi
+    echo "Using the ${BUILD} build (host FIPS mode: ${FIPS})"
+fi
+
+if [ ! -f ${BUILD}/encrypted_password_database ] || [ ! -f ${BUILD}/epdb_auth_tool ]; then
+    echo "ERROR: Missing ${BUILD} binaries, run this script from the unpacked package directory"
     exit 1
 fi
 
 # Report system libraries the binaries need that are not installed
-missing=$(ldd rhel${RHEL_VERSION}/encrypted_password_database rhel${RHEL_VERSION}/epdb_auth_tool 2>/dev/null | grep 'not found' | awk '{ print $1 }' | sort -u)
+missing=$(ldd ${BUILD}/encrypted_password_database ${BUILD}/epdb_auth_tool 2>/dev/null | grep 'not found' | awk '{ print $1 }' | sort -u)
 if [ "${missing}" != "" ]; then
     echo "WARNING: Missing system libraries:"
     for lib in ${missing}; do echo "    ${lib}"; done
@@ -70,7 +87,7 @@ fi
 
 echo "Installing program files"
 if [ ! -d ${HOME}/.encrypted_password_database/bin ]; then mkdir -pv  ${HOME}/.encrypted_password_database/bin; fi
-/bin/cp -fv rhel${RHEL_VERSION}/encrypted_password_database ${HOME}/.encrypted_password_database/bin/.
+/bin/cp -fv ${BUILD}/encrypted_password_database ${HOME}/.encrypted_password_database/bin/.
 chmod 755 ${HOME}/.encrypted_password_database/bin/encrypted_password_database
 
 if [ ! -f ${HOME}/.encrypted_password_database/bin/encrypted_password_database ]; then
@@ -78,7 +95,7 @@ if [ ! -f ${HOME}/.encrypted_password_database/bin/encrypted_password_database ]
     exit 1
 fi
 
-/bin/cp -fv rhel${RHEL_VERSION}/epdb_auth_tool ${HOME}/.encrypted_password_database/bin/.
+/bin/cp -fv ${BUILD}/epdb_auth_tool ${HOME}/.encrypted_password_database/bin/.
 chmod 755 ${HOME}/.encrypted_password_database/bin/epdb_auth_tool
 
 if [ ! -f ${HOME}/.encrypted_password_database/bin/epdb_auth_tool ]; then

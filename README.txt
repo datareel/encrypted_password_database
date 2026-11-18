@@ -68,10 +68,34 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
     with 2026.107 or later (the rekey backup copy keeps the old users).
   - New tests: console/linux/run_pq_tests.sh [old_build_dir]
     (SC_MODULE, SC_PIN, SC_CERT for a SoftHSM2 smart card user).
-* Bundled fcrypt 2026.110 (fcrypt branch 2026.110): the ML-KEM-1024 key
-  files, and OpenSSL 3.5 LTS or later for every build. RHEL 8 builds
-  need RHEL 8.10 with the current updates, where the operating system's
-  OpenSSL is 3.5.
+* Bundled fcrypt 2026.110: the ML-KEM-1024 key files, FIPS mode and the
+  OpenSSL builds below.
+* FIPS 140-3 mode, as fcrypt: epdb_auth_tool --fips, --no-fips,
+  EPDB_FIPS=1 (also for the GUI; EPDB_FIPS=0 turns it off), or a host in
+  FIPS mode. In FIPS mode every crypto operation uses only the OpenSSL
+  FIPS provider (RHEL 9 and 10: the Red Hat FIPS provider) or, in the
+  RHEL 8 system OpenSSL build, Red Hat's FIPS-validated OpenSSL 1.1.1k.
+  Passwords, key files and RSA and smart card users work in FIPS mode. A
+  quantum-resistant user needs a FIPS provider with ML-KEM: the Red Hat
+  FIPS providers have none, so in FIPS mode such a user gets a clear
+  error and the database still opens with the password, key file or a
+  plain RSA or smart card user. --version shows the OpenSSL library, the
+  build and FIPS mode.
+* OpenSSL 3.5 LTS on every platform, with one exception for FIPS mode:
+  - RHEL 9 and 10: the system OpenSSL 3.5.
+  - Windows: OpenSSL 3.5.x LTS built in.
+  - RHEL 8 has two builds, and rh_install.sh picks one by the host's FIPS
+    mode (EPDB_BUILD=rhel8 or EPDB_BUILD=rhel8_openssl35 chooses):
+    rhel8 uses RHEL 8's system OpenSSL 1.1.1k, FIPS validated by Red Hat,
+    for hosts in FIPS mode (no quantum-resistant users);
+    rhel8_openssl35 has OpenSSL 3.5.9 LTS built in statically (no shared
+    libssl or libcrypto), with quantum-resistant users, for hosts not in
+    FIPS mode. The RHEL 8 openssl3 packages come from EPEL, not Red Hat,
+    and are not used. Build them with make -f makefile_rhel8 and
+    make -f makefile_rhel8_openssl35 OPENSSL35_PREFIX=<prefix> (OpenSSL
+    from fcrypt/console/linux/build_openssl35.sh, pinned sha256).
+  - The RHEL 8 GUI is built with a wxWidgets 3.3.4 without libcurl
+    (--disable-webrequest), so it never loads a second OpenSSL.
 * Bug fixes and security updates found while upgrading installations to
   2026.106 go into this release.
 
