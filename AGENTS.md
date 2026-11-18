@@ -82,9 +82,11 @@ An EPDB database holds an organization's passwords. A wrong step can lose
 every record or expose them. Follow these rules on every task:
 
 1. **Never see a secret.** Never ask for, read, store or repeat a database
-   password, key file, RSA private key or passphrase, smart card PIN, or
-   any record value. Do not read `.ehd` or `.ehx` files, key files, PIN or
-   password files, exported CSV or JSON, or backups. Commands that print
+   password, key file, RSA private key or passphrase, ML-KEM private key
+   or passphrase, smart card PIN, or any record value. Do not read `.ehd`
+   or `.ehx` files, key files, PIN or password files, exported CSV or
+   JSON, or backups. Public keys (`*.pub.pem`, `rsa_pub.pem`) and certs
+   are not secret. Commands that print
    record values (`--db-list`, `--db-find-key`, `--show-record`,
    `--get-field`, `--export`, `--db-config`) are run by the person, and
    their output is never pasted back. Ask for the exit code and the error
@@ -139,7 +141,9 @@ database opens with a password, a key file, an RSA private key or a smart
 card (PKCS#11, DoD CAC, PIV), and several users can each have their own
 RSA key or smart card on the same database. Since 2026.105 every save is
 crash-safe (a write-ahead journal) and only one program at a time can
-write a database.
+write a database. Since 2026.107 an RSA or smart card user can also be a
+quantum-resistant user, who needs the RSA key or card AND an ML-KEM-1024
+key file to open the database (section 5.3).
 
 | Item | Linux | Windows |
 | --- | --- | --- |
@@ -260,6 +264,26 @@ Help pages: https://datareel.com/encrypted_password_database/help/install.php
 6. Optional, a separate change with its own OK: `--upgrade-db` for v1
    databases (5.1).
 
+### 5.3 Quantum-resistant users (2026.107 and later)
+
+- Each user makes their own ML-KEM-1024 key on their own computer:
+  `epdb_auth_tool --generate-pq-key=user_pq.pem` (it asks for a
+  passphrase) and gives only `user_pq.pem.pub.pem` to the database owner.
+  The private key file never leaves the user (rule 1). fcrypt 2026.110
+  makes and reads the same key files.
+- New user: `--add-rsa-key=pub.pem --add-username=user
+  --add-pq-public-key=user_pq.pem.pub.pem` (or with
+  `--add-smartcard-cert-file=cert.pem`).
+- Existing RSA or card users move over with one `--rekey` (dry run
+  first, rule 4) whose input has `rsa:user=pub.pem,pq=user_pq.pem.pub.pem`
+  or `smartcard:user=cert.pem,pq=...` for every user, and
+  `--require-pq` so none is left RSA-only.
+- Opening: `--pq-key=user_pq.pem --pq-key-passphrase-file=...` together
+  with `--rsa-key` or `--smartcard`.
+- **Upgrade every copy that rekeys the database to 2026.107 first.** An
+  older release's `--rekey` leaves the quantum-resistant users out (they
+  then cannot open the new database); its backup copy still has them.
+
 Roll back: install the previous release again and copy the backed-up
 files back. A v1 database upgraded to v2 does not open in releases before
 2026.101: keep the v1 copy that `--upgrade-db` made.
@@ -321,6 +345,11 @@ cause and the fix (rule 2).
   for RSA the user name (`--rsa-key-username`) and passphrase. With
   self-destruct on, every failed open counts: stop after one failure and
   check `--db-info` with the person.
+- **"is a quantum-resistant ... user, give the user's ML-KEM key file
+  with --pq-key"** or "Cannot read the ML-KEM private key (wrong
+  passphrase?)". The person gives their own ML-KEM key file and
+  passphrase; these are not counted as failed opens, and no smart card
+  PIN was sent.
 - **Exit 4, "open in another program".** A GUI or another script is
   writing the database. Close it, or use `--lock-timeout`. Do not delete a
   `.lock` file.
