@@ -39,6 +39,9 @@ ROUNDS=${1:-60}
 OLD_DIR=$2
 MAKEFILE=makefile
 if [ -f /etc/redhat-release ] && grep -qi Coughlan /etc/redhat-release; then MAKEFILE=makefile_rhel10; fi
+# 11/18/2026: RHEL 8 and 9 have their own makefiles (RHEL 8 builds with OpenSSL 3.5, openssl3-devel)
+RHEL_VERSION=$(. /etc/os-release 2>/dev/null; echo ${VERSION_ID%%.*})
+if [ "${RHEL_VERSION}" = "8" ] || [ "${RHEL_VERSION}" = "9" ]; then MAKEFILE=makefile_rhel${RHEL_VERSION}; fi
 testDIR=${HOME}/tmp/epdb_journal_testing_$(date +%Y_%m_%d_%H%M%S)
 logFILE=${testDIR}/epdb_journal_testing.log
 TOOL=${NEW_DIR}/epdb_auth_tool
