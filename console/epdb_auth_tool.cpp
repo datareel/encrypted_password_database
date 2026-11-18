@@ -43,6 +43,7 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include "epdb_journal.h"
 #include "fcfile.h"
 #include "fckeymgmt.h"
+#include "fcfips.h" // 11/18/2026: FIPS mode and the OpenSSL library context, as fcrypt
 #include "epdb_core.h"
 #if defined (__UNIX__)
 #include <unistd.h>
@@ -89,6 +90,9 @@ gxString pq_key_passphrase;    // --pq-key-passphrase-file/-fd or the prompt
 gxString pq_public_file;       // --add-pq-public-key: makes the added user a hybrid user
 gxString generate_pq_key_file; // --generate-pq-key
 int require_pq = 0;            // --require-pq
+// 11/18/2026: FIPS 140-3 mode, as fcrypt: --fips, --no-fips, EPDB_FIPS=1
+// or FCRYPT_FIPS=1, or a host in FIPS mode
+int fips_request = FC_FIPS_AUTO;
 int has_passphrase = 0;
 int ERROR_LEVEL = 0;
 gxString executable_name;
@@ -324,6 +328,19 @@ int main(int argc, char **argv)
 	arg = argv[++narg];
       }
     }
+  }
+
+  // 11/18/2026: FIPS mode or the default provider, and OpenSSL 3.5 or
+  // later where the build needs it, before any crypto (as fcrypt)
+  {
+    const char *e = getenv("EPDB_FIPS");
+    if(fips_request == FC_FIPS_AUTO && e && strcmp(e, "1") == 0) fips_request = FC_FIPS_ON;
+    gxString fips_err;
+    if(!FC_crypto_init(fips_request, fips_err)) {
+      cerr << "ERROR: " << fips_err.c_str() << "\n" << flush;
+      return ExitProgram(1);
+    }
+    if(clientcfg->verbose_mode) cerr << FC_crypto_status().c_str() << "\n" << flush;
   }
 
   // 11/18/2026: An ML-KEM-1024 key for a hybrid user needs no database
@@ -1102,8 +1119,14 @@ void DisplayVersion()
   cout << "Release date: " << release_date.c_str() << "\n" << flush;
   cout << "\n" << flush;
   cout << "Encryption engine: Openssl" << "\n" << flush;
-  cout << "Version string: " << OPENSSL_VERSION_TEXT << "\n" << flush;
-  cout << "Version number: 0x" << hex << OPENSSL_VERSION_NUMBER << "\n" << flush;
+  // 11/18/2026: The OpenSSL library in use, and FIPS mode, as fcrypt
+  cout << "Version string: " << OpenSSL_version(OPENSSL_VERSION) << "\n" << flush;
+  cout << "Version number: 0x" << hex << OpenSSL_version_num() << dec << "\n" << flush;
+  {
+    gxString fips_err;
+    if(FC_crypto_init(fips_request, fips_err)) cout << FC_crypto_status().c_str() << "\n" << flush;
+    else cout << "FIPS mode: " << fips_err.c_str() << "\n" << flush;
+  }
   cout << "\n" << flush;
 #ifdef __ENABLE_SMART_CARD__
   if(SC_uses_engine()) {
@@ -1173,6 +1196,8 @@ void HelpMessage()
   cout << "          --generate-pq-key=file (Make a user's ML-KEM-1024 key: file, passphrase protected, and file.pub.pem;" << "\n" << flush;
   cout << "                 the same key files as fcrypt)" << "\n" << flush;
   cout << "          --require-pq (Refuse to add, or keep in a rekey, a user without an ML-KEM-1024 key)" << "\n" << flush;
+  cout << "          --fips (FIPS 140-3 mode: only the OpenSSL FIPS provider; also EPDB_FIPS=1 or a host in FIPS mode)" << "\n" << flush;
+  cout << "          --no-fips (Do not use FIPS mode, even if the system is in FIPS mode)" << "\n" << flush;
   cout << "          --add-username (Username being added for public RSA key file or smart card cert)" << "\n" << flush;
 #else
   cout << "          --add-username (Username being added for public RSA key file)" << "\n" << flush;
@@ -1519,6 +1544,14 @@ int ProcessDashDashArg(gxString &arg)
   }
   if(arg == "require-pq") {
     require_pq = 1;
+    has_valid_args = 1;
+  }
+  if(arg == "fips") { // 11/18/2026
+    fips_request = FC_FIPS_ON;
+    has_valid_args = 1;
+  }
+  if(arg == "no-fips") {
+    fips_request = FC_FIPS_OFF;
     has_valid_args = 1;
   }
 

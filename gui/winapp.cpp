@@ -31,6 +31,7 @@ wxWindow 2.X/3.X application class.
 */
 // ----------------------------------------------------------- // 
 #include "app_defs.h"
+#include "fcfips.h" // 11/18/2026
 #ifdef __WXGTK__
 extern "C" void g_set_prgname(const char *prgname); // GLib, linked with GTK
 extern "C" void gdk_set_program_class(const char *program_class); // GDK
@@ -50,6 +51,22 @@ bool WinApp::OnInit(void)
   SetClassName("encrypted_password_database");
   SetAppName("encrypted_password_database");
 #endif
+
+  // 11/18/2026: FIPS 140-3 mode and the OpenSSL library context, as fcrypt
+  // and epdb_auth_tool: FIPS mode on a host in FIPS mode or with
+  // EPDB_FIPS=1 (or FCRYPT_FIPS=1), EPDB_FIPS=0 turns it off. A build that
+  // needs OpenSSL 3.5 also refuses an older OpenSSL library here.
+  {
+    const char *e = getenv("EPDB_FIPS");
+    int req = FC_FIPS_AUTO;
+    if(e && strcmp(e, "1") == 0) req = FC_FIPS_ON;
+    else if(e && strcmp(e, "0") == 0) req = FC_FIPS_OFF;
+    gxString fips_err;
+    if(!FC_crypto_init(req, fips_err)) {
+      wxMessageBox(wxString::FromUTF8(fips_err.c_str()), "Encrypted Password Database", wxOK | wxICON_ERROR);
+      return false;
+    }
+  }
 
 #ifdef __APP_DEBUG_VERSION__
   gxString work_dir = (const char *)wxGetCwd();

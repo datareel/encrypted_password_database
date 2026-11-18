@@ -36,7 +36,13 @@ Encrypted database auth functions
 #include "db_auth.h"
 #include "fcfile.h"
 #include "epdb_journal.h"
+// 11/18/2026: ML-KEM-1024 (hybrid users) needs OpenSSL 3.5 or later. The
+// RHEL 8 build for hosts in FIPS mode uses the system OpenSSL 1.1.1k FIPS
+// module, which has none: there a hybrid user gets a clear error.
+#if OPENSSL_VERSION_NUMBER >= 0x30500000L
+#define __EPDB_HAS_MLKEM__
 #include <openssl/kdf.h>
+#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -307,6 +313,7 @@ static unsigned epdb_hget32(const unsigned char *p)
   return ((unsigned)p[0] << 24) | ((unsigned)p[1] << 16) | ((unsigned)p[2] << 8) | (unsigned)p[3];
 }
 
+#ifdef __EPDB_HAS_MLKEM__
 static int epdb_kbkdf_sha384(const unsigned char *key, unsigned key_len, const char *label,
 			     const unsigned char *context, unsigned context_len, unsigned char out[32])
 // KBKDF in counter mode with HMAC-SHA384 (SP 800-108), one 256-bit key
@@ -461,6 +468,18 @@ static int epdb_hybrid_block(gxUINT32 type, const unsigned char master[EPDB_V2_K
   return 0;
 }
 
+#else
+static const char *EPDB_NO_MLKEM = "This build has no ML-KEM: it uses the system OpenSSL for hosts in FIPS mode. "
+  "Quantum-resistant (RSA key or smart card + ML-KEM-1024) users need the OpenSSL 3.5 build";
+static int epdb_hybrid_block(gxUINT32, const unsigned char *, const unsigned char *, const gxString &,
+			     const unsigned char *, unsigned, const unsigned char *, const gxString &,
+			     StaticDataBlock &, gxString &err)
+{
+  err << clear << EPDB_NO_MLKEM;
+  return -1;
+}
+#endif // __EPDB_HAS_MLKEM__
+
 static int epdb_hybrid_parse(const StaticDataBlock &block, const unsigned char *&ct_rsa, unsigned &ct_rsa_len,
 			     const unsigned char *&ct_kem, const unsigned char *&wrapped, unsigned &wrapped_len)
 {
@@ -482,6 +501,10 @@ static int epdb_hybrid_parse(const StaticDataBlock &block, const unsigned char *
 
 int DatabaseUserAuth::LoadPQPrivateKey()
 {
+#ifndef __EPDB_HAS_MLKEM__
+  err << clear << EPDB_NO_MLKEM;
+  return -1;
+#endif
   if(pq_key) return 0;
   if(pq_key_file.is_null()) {
     err << clear << "No ML-KEM key file given";
@@ -496,6 +519,7 @@ int DatabaseUserAuth::LoadPQPrivateKey()
   return 0;
 }
 
+#ifdef __EPDB_HAS_MLKEM__
 static int epdb_hybrid_open(DatabaseUserAuth *a, const StaticDataBlock &block, const unsigned char r[EPDB_HYBRID_SECRET_LEN],
 			    MemoryBuffer &keyset)
 // Opens the database with r (from the RSA key or the card) and the
@@ -552,6 +576,13 @@ static int epdb_hybrid_open(DatabaseUserAuth *a, const StaticDataBlock &block, c
   if(rv != 0) a->err << " (the hybrid block for user " << block.username << " does not hold this database's key)";
   return rv;
 }
+#else
+static int epdb_hybrid_open(DatabaseUserAuth *a, const StaticDataBlock &, const unsigned char *, MemoryBuffer &)
+{
+  a->err << clear << EPDB_NO_MLKEM;
+  return -1;
+}
+#endif // __EPDB_HAS_MLKEM__
 
 static int epdb_add_hybrid_block(DatabaseUserAuth *a, const MemoryBuffer &ks, gxUINT32 type, const gxString &username,
 				 const unsigned char *ct_rsa, unsigned ct_rsa_len, const unsigned char r[EPDB_HYBRID_SECRET_LEN])
