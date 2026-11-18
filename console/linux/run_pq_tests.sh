@@ -37,7 +37,10 @@ check() {
 
 if [ ! -x ${TOOL} ]; then echo "ERROR: build epdb_auth_tool first"; exit 1; fi
 if [ ! -x ${TESTDB} ]; then
-    (cd ${NEW_DIR} && make -f makefile_rhel10 PROJECT=epdb_test_db > /dev/null 2>&1 || make PROJECT=epdb_test_db > /dev/null 2>&1)
+    # The makefile of this RHEL release (RHEL 8 builds with the openssl3 headers)
+    V=$(. /etc/os-release 2>/dev/null; echo ${VERSION_ID%%.*})
+    MK=makefile_rhel${V}; [ -f ${NEW_DIR}/${MK} ] || MK=makefile
+    (cd ${NEW_DIR} && make -f ${MK} PROJECT=epdb_test_db > /dev/null 2>&1)
 fi
 if [ ! -x ${TESTDB} ]; then echo "ERROR: cannot build epdb_test_db"; exit 1; fi
 mkdir -p ${testDIR} && chmod 700 ${testDIR} && cd ${testDIR} || exit 1
