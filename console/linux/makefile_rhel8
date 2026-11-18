@@ -48,11 +48,20 @@ LINKER = ld
 # stack protection, full RELRO and a non-executable stack
 HARDEN_CFLAGS = -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2
 HARDEN_LDFLAGS = -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
-# 11/18/2026: OpenSSL 3.5 from the RHEL 8.10 openssl3-devel package (see env/linux.env)
-COMPILE_FLAGS= -Wall -I/usr/include/openssl3 $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2 $(HARDEN_CFLAGS)
+# 11/18/2026: Two RHEL 8 builds (see env/linux.env): the system OpenSSL
+# 1.1.1k (FIPS mode hosts) by default, or OpenSSL 3.5 linked statically
+# with OPENSSL35_PREFIX=<prefix of build_openssl35.sh>
+ifneq ($(OPENSSL35_PREFIX),)
+OPENSSL_INC_PATH = -I$(OPENSSL35_PREFIX)/include
+OPENSSL_LIBS = $(OPENSSL35_PREFIX)/lib64/libssl.a $(OPENSSL35_PREFIX)/lib64/libcrypto.a -ldl -pthread
+else
+OPENSSL_INC_PATH =
+OPENSSL_LIBS = -lssl -lcrypto
+endif
+COMPILE_FLAGS= -Wall $(OPENSSL_INC_PATH) $(ADD_INC_PATHS) $(DEFMACS) -fpermissive -O2 $(HARDEN_CFLAGS)
 COMPILE_ONLY = -c
 OUTPUT = -o
-LINKER_FLAGS = $(HARDEN_LDFLAGS) -lpthread -lm -L/usr/lib64/openssl3 -lssl -lcrypto -lz -ldl
+LINKER_FLAGS = $(HARDEN_LDFLAGS) -lpthread -lm $(OPENSSL_LIBS) -lz
 
 # Set the project dependencies  
 # ===============================================================
