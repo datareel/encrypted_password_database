@@ -148,7 +148,7 @@ write a database.
 | User folder | `~/.encrypted_password_database` (mode 700; `bin`, `data`, `keys`, `certs`, `backups`, `logs`, `docs`) | `%USERPROFILE%\.encrypted_password_database` |
 | GUI settings | `encrypted_password_database.cfg` in the user folder | `encrypted_password_database.ini` in the user folder |
 | Database | `name.ehd` (data) and `name.ehx` (index), always together | same |
-| During a save | `name.ehd.jnl` (the journal, removed after the save); `name.change.ehd`/`.ehx` during a command line change | same, plus `name.ehd.lock` (the writer lock) |
+| During a save | `name.ehd.jnl` (the journal, kept while the database is open for writing and removed when it is closed); `name.change.ehd`/`.ehx` during a command line change | same, plus `name.ehd.lock` (the writer lock) |
 | Access log | `logs/access.log` in the user folder, and optionally in the database file | same |
 | Smart card list | `smartcard_list.sh` (needs OpenSC) | `smartcard_list.bat` |
 
