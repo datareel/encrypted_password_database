@@ -52,7 +52,9 @@ Fixed header, 128 bytes, not encrypted:
      88 "FCX1"  4, 92 key generation  4, 96 rekey time, UTC seconds  8
 
 Key slot area, key slot area length bytes, not encrypted. Each slot:
-  type (1 = password or key file, 2 = RSA key, 3 = smart card)  4
+  type (1 = password or key file, 2 = RSA key, 3 = smart card;
+        since 2026.110: 4 = RSA key + ML-KEM-1024, 5 = smart card +
+        ML-KEM-1024, 6 = hybrid part, see MakeHybridSlots())  4
   slot length, including these 12 bytes   4
   user name length                         4
   user name
@@ -127,7 +129,16 @@ enum { // Key slot types
   FC_SLOT_END = 0,
   FC_SLOT_SECRET = 1,    // Password or key file
   FC_SLOT_RSA = 2,       // RSA public key, RSA-OAEP with SHA-256
-  FC_SLOT_SMARTCARD = 3  // Smart card cert, RSA-OAEP with SHA-256
+  FC_SLOT_SMARTCARD = 3, // Smart card cert, RSA-OAEP with SHA-256
+  // 11/18/2026: Release 2026.110 hybrid (quantum-resistant) users, see
+  // FCryptFile::MakeHybridSlots(). Releases 2026.102 to 2026.109 refuse a
+  // file with a slot over FC_MAX_WRAPPED_LEN bytes, so the hybrid data is
+  // split into slots of at most 1024 bytes: older releases keep the
+  // unknown slots and still open the file with the password, key file or
+  // an RSA-only user.
+  FC_SLOT_RSA_HYBRID = 4,       // RSA key + ML-KEM-1024 key
+  FC_SLOT_SMARTCARD_HYBRID = 5, // Smart card cert + ML-KEM-1024 key
+  FC_SLOT_HYBRID_PART = 6       // Part of a hybrid user's ciphertexts
 };
 
 enum { // File formats found by FC_file_format()
@@ -152,6 +163,30 @@ int FC_aes256_cbc(int enc, const unsigned char key[FC_KEY_LEN], const unsigned c
 
 // Name of a key slot type for messages
 const char *FC_slot_type_name(unsigned type);
+// 11/18/2026: Hybrid slot helpers. FC_slot_base_type() gives FC_SLOT_RSA
+// or FC_SLOT_SMARTCARD for a plain or hybrid user slot, 0 otherwise.
+unsigned FC_slot_base_type(unsigned type);
+int FC_slot_is_hybrid(unsigned type);
+unsigned FC_hybrid_type(unsigned base_type);
+// True for a slot that can open a file (not a hybrid part)
+int FC_slot_is_user(unsigned type);
+
+// 11/18/2026: ML-KEM-1024 (NIST FIPS 203) user keys for hybrid users.
+// The private key file is PKCS#8 PEM encrypted with the passphrase
+// (AES-256-CBC, PBKDF2), mode 600; the public key is file.pub.pem.
+const unsigned FC_HYBRID_SECRET_LEN = 32;   // The RSA half, r
+const unsigned FC_MLKEM1024_CT_LEN = 1568;
+const unsigned FC_HYBRID_PART_LEN = 1000;   // Ciphertext bytes per part slot
+const unsigned FC_HYBRID_VERSION = 1;
+const unsigned FC_HYBRID_KEM_MLKEM1024 = 1024;
+// 1 if this OpenSSL can make ML-KEM-1024 keys (OpenSSL 3.5 and later)
+int FC_pq_available(gxString &err);
+// Writes priv_file (mode 600) and priv_file.pub.pem. Returns 1 if successful.
+int FC_pq_generate_key(const char *priv_file, const MemoryBuffer &passphrase, gxString &pub_file, gxString &err);
+// Load a public key (any PEM file with an ML-KEM-1024 public key) or the
+// private key file. The caller frees the key with EVP_PKEY_free().
+EVP_PKEY *FC_pq_load_public_key(const char *fname, gxString &err);
+EVP_PKEY *FC_pq_load_private_key(const char *fname, const MemoryBuffer &passphrase, gxString &err);
 
 struct GXDLCODE_API FCKeySlot
 {
@@ -207,10 +242,36 @@ public: // After an Unlock
   // With data_sink set the data goes to the sink instead.
   int DecryptFile(const char *outfile_name = 0);
   int DecryptStoredName(gxString &name);
-  // Give another user access. The key slot area is rewritten in place.
+  // Give another user access. 11/18/2026: The file is rewritten to a
+  // temp file, checked, flushed and renamed over the original, as for
+  // RemoveSlot(); with add_keep_backup set a backup copy is kept in
+  // last_backup_file. The caller takes the file lock.
   int AddRSAKey(const char *username, const char *public_key, unsigned public_key_len,
 		char *passphrase = 0);
   int AddWrappedKey(unsigned type, const char *username, const unsigned char *wrapped, unsigned wrapped_len);
+  // Adds several slots in one checked rewrite (a hybrid user). Each slot
+  // must not hold more than FC_MAX_WRAPPED_LEN bytes.
+  int AddSlots(gxList<FCKeySlot> &new_slots);
+  // 11/18/2026: Hybrid users. The caller makes r (FC_HYBRID_SECRET_LEN
+  // random bytes, FC_hybrid_random()) and encrypts it with the user's RSA
+  // public key or card cert (RSA-OAEP SHA-256), giving ct_rsa.
+  // MakeHybridSlots() encapsulates with the ML-KEM-1024 public key,
+  // derives KEK = KBKDF-HMAC-SHA384(ss || r, label, type || user ||
+  // SHA-384(ct_rsa || ct_kem)) and wraps key with AES-256 Key Wrap. The
+  // slots are added to out: one FC_SLOT_*_HYBRID slot and the parts.
+  int MakeHybridSlots(unsigned type, const char *username, const unsigned char key[FC_KEY_LEN],
+		      const unsigned char *ct_rsa, unsigned ct_rsa_len,
+		      const unsigned char r[FC_HYBRID_SECRET_LEN], EVP_PKEY *kem_public,
+		      gxList<FCKeySlot> &out);
+  // The RSA ciphertext of a hybrid user's slot (to decrypt with the RSA
+  // key or the card), and the unlock with r and the ML-KEM private key
+  int HybridRSACiphertext(unsigned type, const char *username, MemoryBuffer &ct_rsa);
+  int UnlockWithHybrid(unsigned type, const char *username, const unsigned char r[FC_HYBRID_SECRET_LEN],
+		       EVP_PKEY *kem_private);
+  // RSA key file + ML-KEM key for an FC_SLOT_RSA_HYBRID user
+  int UnlockWithRSAHybrid(const char *username, const char *private_key, unsigned private_key_len,
+			  char *passphrase, EVP_PKEY *kem_private);
+  int FC_hybrid_random(unsigned char r[FC_HYBRID_SECRET_LEN]);
   // The file key, for wrapping it with a smart card
   const unsigned char *FileKey() const { return unlocked ? file_key : 0; }
   const unsigned char *FileID() const { return file_id; }
@@ -234,6 +295,7 @@ public: // 10/27/2026: Key management. The file is rewritten to a temp
   int BeginRekey();
   const unsigned char *NewFileKey() const { return rekey_started ? new_file_key : 0; }
   int AddRekeySlot(unsigned type, const char *username, const unsigned char *wrapped, unsigned wrapped_len);
+  int AddRekeySlots(gxList<FCKeySlot> &new_slots); // Hybrid users
   int FinishRekey(const MemoryBuffer *new_secret, int keep_backup, gxString &backup_file, int dry_run = 0);
   // With dry_run the new file is written and checked, then removed
   unsigned KeyGeneration() const; // 0 if the file was never rekeyed
@@ -249,6 +311,9 @@ public: // Settings
   gxString output_file_name;
   gxString stored_name_override; // fcrypt --decrypted-outfile
   CryptDataSink *data_sink;      // Decrypt to this instead of a file
+  int add_keep_backup;           // AddSlots(): keep a backup copy (default 0: the
+                                 // temp file and rename already make it all or nothing)
+  int add_dry_run;               // AddSlots(): check the change, leave the file
 
 public: // Results
   gxString err;
@@ -258,6 +323,7 @@ public: // Results
   gxString stored_name;
   gxList<FCKeySlot> slots;
   unsigned file_iterations; // Iterations stored in the loaded file
+  gxString last_backup_file; // Backup copy kept by AddSlots()
 
 private:
   int MakeEncryptOutputName();
@@ -304,6 +370,12 @@ private: // 10/27/2026: Key management
   int WriteCopy(const char *out_name, gxString &e); // New header, same records
   int VerifyCopy(const char *fname, const unsigned char key[FC_KEY_LEN], MemoryBuffer *digest, gxString &e);
   int KeepBackup(gxString &backup_file);
+  // Writes the current slots to a temp file with the records unchanged,
+  // checks that it decrypts to the same data, keeps a backup and renames
+  // it over the original. With dry_run the temp file is checked and
+  // removed. On failure (or a dry run) slot_area is restored; the caller
+  // restores the slot list. Returns 1 if successful.
+  int CommitSlotArea(const char *tag, int keep_backup, gxString &backup_file, int dry_run, gxString &e);
 
 private: // Disallow copying
   FCryptFile(const FCryptFile &ob) { }
