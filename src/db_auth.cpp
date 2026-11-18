@@ -36,6 +36,7 @@ Encrypted database auth functions
 #include "db_auth.h"
 #include "fcfile.h"
 #include "epdb_journal.h"
+#include <openssl/kdf.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -92,11 +93,14 @@ DatabaseUserAuth::DatabaseUserAuth()
     static_data = 0;
     static_data_bytes_used = 0;
     num_static_data_blocks = 0;
+    pq_key = 0;
 }
   
 DatabaseUserAuth::~DatabaseUserAuth()
 {
   if(static_data) delete[] static_data;
+  if(pq_key) EVP_PKEY_free(pq_key);
+  pq_passphrase.Clear(1);
 }
 
 int DatabaseUserAuth::LoadStaticDataBlocks()
@@ -259,6 +263,321 @@ int DatabaseUserAuth::WriteStaticDataArea()
   return 0;
 }
 
+// --------------------------------------------------------------
+// 11/18/2026: Release 2026.107 hybrid (quantum-resistant) users, see
+// db_auth.h. The same construction as fcrypt 2026.110's hybrid key
+// slots, with the EPDB label and the database ID in the context.
+// --------------------------------------------------------------
+static const char *EPDB_HYBRID_LABEL = "EPDB hybrid key block";
+static const char *EPDB_HYBRID_MAC_LABEL = "EPDB hybrid key block MAC";
+static const unsigned EPDB_HYBRID_VERSION = 1;
+static const unsigned EPDB_HYBRID_KEM_MLKEM1024 = 1024;
+static const unsigned EPDB_HYBRID_HDR_LEN = 20; // version, KEM, ct_rsa, ct_kem and wrapped lengths
+
+gxUINT32 EPDBBlockBaseType(gxUINT32 t)
+{
+  if(t == DB_AUTH_BLOCK_TYPE_RSA || t == DB_AUTH_BLOCK_TYPE_RSA_HYBRID) return DB_AUTH_BLOCK_TYPE_RSA;
+  if(t == DB_AUTH_BLOCK_TYPE_SMARTCARD || t == DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID) return DB_AUTH_BLOCK_TYPE_SMARTCARD;
+  return 0;
+}
+
+int EPDBBlockIsHybrid(gxUINT32 t)
+{
+  return t == DB_AUTH_BLOCK_TYPE_RSA_HYBRID || t == DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID;
+}
+
+const char *EPDBBlockTypeName(gxUINT32 t)
+{
+  switch(t) {
+    case DB_AUTH_BLOCK_TYPE_RSA: return "RSA key";
+    case DB_AUTH_BLOCK_TYPE_SMARTCARD: return "Smart Card";
+    case DB_AUTH_BLOCK_TYPE_RSA_HYBRID: return "RSA key + ML-KEM-1024";
+    case DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID: return "Smart Card + ML-KEM-1024";
+  }
+  return "Unknown";
+}
+
+static void epdb_hput32(unsigned char *p, unsigned v)
+{
+  p[0] = (unsigned char)(v >> 24); p[1] = (unsigned char)(v >> 16);
+  p[2] = (unsigned char)(v >> 8); p[3] = (unsigned char)v;
+}
+
+static unsigned epdb_hget32(const unsigned char *p)
+{
+  return ((unsigned)p[0] << 24) | ((unsigned)p[1] << 16) | ((unsigned)p[2] << 8) | (unsigned)p[3];
+}
+
+static int epdb_kbkdf_sha384(const unsigned char *key, unsigned key_len, const char *label,
+			     const unsigned char *context, unsigned context_len, unsigned char out[32])
+// KBKDF in counter mode with HMAC-SHA384 (SP 800-108), one 256-bit key
+{
+  EVP_KDF *kdf = EVP_KDF_fetch(AES_get_libctx(), "KBKDF", 0);
+  if(!kdf) return 0;
+  EVP_KDF_CTX *kctx = EVP_KDF_CTX_new(kdf);
+  EVP_KDF_free(kdf);
+  if(!kctx) return 0;
+  char mode[] = "COUNTER", mac[] = "HMAC", digest[] = "SHA384";
+  OSSL_PARAM params[7];
+  params[0] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_MODE, mode, 0);
+  params[1] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_MAC, mac, 0);
+  params[2] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, digest, 0);
+  params[3] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)key, key_len);
+  params[4] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, (void *)label, strlen(label));
+  params[5] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, (void *)context, context_len);
+  params[6] = OSSL_PARAM_construct_end();
+  int ok = EVP_KDF_derive(kctx, out, 32, params) == 1;
+  EVP_KDF_CTX_free(kctx);
+  if(!ok) OPENSSL_cleanse(out, 32);
+  return ok;
+}
+
+static int epdb_hybrid_keys(gxUINT32 type, const unsigned char db_id[EPDB_V2_ID_LEN], const gxString &username,
+			    const unsigned char *ss, unsigned ss_len, const unsigned char r[EPDB_HYBRID_SECRET_LEN],
+			    const unsigned char *ct_rsa, unsigned ct_rsa_len, const unsigned char *ct_kem, unsigned ct_kem_len,
+			    unsigned char kek[32], unsigned char mac_key[32])
+// KEK and MAC key of a hybrid block, from ss || r
+{
+  if(ss_len > 64) return 0;
+  unsigned char ikm[64 + EPDB_HYBRID_SECRET_LEN], h[48];
+  unsigned h_len = 0;
+  memmove(ikm, ss, ss_len);
+  memmove(ikm + ss_len, r, EPDB_HYBRID_SECRET_LEN);
+  EVP_MD *md = EVP_MD_fetch(AES_get_libctx(), "SHA384", 0);
+  EVP_MD_CTX *c = md ? EVP_MD_CTX_new() : 0;
+  int ok = c && EVP_DigestInit_ex(c, md, 0) == 1 && EVP_DigestUpdate(c, ct_rsa, ct_rsa_len) == 1 &&
+    EVP_DigestUpdate(c, ct_kem, ct_kem_len) == 1 && EVP_DigestFinal_ex(c, h, &h_len) == 1 && h_len == 48;
+  if(c) EVP_MD_CTX_free(c);
+  if(md) EVP_MD_free(md);
+  MemoryBuffer ctx;
+  unsigned char t4[4];
+  epdb_hput32(t4, type);
+  ctx.Cat(db_id, EPDB_V2_ID_LEN);
+  ctx.Cat(t4, 4);
+  ctx.Cat(username.c_str(), username.length());
+  ctx.Cat(h, sizeof(h));
+  if(ok) ok = epdb_kbkdf_sha384(ikm, ss_len + EPDB_HYBRID_SECRET_LEN, EPDB_HYBRID_LABEL,
+				(const unsigned char *)ctx.m_buf(), ctx.length(), kek) &&
+	   epdb_kbkdf_sha384(ikm, ss_len + EPDB_HYBRID_SECRET_LEN, EPDB_HYBRID_MAC_LABEL,
+			     (const unsigned char *)ctx.m_buf(), ctx.length(), mac_key);
+  OPENSSL_cleanse(ikm, sizeof(ikm));
+  return ok;
+}
+
+static int epdb_key_wrap(int wrap, const unsigned char kek[32], const unsigned char *in, unsigned in_len,
+			 unsigned char *out, unsigned *out_len)
+// AES-256 Key Wrap (SP 800-38F, RFC 3394)
+{
+  *out_len = 0;
+  EVP_CIPHER *cipher = EVP_CIPHER_fetch(AES_get_libctx(), "AES-256-WRAP", 0);
+  if(!cipher) return 0;
+  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+  int len = 0, flen = 0;
+  int ok = ctx != 0;
+  if(ok) {
+    EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    ok = EVP_CipherInit_ex(ctx, cipher, 0, kek, 0, wrap) == 1 &&
+      EVP_CipherUpdate(ctx, out, &len, in, in_len) == 1 && len > 0 &&
+      EVP_CipherFinal_ex(ctx, out + len, &flen) == 1;
+  }
+  if(ok) *out_len = (unsigned)(len + flen);
+  if(ctx) EVP_CIPHER_CTX_free(ctx);
+  EVP_CIPHER_free(cipher);
+  return ok;
+}
+
+static int epdb_hybrid_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY_LEN],
+			     const unsigned char db_id[EPDB_V2_ID_LEN], const gxString &username,
+			     const unsigned char *ct_rsa, unsigned ct_rsa_len, const unsigned char r[EPDB_HYBRID_SECRET_LEN],
+			     const gxString &pq_public_file, StaticDataBlock &block, gxString &err)
+// Builds a hybrid user block: the caller made r and ct_rsa (r RSA-OAEP
+// encrypted to the user's RSA key or card cert)
+{
+  if(!EPDBBlockIsHybrid(type) || username.is_null() || username.length() > DB_AUTH_MAX_USERNAME_LEN ||
+     !ct_rsa || ct_rsa_len == 0 || ct_rsa_len > 2048) {
+    err << clear << "Bad hybrid user block for " << username;
+    return -1;
+  }
+  gxString kerr;
+  EVP_PKEY *pub = FC_pq_load_public_key(pq_public_file.c_str(), kerr);
+  if(!pub) {
+    err << clear << kerr;
+    return -1;
+  }
+  EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(AES_get_libctx(), pub, 0);
+  size_t ct_len = 0, ss_len = 0;
+  unsigned char ct_kem[EPDB_MLKEM1024_CT_LEN], ss[64];
+  int ok = pctx && EVP_PKEY_encapsulate_init(pctx, 0) == 1 &&
+    EVP_PKEY_encapsulate(pctx, 0, &ct_len, 0, &ss_len) == 1 &&
+    ct_len == EPDB_MLKEM1024_CT_LEN && ss_len <= sizeof(ss) &&
+    EVP_PKEY_encapsulate(pctx, ct_kem, &ct_len, ss, &ss_len) == 1;
+  if(pctx) EVP_PKEY_CTX_free(pctx);
+  EVP_PKEY_free(pub);
+  if(!ok) {
+    err << clear << "ML-KEM-1024 encapsulation failed for user " << username << " (is " << pq_public_file
+	<< " an ML-KEM-1024 public key?)";
+    return -1;
+  }
+  unsigned char kek[32], mac_key[32], wrapped[EPDB_V2_KEY_LEN + 8], hash[AES_MAX_HMAC_LEN];
+  unsigned wrapped_len = 0, hash_len = 0;
+  ok = epdb_hybrid_keys(type, db_id, username, ss, (unsigned)ss_len, r, ct_rsa, ct_rsa_len, ct_kem, (unsigned)ct_len, kek, mac_key) &&
+    epdb_key_wrap(1, kek, master, EPDB_V2_KEY_LEN, wrapped, &wrapped_len) && wrapped_len == sizeof(wrapped);
+  OPENSSL_cleanse(ss, sizeof(ss));
+  OPENSSL_cleanse(kek, sizeof(kek));
+  MemoryBuffer payload;
+  if(ok) {
+    unsigned char hdr[EPDB_HYBRID_HDR_LEN];
+    epdb_hput32(hdr, EPDB_HYBRID_VERSION);
+    epdb_hput32(hdr+4, EPDB_HYBRID_KEM_MLKEM1024);
+    epdb_hput32(hdr+8, ct_rsa_len);
+    epdb_hput32(hdr+12, (unsigned)ct_len);
+    epdb_hput32(hdr+16, wrapped_len);
+    payload.Cat(hdr, sizeof(hdr));
+    payload.Cat(ct_rsa, ct_rsa_len);
+    payload.Cat(ct_kem, (unsigned)ct_len);
+    payload.Cat(wrapped, wrapped_len);
+    ok = HMAC(EVP_sha256(), mac_key, sizeof(mac_key), (const unsigned char *)payload.m_buf(), payload.length(),
+	      hash, &hash_len) != 0 && hash_len == sizeof(hash);
+  }
+  OPENSSL_cleanse(mac_key, sizeof(mac_key));
+  if(!ok) {
+    err << clear << "Cannot wrap the master key for hybrid user " << username;
+    return -1;
+  }
+  char username_buf[1024];
+  memset(username_buf, 0, sizeof(username_buf));
+  gxsBase64Encode(username.c_str(), username_buf, username.length());
+  block.Clear();
+  block.block_header.FormatHeader();
+  block.block_header.version = STATIC_DATA_BLOCK_VERSION_V2;
+  block.block_header.block_type = type;
+  block.block_header.block_status = DB_AUTH_BLOCK_STATUS_HYBRID;
+  block.block_header.ciphertext_len = payload.length();
+  block.block_header.block_len = payload.length() + sizeof(hash);
+  block.block_header.username_len = strlen(username_buf);
+  block.rsa_ciphertext = payload;
+  block.hmac.Cat(hash, sizeof(hash));
+  block.username = username;
+  block.username_encoded = username_buf;
+  return 0;
+}
+
+static int epdb_hybrid_parse(const StaticDataBlock &block, const unsigned char *&ct_rsa, unsigned &ct_rsa_len,
+			     const unsigned char *&ct_kem, const unsigned char *&wrapped, unsigned &wrapped_len)
+{
+  MemoryBuffer &pl = (MemoryBuffer &)block.rsa_ciphertext;
+  const unsigned char *p = (const unsigned char *)pl.m_buf();
+  unsigned n = pl.length();
+  if(!p || n < EPDB_HYBRID_HDR_LEN) return -1;
+  ct_rsa_len = epdb_hget32(p+8);
+  unsigned kem_len = epdb_hget32(p+12);
+  wrapped_len = epdb_hget32(p+16);
+  if(epdb_hget32(p) != EPDB_HYBRID_VERSION || epdb_hget32(p+4) != EPDB_HYBRID_KEM_MLKEM1024 ||
+     ct_rsa_len == 0 || ct_rsa_len > 2048 || kem_len != EPDB_MLKEM1024_CT_LEN || wrapped_len != EPDB_V2_KEY_LEN + 8 ||
+     n != EPDB_HYBRID_HDR_LEN + ct_rsa_len + kem_len + wrapped_len) return -1;
+  ct_rsa = p + EPDB_HYBRID_HDR_LEN;
+  ct_kem = ct_rsa + ct_rsa_len;
+  wrapped = ct_kem + kem_len;
+  return 0;
+}
+
+int DatabaseUserAuth::LoadPQPrivateKey()
+{
+  if(pq_key) return 0;
+  if(pq_key_file.is_null()) {
+    err << clear << "No ML-KEM key file given";
+    return -1;
+  }
+  gxString kerr;
+  pq_key = FC_pq_load_private_key(pq_key_file.c_str(), pq_passphrase, kerr);
+  if(!pq_key) {
+    err << clear << kerr;
+    return -1;
+  }
+  return 0;
+}
+
+static int epdb_hybrid_open(DatabaseUserAuth *a, const StaticDataBlock &block, const unsigned char r[EPDB_HYBRID_SECRET_LEN],
+			    MemoryBuffer &keyset)
+// Opens the database with r (from the RSA key or the card) and the
+// user's ML-KEM private key. Returns 0 if successful.
+{
+  const unsigned char *ct_rsa = 0, *ct_kem = 0, *wrapped = 0;
+  unsigned ct_rsa_len = 0, wrapped_len = 0;
+  if(epdb_hybrid_parse(block, ct_rsa, ct_rsa_len, ct_kem, wrapped, wrapped_len) != 0) {
+    a->err << clear << "Invalid hybrid block for user " << block.username;
+    return -1;
+  }
+  if(a->LoadPQPrivateKey() != 0) return -1;
+  unsigned char hdr[EPDB_V2_HEADER_LEN];
+  if(EPDBReadHeader(a->f, hdr) != 1) {
+    a->err << clear << "A hybrid user needs a v2 database";
+    return -1;
+  }
+  EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(AES_get_libctx(), a->pq_key, 0);
+  unsigned char ss[64];
+  size_t ss_len = sizeof(ss);
+  int ok = pctx && EVP_PKEY_decapsulate_init(pctx, 0) == 1 &&
+    EVP_PKEY_decapsulate(pctx, ss, &ss_len, ct_kem, EPDB_MLKEM1024_CT_LEN) == 1;
+  if(pctx) EVP_PKEY_CTX_free(pctx);
+  if(!ok) {
+    a->err << clear << "ML-KEM-1024 decapsulation failed for user " << block.username << " (is "
+	   << a->pq_key_file << " an ML-KEM-1024 private key?)";
+    return -1;
+  }
+  unsigned char kek[32], mac_key[32], hash[AES_MAX_HMAC_LEN], master[EPDB_V2_KEY_LEN + 8];
+  unsigned hash_len = 0, master_len = 0;
+  ok = epdb_hybrid_keys(block.block_header.block_type, hdr + 64, block.username, ss, (unsigned)ss_len, r,
+			ct_rsa, ct_rsa_len, ct_kem, EPDB_MLKEM1024_CT_LEN, kek, mac_key);
+  OPENSSL_cleanse(ss, sizeof(ss));
+  MemoryBuffer &pl = (MemoryBuffer &)block.rsa_ciphertext;
+  MemoryBuffer &bh = (MemoryBuffer &)block.hmac;
+  if(ok) ok = HMAC(EVP_sha256(), mac_key, sizeof(mac_key), (const unsigned char *)pl.m_buf(), pl.length(), hash, &hash_len) != 0 &&
+	   hash_len == sizeof(hash) && bh.length() == sizeof(hash) && CRYPTO_memcmp(hash, bh.m_buf(), sizeof(hash)) == 0;
+  OPENSSL_cleanse(mac_key, sizeof(mac_key));
+  if(!ok) {
+    OPENSSL_cleanse(kek, sizeof(kek));
+    a->err << clear << "Message authentication failed for the hybrid block of user " << block.username
+	   << " (the RSA key, smart card or ML-KEM key does not belong to this user)";
+    return -1;
+  }
+  ok = epdb_key_wrap(0, kek, wrapped, wrapped_len, master, &master_len) && master_len == EPDB_V2_KEY_LEN;
+  OPENSSL_cleanse(kek, sizeof(kek));
+  if(!ok) {
+    OPENSSL_cleanse(master, sizeof(master));
+    a->err << clear << "Message authentication failed: the hybrid block of user " << block.username << " does not unwrap";
+    return -1;
+  }
+  int rv = EPDBUnlockMaster(a->f, master, keyset, a->err);
+  OPENSSL_cleanse(master, sizeof(master));
+  if(rv != 0) a->err << " (the hybrid block for user " << block.username << " does not hold this database's key)";
+  return rv;
+}
+
+static int epdb_add_hybrid_block(DatabaseUserAuth *a, const MemoryBuffer &ks, gxUINT32 type, const gxString &username,
+				 const unsigned char *ct_rsa, unsigned ct_rsa_len, const unsigned char r[EPDB_HYBRID_SECRET_LEN])
+// 11/18/2026: Adds a hybrid user block (v2 databases) and seals the database
+{
+  if(!EPDBIsKeyset(ks)) {
+    a->err << clear << "A quantum-resistant user needs a v2 database, upgrade it first with --upgrade-db";
+    return -1;
+  }
+  if(a->LoadStaticDataBlocks() != 0) return -1;
+  if(a->CountUserBlocks(username, type) > 0) {
+    a->err << clear << "User " << username << " already has " << (EPDBBlockBaseType(type) == 1 ? "RSA key" : "smart card")
+	   << " access, remove it first";
+    return 1;
+  }
+  StaticDataBlock block;
+  if(epdb_hybrid_block(type, EPDBKeysetKey(ks, EPDB_KEY_MASTER), EPDBKeysetID(ks), username, ct_rsa, ct_rsa_len, r,
+		       a->pq_public_file, block, a->err) != 0) return -1;
+  a->static_block_list.Add(block);
+  if(a->UpdateStaticData() != 0) return -1;
+  if(a->WriteStaticDataArea() != 0) return -1;
+  if(EPDBSeal(a->f, ks, a->err) != 0) return -1;
+  return 0;
+}
+
 int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
 					    char public_key[], unsigned public_key_len,
 					    const gxString &rsa_key_username, char *passphrase,
@@ -290,6 +609,33 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   }
   int v2 = EPDBIsKeyset(ks);
   DBStringConfig::crypt_key = ks;
+  // 11/18/2026: A hybrid (RSA key + ML-KEM-1024) user
+  if(!pq_public_file.is_null()) {
+    if(rsa_key_username.is_null() || rsa_key_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
+      ERROR_LEVEL = -1;
+      err << clear << "The username must be 1 to " << DB_AUTH_MAX_USERNAME_LEN << " characters";
+      return ERROR_LEVEL;
+    }
+    unsigned char r[EPDB_HYBRID_SECRET_LEN], ct[8192];
+    unsigned ct_len = 0;
+    if(!FC_rand_bytes(r, sizeof(r), 1)) {
+      ERROR_LEVEL = -1;
+      err << clear << "Random number generator failed";
+      return ERROR_LEVEL;
+    }
+    RSA_openssl_init();
+    rv = RSA_public_key_encrypt((const unsigned char *)public_key, public_key_len, r, sizeof(r), ct, sizeof(ct), &ct_len,
+				RSA_PKCS1_OAEP_PADDING, passphrase);
+    if(rv != RSA_NO_ERROR) {
+      OPENSSL_cleanse(r, sizeof(r));
+      ERROR_LEVEL = rv;
+      err << clear << "RSA encrypt public key error " << RSA_err_string(rv);
+      return ERROR_LEVEL;
+    }
+    ERROR_LEVEL = epdb_add_hybrid_block(this, ks, DB_AUTH_BLOCK_TYPE_RSA_HYBRID, rsa_key_username, ct, ct_len, r);
+    OPENSSL_cleanse(r, sizeof(r));
+    return ERROR_LEVEL;
+  }
   MemoryBuffer wrap_secret;
   if(v2) {
     wrap_secret.Cat(EPDBKeysetKey(ks, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN);
@@ -340,7 +686,7 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
 
   while(ptr) {
-    if((ptr->data.username == rsa_key_username) && (ptr->data.block_header.block_type == 1)) {
+    if((ptr->data.username == rsa_key_username) && (EPDBBlockBaseType(ptr->data.block_header.block_type) == 1)) {
       ERROR_LEVEL = 1;
       err << clear << "An RSA key for username " << ptr->data.username << " already exists";
       return ERROR_LEVEL;
@@ -433,6 +779,34 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   }
   int v2 = EPDBIsKeyset(ks);
   DBStringConfig::crypt_key = ks;
+  // 11/18/2026: A hybrid (smart card + ML-KEM-1024) user. The card is
+  // only read (its cert), no PIN is needed.
+  if(!pq_public_file.is_null()) {
+    if(smartcard_cert_username.is_null() || smartcard_cert_username.length() > DB_AUTH_MAX_USERNAME_LEN) {
+      ERROR_LEVEL = -1;
+      err << clear << "The username must be 1 to " << DB_AUTH_MAX_USERNAME_LEN << " characters";
+      return ERROR_LEVEL;
+    }
+    unsigned char r[EPDB_HYBRID_SECRET_LEN], ct[8192];
+    unsigned ct_len = 0;
+    if(!FC_rand_bytes(r, sizeof(r), 1)) {
+      ERROR_LEVEL = -1;
+      err << clear << "Random number generator failed";
+      return ERROR_LEVEL;
+    }
+    rv = use_cert_file ?
+      SC_cert_file_public_key_encrypt(sc, r, sizeof(r), ct, sizeof(ct), &ct_len, RSA_PKCS1_OAEP_PADDING) :
+      SC_public_key_encrypt(sc, r, sizeof(r), ct, sizeof(ct), &ct_len, RSA_PKCS1_OAEP_PADDING);
+    if(rv != 0) {
+      OPENSSL_cleanse(r, sizeof(r));
+      ERROR_LEVEL = rv;
+      err << clear << "Smart card cert encrypt error " << sc->err_string << " (the smart card key must be an RSA key)";
+      return ERROR_LEVEL;
+    }
+    ERROR_LEVEL = epdb_add_hybrid_block(this, ks, DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID, smartcard_cert_username, ct, ct_len, r);
+    OPENSSL_cleanse(r, sizeof(r));
+    return ERROR_LEVEL;
+  }
   MemoryBuffer wrap_secret;
   if(v2) {
     wrap_secret.Cat(EPDBKeysetKey(ks, EPDB_KEY_MASTER), EPDB_V2_KEY_LEN);
@@ -490,7 +864,7 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
   gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
 
   while(ptr) {
-    if((ptr->data.username == smartcard_cert_username) && (ptr->data.block_header.block_type == 2)) {
+    if((ptr->data.username == smartcard_cert_username) && (EPDBBlockBaseType(ptr->data.block_header.block_type) == 2)) {
       ERROR_LEVEL = 1;
       err << clear << "A smart card cert for username " << ptr->data.username << " already exists";
       return ERROR_LEVEL;
@@ -625,7 +999,8 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     memset(rsa_decrypted_message, 0, sizeof(rsa_decrypted_message));
     memset(hash, 0, sizeof(hash));
     decrypted_data_len = 0;
-    if((rsa_key_username == list_ptr->data.username) && (list_ptr->data.block_header.block_type == 1)) {
+    if((rsa_key_username == list_ptr->data.username) &&
+       (EPDBBlockBaseType(list_ptr->data.block_header.block_type) == DB_AUTH_BLOCK_TYPE_RSA)) { // 11/18/2026: Or hybrid
       found_key = 1;
       break;
     }
@@ -646,7 +1021,7 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     return ERROR_LEVEL;
   }
 
-  if(list_ptr->data.block_header.block_type != 1) {
+  if(EPDBBlockBaseType(list_ptr->data.block_header.block_type) != DB_AUTH_BLOCK_TYPE_RSA) {
     ERROR_LEVEL = -1;
     if(list_ptr->data.block_header.block_type == 2) {
       err << clear << "User " << list_ptr->data.username << " access type is smart card";
@@ -656,6 +1031,42 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     }
     return ERROR_LEVEL;
     
+  }
+
+  // 11/18/2026: A hybrid user: the RSA key gives r, the ML-KEM key the rest
+  if(EPDBBlockIsHybrid(list_ptr->data.block_header.block_type)) {
+    if(pq_key_file.is_null()) {
+      ERROR_LEVEL = -1;
+      err << clear << "User " << rsa_key_username << " is a quantum-resistant (RSA key + ML-KEM-1024) user, "
+	  << "give the user's ML-KEM key file with --pq-key";
+      return ERROR_LEVEL;
+    }
+    const unsigned char *ct_rsa = 0, *ct_kem = 0, *wrapped = 0;
+    unsigned ct_rsa_len = 0, wrapped_len = 0;
+    if(epdb_hybrid_parse(list_ptr->data, ct_rsa, ct_rsa_len, ct_kem, wrapped, wrapped_len) != 0) {
+      ERROR_LEVEL = -1;
+      err << clear << "Invalid hybrid block for user " << rsa_key_username;
+      return ERROR_LEVEL;
+    }
+    rv = RSA_private_key_decrypt((const unsigned char *)private_key, private_key_len, ct_rsa, ct_rsa_len,
+				 rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
+				 RSA_PKCS1_OAEP_PADDING, passphrase);
+    if(rv != RSA_NO_ERROR || decrypted_data_len != EPDB_HYBRID_SECRET_LEN) {
+      OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+      ERROR_LEVEL = (rv != RSA_NO_ERROR) ? rv : -1;
+      err << clear << "RSA private key decrypt failed " << ((rv != RSA_NO_ERROR) ? RSA_err_string(rv) : "(bad length)");
+      return ERROR_LEVEL;
+    }
+    MemoryBuffer keyset;
+    int hrv = epdb_hybrid_open(this, list_ptr->data, rsa_decrypted_message, keyset);
+    OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+    if(hrv != 0) {
+      ERROR_LEVEL = -1;
+      return ERROR_LEVEL;
+    }
+    DBStringConfig::crypt_key = keyset;
+    keyset.Clear(1);
+    return ERROR_LEVEL;
   }
 
   rv = RSA_private_key_decrypt((const unsigned char *)private_key, private_key_len,
@@ -755,7 +1166,8 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     memset(rsa_decrypted_message, 0, sizeof(rsa_decrypted_message));
     memset(hash, 0, sizeof(hash));
     decrypted_data_len = 0;
-    if((smartcard_cert_username == list_ptr->data.username) && (list_ptr->data.block_header.block_type == 2)) {
+    if((smartcard_cert_username == list_ptr->data.username) &&
+       (EPDBBlockBaseType(list_ptr->data.block_header.block_type) == DB_AUTH_BLOCK_TYPE_SMARTCARD)) { // 11/18/2026: Or hybrid
      found_key = 1;
       break;
     }
@@ -775,7 +1187,7 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     return ERROR_LEVEL;
   }
   
-  if(list_ptr->data.block_header.block_type != 2) {
+  if(EPDBBlockBaseType(list_ptr->data.block_header.block_type) != DB_AUTH_BLOCK_TYPE_SMARTCARD) {
     ERROR_LEVEL = -1;
     if(list_ptr->data.block_header.block_type == 1) {
       err << clear << "User " << list_ptr->data.username << " access type is RSA key";
@@ -786,6 +1198,47 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     return ERROR_LEVEL; // 10/25/2026: Was missing
   }
   
+  // 11/18/2026: A hybrid user: the card gives r, the ML-KEM key the rest.
+  // The ML-KEM key is loaded before the card is used, so a missing or
+  // wrong key file never costs a PIN try.
+  if(EPDBBlockIsHybrid(list_ptr->data.block_header.block_type)) {
+    if(pq_key_file.is_null()) {
+      ERROR_LEVEL = -1;
+      err << clear << "User " << smartcard_cert_username << " is a quantum-resistant (Smart Card + ML-KEM-1024) user, "
+	  << "give the user's ML-KEM key file with --pq-key";
+      return ERROR_LEVEL;
+    }
+    if(LoadPQPrivateKey() != 0) {
+      ERROR_LEVEL = -1;
+      return ERROR_LEVEL;
+    }
+    const unsigned char *ct_rsa = 0, *ct_kem = 0, *wrapped = 0;
+    unsigned ct_rsa_len = 0, wrapped_len = 0;
+    if(epdb_hybrid_parse(list_ptr->data, ct_rsa, ct_rsa_len, ct_kem, wrapped, wrapped_len) != 0) {
+      ERROR_LEVEL = -1;
+      err << clear << "Invalid hybrid block for user " << smartcard_cert_username;
+      return ERROR_LEVEL;
+    }
+    rv = SC_private_key_decrypt(sc, (unsigned char *)ct_rsa, ct_rsa_len, rsa_decrypted_message, sizeof(rsa_decrypted_message),
+				&decrypted_data_len, RSA_PKCS1_OAEP_PADDING);
+    if(rv != 0 || decrypted_data_len != EPDB_HYBRID_SECRET_LEN) {
+      OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+      ERROR_LEVEL = rv ? rv : -1;
+      err << clear << "Smart card private key decrypt failed for cert ID " << sc->cert_id << " " << sc->err_string;
+      return ERROR_LEVEL;
+    }
+    MemoryBuffer keyset;
+    int hrv = epdb_hybrid_open(this, list_ptr->data, rsa_decrypted_message, keyset);
+    OPENSSL_cleanse(rsa_decrypted_message, sizeof(rsa_decrypted_message));
+    if(hrv != 0) {
+      ERROR_LEVEL = -1;
+      return ERROR_LEVEL;
+    }
+    DBStringConfig::crypt_key = keyset;
+    keyset.Clear(1);
+    return ERROR_LEVEL;
+  }
+
   rv = SC_private_key_decrypt(sc, list_ptr->data.rsa_ciphertext.m_buf(), list_ptr->data.rsa_ciphertext.length(),
 			      rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
 			      ((list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_OAEP) ||
@@ -873,7 +1326,9 @@ int DatabaseUserAuth::CountUserBlocks(const gxString &username, gxUINT32 block_t
   int count = 0;
   gxListNode<StaticDataBlock> *ptr = static_block_list.GetHead();
   while(ptr) {
-    if((ptr->data.username == username) && (ptr->data.block_header.block_type == block_type)) count++;
+    // 11/18/2026: A plain and a hybrid block of the same kind count as one kind
+    if((ptr->data.username == username) &&
+       (EPDBBlockBaseType(ptr->data.block_header.block_type) == EPDBBlockBaseType(block_type))) count++;
     ptr = ptr->next;
   }
   return count;
@@ -2220,7 +2675,9 @@ int EPDBRemoveUser(const char *data_file, const MemoryBuffer &keyset, gxUINT32 b
     }
     if(rv == 0) {
       gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead();
-      while(p && !(p->data.username == username && p->data.block_header.block_type == block_type)) p = p->next;
+      // 11/18/2026: The plain or hybrid block of that kind
+      while(p && !(p->data.username == username &&
+		   EPDBBlockBaseType(p->data.block_header.block_type) == EPDBBlockBaseType(block_type))) p = p->next;
       if(!p) {
 	err << clear << "User " << username << " has no " << (block_type == 1 ? "RSA key" : "smart card")
 	    << " access to " << data_file;
@@ -2271,7 +2728,8 @@ int EPDBRemoveUserInPlace(gxDatabase *f, const MemoryBuffer &key, gxUINT32 block
   gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead();
   while(p) {
     gxListNode<StaticDataBlock> *next = p->next;
-    if(p->data.username == username && (block_type == 0 || p->data.block_header.block_type == block_type)) {
+    if(p->data.username == username && (block_type == 0 ||
+					 EPDBBlockBaseType(p->data.block_header.block_type) == EPDBBlockBaseType(block_type))) {
       db_auth.static_block_list.Remove(p);
       removed++;
     }
@@ -2291,10 +2749,19 @@ int EPDBRemoveUserInPlace(gxDatabase *f, const MemoryBuffer &key, gxUINT32 block
 }
 
 static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY_LEN], const gxString &username,
-			   const gxString &source, SmartCardOB *sc, StaticDataBlock &block, gxString &err)
+			   const gxString &source, SmartCardOB *sc, StaticDataBlock &block, gxString &err,
+			   const unsigned char *db_id = 0, const gxString *pq_source = 0)
 // Builds a v2 user block (OAEP over the salt and master key) for the
-// public key of an RSA user or the cert of a smart card user
+// public key of an RSA user or the cert of a smart card user. 11/18/2026:
+// with pq_source (an ML-KEM-1024 public key file) a hybrid block, where
+// OAEP wraps r instead.
 {
+  int hybrid = (pq_source && !pq_source->is_null());
+  unsigned char r[EPDB_HYBRID_SECRET_LEN];
+  if(hybrid && (!db_id || !FC_rand_bytes(r, sizeof(r), 1))) {
+    err << clear << "Random number generator failed";
+    return -1;
+  }
   unsigned char SALT[AES_MAX_SALT_LEN], IV[AES_MAX_IV_LEN], KEY[AES_MAX_KEY_LEN];
   unsigned char ct[8192], hash[AES_MAX_HMAC_LEN];
   unsigned ct_len = 0;
@@ -2308,8 +2775,11 @@ static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY
     return -1;
   }
   MemoryBuffer p_secret;
-  p_secret.Cat(SALT, sizeof(SALT));
-  p_secret.Cat(master, EPDB_V2_KEY_LEN);
+  if(hybrid) p_secret.Cat(r, sizeof(r));
+  else {
+    p_secret.Cat(SALT, sizeof(SALT));
+    p_secret.Cat(master, EPDB_V2_KEY_LEN);
+  }
   int rv = -1;
   if(type == 1) {
     char pub[RSA_max_keybuf_len];
@@ -2351,7 +2821,17 @@ static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY
     err << clear << "Unsupported user type for " << username;
   }
   p_secret.Clear(1);
-  if(rv != 0) return -1;
+  if(rv != 0) {
+    OPENSSL_cleanse(r, sizeof(r));
+    return -1;
+  }
+  if(hybrid) {
+    OPENSSL_cleanse(KEY, sizeof(KEY));
+    rv = epdb_hybrid_block(type == 1 ? DB_AUTH_BLOCK_TYPE_RSA_HYBRID : DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID, master, db_id,
+			   username, ct, ct_len, r, *pq_source, block, err);
+    OPENSSL_cleanse(r, sizeof(r));
+    return rv;
+  }
   if(AES_HMAC(KEY, sizeof(KEY), ct, ct_len, hash, sizeof(hash)) != AES_NO_ERROR) {
     err << clear << "Cannot compute the user block HMAC";
     return -1;
@@ -2441,7 +2921,7 @@ static int epdb_rekey_copy(POD *old_pod, POD *new_pod, MemoryBuffer &old_keyset,
     for(gxListNode<EPDBRekeyUser> *p = keep.GetHead(); rv == 0 && p; p = p->next) {
       StaticDataBlock blk;
       if(epdb_make_block(p->data.block_type, EPDBKeysetKey(keyset, EPDB_KEY_MASTER), p->data.username,
-			 p->data.source, sc, blk, err) != 0) {
+			 p->data.source, sc, blk, err, EPDBKeysetID(keyset), &p->data.pq_source) != 0) {
 	rv = -1;
 	break;
       }

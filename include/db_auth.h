@@ -64,6 +64,19 @@ public:
 #endif // __ENABLE_SMART_CARD__
 
 public:
+  // 11/18/2026: Release 2026.107 hybrid (quantum-resistant) users. Set
+  // pq_key_file and pq_passphrase before DecryptWithRSAKey() or
+  // DecryptWithSmartcard() to open as a hybrid user (the user's
+  // ML-KEM-1024 private key, the same key files as fcrypt). Set
+  // pq_public_file before AddRSAKeyToStaticArea() or
+  // AddSmartCardCertToStaticArea() to add the user as a hybrid user.
+  gxString pq_key_file;
+  MemoryBuffer pq_passphrase;
+  gxString pq_public_file;
+  int LoadPQPrivateKey(); // Loads pq_key once, 0 if successful
+  EVP_PKEY *pq_key;       // The loaded ML-KEM private key, freed by the destructor
+
+public:
   gxList<StaticDataBlock> static_block_list;
   int ERROR_LEVEL;
   gxString err;
@@ -79,6 +92,30 @@ public:
 // and later versions.
 const gxUINT32 DB_AUTH_BLOCK_STATUS_PKCS1 = 1;
 const gxUINT32 DB_AUTH_BLOCK_STATUS_OAEP = 2;
+
+// 11/18/2026: Release 2026.107 hybrid (quantum-resistant) users. Block
+// types 3 and 4 are an RSA key or a smart card plus the user's
+// ML-KEM-1024 key (NIST FIPS 203): the master key is wrapped with AES-256
+// Key Wrap under KEK = KBKDF-HMAC-SHA384(ss || r, "EPDB hybrid key
+// block", database ID || type || user || SHA-384(ct_rsa || ct_kem)),
+// where ss comes from ML-KEM-1024 encapsulation to the user's ML-KEM
+// public key and r (32 random bytes) is RSA-OAEP (SHA-256) encrypted to
+// the user's RSA key or card cert, so both must be broken. The block's
+// HMAC field is HMAC-SHA256 under a second key from the same inputs.
+// Releases before 2026.107 skip block types 3 and 4: they still open the
+// database with the password, key file or a plain RSA or smart card user.
+const gxUINT32 DB_AUTH_BLOCK_TYPE_RSA = 1;
+const gxUINT32 DB_AUTH_BLOCK_TYPE_SMARTCARD = 2;
+const gxUINT32 DB_AUTH_BLOCK_TYPE_RSA_HYBRID = 3;
+const gxUINT32 DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID = 4;
+const gxUINT32 DB_AUTH_BLOCK_STATUS_HYBRID = 4;
+const unsigned EPDB_HYBRID_SECRET_LEN = 32;
+const unsigned EPDB_MLKEM1024_CT_LEN = 1568;
+// 1 (RSA) or 2 (smart card) for a plain or hybrid user block, 0 otherwise
+gxUINT32 EPDBBlockBaseType(gxUINT32 block_type);
+int EPDBBlockIsHybrid(gxUINT32 block_type);
+// "RSA key", "Smart Card", "RSA key + ML-KEM-1024", "Smart Card + ML-KEM-1024"
+const char *EPDBBlockTypeName(gxUINT32 block_type);
 const unsigned DB_AUTH_MAX_USERNAME_LEN = 255;
 
 #ifdef __ENABLE_SMART_CARD__
@@ -237,6 +274,7 @@ struct EPDBRekeyUser {
   gxUINT32 block_type;   // 1 = RSA key, 2 = smart card
   gxString username;
   gxString source;       // Public key file, cert file or "card"
+  gxString pq_source;    // 11/18/2026: ML-KEM public key file, makes a hybrid user
 };
 
 // Removes the RSA (block_type 1) or smart card (2) block of a user from
