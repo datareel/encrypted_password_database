@@ -49,7 +49,10 @@ JT=${NEW_DIR}/epdb_journal_test
 TESTDB=${NEW_DIR}/epdb_test_db
 PW='Crash-Test-Passw0rd!'
 
-mkdir -p ${testDIR} || exit 1
+# 11/18/2026: Owner-only, whatever the umask: a journal in a folder the group can
+# write is never replayed (on purpose), which would fail the kill -9 rounds
+umask 077
+mkdir -p ${testDIR} && chmod 700 ${testDIR} || exit 1
 cd ${testDIR} || exit 1
 passed=0
 failed=0
