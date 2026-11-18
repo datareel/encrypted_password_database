@@ -420,10 +420,9 @@ int ListUsers(const char *fname)
   }
   else {
     cout << "Encrypted file username inventory " << "\n" << flush;
-    gxString access_type = "Unknown";
     while(list_ptr) {
-      if(list_ptr->data.block_header.block_type == 1) access_type = "RSA key";
-      if(list_ptr->data.block_header.block_type == 2) access_type = "Smart Card";
+      // 11/18/2026: Hybrid users; each block is named on its own
+      gxString access_type = EPDBBlockTypeName(list_ptr->data.block_header.block_type);
       cout << "Username: " << list_ptr->data.username.c_str() << " Access: " << access_type.c_str() << "\n" << flush;
       list_ptr = list_ptr->next;
     }

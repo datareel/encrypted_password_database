@@ -582,9 +582,12 @@ int EPDBGetInfo(const char *data_file, POD *pod, EPDBInfo &info, gxString &err)
     if(db_auth.LoadStaticDataBlocks() == 0) {
       for(gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead(); p; p = p->next) {
 	gxString u = p->data.username;
-	if(p->data.block_header.block_type == 1) { info.rsa_users++; u << " (RSA key)"; }
-	else if(p->data.block_header.block_type == 2) { info.smartcard_users++; u << " (Smart Card)"; }
+	gxUINT32 t = p->data.block_header.block_type; // 11/18/2026: Plain or hybrid
+	if(EPDBBlockBaseType(t) == 1) info.rsa_users++;
+	else if(EPDBBlockBaseType(t) == 2) info.smartcard_users++;
 	else continue;
+	if(EPDBBlockIsHybrid(t)) info.pq_users++;
+	u << " (" << EPDBBlockTypeName(t) << ")";
 	info.users.Add(u);
       }
     }
@@ -700,6 +703,7 @@ gxString EPDBInfoJSON(const char *data_file, const EPDBInfo &info_in)
   if(info.index_order >= -1) s << ", \"index_order\": " << (info.index_order == 1 ? "\"ok\"" : (info.index_order == 0 ? "\"needs rebuild\"" : "\"error\""));
   s << ", \"self_destruct\": " << (info.sd_on ? "true" : "false") << ", \"self_destruct_attempts\": " << info.sd_limit
     << ", \"failed_opens\": " << info.sd_failed << ", \"destroyed\": " << (info.destroyed ? "true" : "false");
+  s << ", \"quantum_resistant_users\": " << info.pq_users; // 11/18/2026
   s << ", \"users\": [";
   int n = 0;
   for(gxListNode<gxString> *p = info.users.GetHead(); p; p = p->next) {

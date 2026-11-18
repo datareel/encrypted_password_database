@@ -127,12 +127,13 @@ int EPDBParseCSV(const MemoryBuffer &data, gxList<EPDBRecord> &recs, gxString &e
 
 // Database info, read without a key except the record count
 struct EPDBInfo {
-  EPDBInfo() { format = 0; records = -1; rsa_users = smartcard_users = 0; flags = key_generation = 0; rekey_time = 0;
+  EPDBInfo() { format = 0; records = -1; rsa_users = smartcard_users = pq_users = 0; flags = key_generation = 0; rekey_time = 0;
     sd_on = 0; sd_limit = sd_failed = 0; destroyed = 0; index_order = -2; }
   int format;           // 1 or 2
   long records;         // -1 if not counted
   gxString id;          // Database ID (v2)
   unsigned rsa_users, smartcard_users;
+  unsigned pq_users; // 11/18/2026: Hybrid (quantum-resistant) users among them
   unsigned flags, key_generation;
   unsigned long long rekey_time;
   int sd_on;

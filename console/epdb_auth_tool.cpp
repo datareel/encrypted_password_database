@@ -83,6 +83,12 @@ unsigned public_key_len = 0;
 char private_key[RSA_max_keybuf_len];
 unsigned private_key_len = 0;
 gxString rsa_key_passphrase;
+// 11/18/2026: Release 2026.107 hybrid (quantum-resistant) users
+gxString pq_key_file;          // --pq-key: the user's ML-KEM-1024 private key file
+gxString pq_key_passphrase;    // --pq-key-passphrase-file/-fd or the prompt
+gxString pq_public_file;       // --add-pq-public-key: makes the added user a hybrid user
+gxString generate_pq_key_file; // --generate-pq-key
+int require_pq = 0;            // --require-pq
 int has_passphrase = 0;
 int ERROR_LEVEL = 0;
 gxString executable_name;
@@ -320,6 +326,45 @@ int main(int argc, char **argv)
     }
   }
 
+  // 11/18/2026: An ML-KEM-1024 key for a hybrid user needs no database
+  if(!generate_pq_key_file.is_null()) {
+    if(pq_key_passphrase.is_null()) {
+      if(non_interactive || !ConsoleIsInteractive()) {
+	cerr << "ERROR: Give the passphrase of the new ML-KEM key with --pq-key-passphrase-file or --pq-key-passphrase-fd" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
+      gxString again;
+      cerr << "Passphrase for the new ML-KEM key: " << flush;
+      int ok = consoleGetString(pq_key_passphrase, 1);
+      cerr << "\n" << "Passphrase again: " << flush;
+      ok = ok && consoleGetString(again, 1);
+      cerr << "\n" << flush;
+      if(!ok || !(again == pq_key_passphrase)) {
+	again.Clear(1);
+	cerr << "ERROR: The passphrases do not match" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
+      again.Clear(1);
+    }
+    if((int)pq_key_passphrase.length() < AES_MIN_SECRET_LEN) {
+      cerr << "ERROR: The ML-KEM key passphrase must be at least " << AES_MIN_SECRET_LEN << " characters long" << "\n" << flush;
+      return ExitProgram(FC_EXIT_USAGE);
+    }
+    MemoryBuffer pass;
+    pass.Cat(pq_key_passphrase.GetSPtr(), pq_key_passphrase.length());
+    gxString pub_file, gerr;
+    int ok = FC_pq_generate_key(generate_pq_key_file.c_str(), pass, pub_file, gerr);
+    pass.Clear(1);
+    pq_key_passphrase.Clear(1);
+    if(!ok) {
+      cerr << "ERROR: " << gerr.c_str() << "\n" << flush;
+      return ExitProgram(FC_EXIT_IO);
+    }
+    cerr << "Wrote the ML-KEM-1024 private key " << generate_pq_key_file.c_str() << " (keep it private) and the public key "
+	 << pub_file.c_str() << " (give it to the database owner)" << "\n" << flush;
+    if(num_files == 0) return ExitProgram(0);
+  }
+
   // 10/27/2026: The password generator needs no database
   if(generate_password) {
     gxString pw;
@@ -403,6 +448,30 @@ int main(int argc, char **argv)
   gxListNode<gxString> *ptr = file_list.GetHead();
 
   ERROR_LEVEL = 0;
+
+  // 11/18/2026: The ML-KEM key passphrase of a hybrid user, asked before
+  // any smart card is used
+  if(!pq_key_file.is_null() && pq_key_passphrase.is_null()) {
+    if(non_interactive || !ConsoleIsInteractive()) {
+      cerr << "ERROR: Give the ML-KEM key passphrase with --pq-key-passphrase-file or --pq-key-passphrase-fd (--non-interactive)" << "\n" << flush;
+      return ExitProgram(FC_EXIT_USAGE);
+    }
+    cerr << "ML-KEM key passphrase: " << flush;
+    if(!consoleGetString(pq_key_passphrase, 1)) {
+      pq_key_passphrase.Clear(1);
+      cerr << "\n" << "Invalid entry!" << "\n" << flush;
+      return ExitProgram(1);
+    }
+    cerr << "\n" << flush;
+  }
+  if(!pq_key_file.is_null() && !use_private_rsa_key
+#ifdef __ENABLE_SMART_CARD__
+     && !use_smartcard
+#endif
+     ) {
+    cerr << "ERROR: --pq-key opens as a hybrid user together with --rsa-key or --smartcard" << "\n" << flush;
+    return ExitProgram(FC_EXIT_USAGE);
+  }
 
   if(use_key_file) {
     if(clientcfg->verbose_mode) cerr << "Using key file for decryption" << "\n" << flush;
@@ -641,6 +710,8 @@ int main(int argc, char **argv)
       db_auth.f = f;
       char *passphrase = 0;
       if(!rsa_key_passphrase.is_null()) passphrase = (char *)rsa_key_passphrase.GetSPtr();
+      db_auth.pq_key_file = pq_key_file; // 11/18/2026: Hybrid users
+      if(!pq_key_passphrase.is_null()) db_auth.pq_passphrase.Cat(pq_key_passphrase.GetSPtr(), pq_key_passphrase.length());
       if(db_auth.DecryptWithRSAKey(private_key, private_key_len, rsa_key_username, passphrase) != 0) {
 	cerr << "ERROR: " << db_auth.err.c_str() << "\n";
 	f->Close();
@@ -669,6 +740,8 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
+      db_auth.pq_key_file = pq_key_file; // 11/18/2026: Hybrid users
+      if(!pq_key_passphrase.is_null()) db_auth.pq_passphrase.Cat(pq_key_passphrase.GetSPtr(), pq_key_passphrase.length());
       int sc_was_blocked = SC_login_blocked(); // 10/27/2026: For the failed open count
       int sc_rv = db_auth.DecryptWithSmartcard(&sc, smartcard_username);
       if(sc_rv != 0 && sc.error_level == SC_ERROR_PIN_COUNT_LOW && !sc.allow_pin_count_low) {
@@ -852,6 +925,10 @@ int main(int argc, char **argv)
 	cerr << "ERROR: --add-rsa-key requires --add-username" << "\n" << flush;
 	return ExitProgram(1);
       }
+      if(require_pq && pq_public_file.is_null()) {
+	cerr << "ERROR: --require-pq: give the user's ML-KEM public key with --add-pq-public-key" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
       cerr << "Adding RSA key for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
       DatabaseUserAuth db_auth;
       gxDatabase *f = OpenEPDB(fname.c_str(), err_string, gxDBASE_READWRITE);
@@ -862,6 +939,7 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
+      db_auth.pq_public_file = pq_public_file; // 11/18/2026: A hybrid user
       if(db_auth.AddRSAKeyToStaticArea(file_key, public_key, public_key_len, add_username) != 0) {
 	cerr << "ERROR: Cannot add public RSA key " << db_auth.err.c_str() << "\n" << flush;
 	ERROR_LEVEL++;
@@ -869,7 +947,8 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      cerr << "Public RSA key for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
+      cerr << "Public RSA key for user " << add_username.c_str() << " added to " << ptr->data.c_str()
+	   << (pq_public_file.is_null() ? "" : " (quantum-resistant: RSA key + ML-KEM-1024)") << "\n" << flush;
       CloseEPDB(f); // 10/31/2026: Writes the journaled save
     }
 
@@ -884,6 +963,10 @@ int main(int argc, char **argv)
 	cerr << "ERROR: Smart card provider " << sc.modulePath << " does not exist or cannot be read" <<  "\n" << flush;
 	return ExitProgram(1);
       }
+      if(require_pq && pq_public_file.is_null()) {
+	cerr << "ERROR: --require-pq: give the user's ML-KEM public key with --add-pq-public-key" << "\n" << flush;
+	return ExitProgram(FC_EXIT_USAGE);
+      }
       cerr << "Adding smartcard cert for user " << add_username.c_str() << " to encrypted file " << ptr->data.c_str() << "\n" << flush;
       if(!use_smartcard_cert_file && clientcfg->verbose_mode) {
 	cerr << "Reading the public key for cert ID " << sc.cert_id << " from the smart card with " << sc.modulePath << "\n" << flush;
@@ -897,7 +980,7 @@ int main(int argc, char **argv)
 	continue; 
       }
       db_auth.f = f;
-      
+      db_auth.pq_public_file = pq_public_file; // 11/18/2026: A hybrid user
       if(db_auth.AddSmartCardCertToStaticArea(&sc, use_smartcard_cert_file, file_key, add_username) != 0){
 	cerr << "ERROR: Cannot add smart card cert " << db_auth.err.c_str() << "\n";
 	ERROR_LEVEL++;
@@ -905,7 +988,8 @@ int main(int argc, char **argv)
 	ptr = ptr->next;
 	continue; 
       }
-      cerr << "Smart card cert for user " << add_username.c_str() << " added to " << ptr->data.c_str() << "\n" << flush;
+      cerr << "Smart card cert for user " << add_username.c_str() << " added to " << ptr->data.c_str()
+	   << (pq_public_file.is_null() ? "" : " (quantum-resistant: Smart Card + ML-KEM-1024)") << "\n" << flush;
       CloseEPDB(f); // 10/31/2026: Writes the journaled save
     }
 #endif // __ENABLE_SMART_CARD__
@@ -973,6 +1057,7 @@ int ExitProgram(int rv, char *exit_message)
   memset(public_key, 0, sizeof(public_key));
   memset(private_key, 0, sizeof(private_key));
   rsa_key_passphrase.Clear(1);
+  pq_key_passphrase.Clear(1);
   FC_wipe_name_values(record_fields); // 10/27/2026: Record values
   rekey_in.Wipe();
 
@@ -1045,6 +1130,8 @@ void HelpMessage()
   cout << "          --rsa-key-passphrase=pass (Passphrase for private RSA key, visible to other users, not recommended)" << "\n" << flush;
   cout << "          --rsa-key-passphrase-file=file (Read the private RSA key passphrase from a file only you can read)" << "\n" << flush;
   cout << "          --rsa-key-passphrase-fd=n (Read the private RSA key passphrase from open file descriptor n)" << "\n" << flush;
+  cout << "          --pq-key=file (The ML-KEM-1024 key of a quantum-resistant user, with --rsa-key or --smartcard)" << "\n" << flush;
+  cout << "          --pq-key-passphrase-file=file, --pq-key-passphrase-fd=n (Read the ML-KEM key passphrase)" << "\n" << flush;
   cout << "          --rsa-key-username=name (Username that owns the private RSA key, defaults to current user)" << "\n" << flush;
 
 #ifdef __ENABLE_SMART_CARD__
@@ -1072,6 +1159,11 @@ void HelpMessage()
 #ifdef __ENABLE_SMART_CARD__
   cout << "          --add-smartcard-cert (Add access to database for the smart card in the reader, uses --smartcard-cert-id)" << "\n" << flush;
   cout << "          --add-smartcard-cert-file=file.pem (Add access to database for another users exported smart card cert)" << "\n" << flush;
+  cout << "          --add-pq-public-key=file.pub.pem (With --add-rsa-key or --add-smartcard-cert: a quantum-resistant user," << "\n" << flush;
+  cout << "                 RSA key or smart card + ML-KEM-1024, both are needed to open the database)" << "\n" << flush;
+  cout << "          --generate-pq-key=file (Make a user's ML-KEM-1024 key: file, passphrase protected, and file.pub.pem;" << "\n" << flush;
+  cout << "                 the same key files as fcrypt)" << "\n" << flush;
+  cout << "          --require-pq (Refuse to add, or keep in a rekey, a user without an ML-KEM-1024 key)" << "\n" << flush;
   cout << "          --add-username (Username being added for public RSA key file or smart card cert)" << "\n" << flush;
 #else
   cout << "          --add-username (Username being added for public RSA key file)" << "\n" << flush;
@@ -1090,6 +1182,8 @@ void HelpMessage()
   cout << "                   new-password=new password, or drop-password=yes (only RSA and smart card users can open)" << "\n" << flush;
   cout << "                   rsa:user=public_key.pem, smartcard:user=cert.pem|cert.cer or smartcard:user=card (no PIN)" << "\n" << flush;
   cout << "                   drop-rsa:user=yes, drop-smartcard:user=yes" << "\n" << flush;
+  cout << "                   rsa:user=public_key.pem,pq=user_pq.pub.pem (same for smartcard:) keeps or makes a quantum-resistant user;" << "\n" << flush;
+  cout << "                   a quantum-resistant user must be given its pq= (it is never made RSA-only or card-only)" << "\n" << flush;
   cout << "                 Every RSA and smart card user needs a line, the rekey lists what is missing and changes nothing." << "\n" << flush;
   cout << "          --rekey-new-password-file=file (Generate a new database password and write it to a new file)" << "\n" << flush;
   cout << "          --rekey-new-password-fd=n (Generate a new database password and write it to open file descriptor n)" << "\n" << flush;
@@ -1388,6 +1482,34 @@ int ProcessDashDashArg(gxString &arg)
       return 0;
     }
     if(ReadSecretArg(arg, equal_arg, rsa_key_passphrase) != 0) return 0;
+    has_valid_args = 1;
+  }
+
+  // 11/18/2026: Hybrid (quantum-resistant) users
+  if((arg == "pq-key") || (arg == "add-pq-public-key") || (arg == "generate-pq-key")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires a file name" << "\n" << flush;
+      return 0;
+    }
+    if(arg != "generate-pq-key" && !check_if_file_exists(equal_arg.c_str())) {
+      cerr << "ERROR: " << equal_arg.c_str() << " does not exist or cannot be read" << "\n" << flush;
+      return 0;
+    }
+    if(arg == "pq-key") pq_key_file = equal_arg;
+    else if(arg == "add-pq-public-key") pq_public_file = equal_arg;
+    else generate_pq_key_file = equal_arg;
+    has_valid_args = 1;
+  }
+  if((arg == "pq-key-passphrase-file") || (arg == "pq-key-passphrase-fd")) {
+    if(equal_arg.is_null()) {
+      cerr << "ERROR: --" << arg.c_str() << " requires an input argument" << "\n" << flush;
+      return 0;
+    }
+    if(ReadSecretArg(arg, equal_arg, pq_key_passphrase) != 0) return 0;
+    has_valid_args = 1;
+  }
+  if(arg == "require-pq") {
+    require_pq = 1;
     has_valid_args = 1;
   }
 
@@ -2262,9 +2384,11 @@ static void ListLoadedUsers(const gxString &fname, gxList<FCRekeySlot> &users)
   db_auth.f = f;
   if(db_auth.LoadStaticDataBlocks() == 0) {
     for(gxListNode<StaticDataBlock> *p = db_auth.static_block_list.GetHead(); p; p = p->next) {
-      if(p->data.block_header.block_type != 1 && p->data.block_header.block_type != 2) continue;
+      gxUINT32 base = EPDBBlockBaseType(p->data.block_header.block_type); // 11/18/2026: Plain or hybrid
+      if(!base) continue;
       FCRekeySlot r;
-      r.type = (p->data.block_header.block_type == 1) ? FC_SLOT_RSA : FC_SLOT_SMARTCARD;
+      r.type = (base == 1) ? FC_SLOT_RSA : FC_SLOT_SMARTCARD;
+      r.hybrid = EPDBBlockIsHybrid(p->data.block_header.block_type);
       r.username = p->data.username;
       users.Add(r);
     }
@@ -2535,6 +2659,29 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
     cerr << "ERROR: " << err.c_str() << "\n" << flush;
     return -1;
   }
+  // 11/18/2026: Hybrid (quantum-resistant) users, checked before anything is written
+  for(gxListNode<FCRekeySlot> *p = keep.GetHead(); p; p = p->next) {
+    // A hybrid user is never silently made RSA-only or card-only
+    if(p->data.hybrid && p->data.pq_source.is_null()) {
+      cerr << "ERROR: User " << p->data.username.c_str() << " is a quantum-resistant user, keep it with "
+	   << (p->data.type == FC_SLOT_RSA ? "rsa:" : "smartcard:") << p->data.username.c_str() << "=<file>,pq=<ML-KEM public key file>"
+	   << " in the rekey input, nothing was changed" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
+      return -1;
+    }
+    if(require_pq && p->data.pq_source.is_null()) {
+      cerr << "ERROR: --require-pq: user " << p->data.username.c_str() << " needs ,pq=<ML-KEM public key file> in the rekey input, "
+	   << "nothing was changed" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
+      return -1;
+    }
+    if(!p->data.pq_source.is_null() && !check_if_file_exists(p->data.pq_source)) {
+      cerr << "ERROR: The ML-KEM public key file " << p->data.pq_source.c_str() << " of user " << p->data.username.c_str()
+	   << " does not exist or cannot be read, nothing was changed" << "\n" << flush;
+      SetExit(FC_EXIT_USAGE);
+      return -1;
+    }
+  }
   MemoryBuffer new_secret;
   gxString generated;
   if(pw_action == FC_REKEY_PW_KEEP) {
@@ -2584,6 +2731,7 @@ static int RekeyDatabase(const gxString &fname, MemoryBuffer &file_key)
     u.block_type = (p->data.type == FC_SLOT_RSA) ? 1 : 2;
     u.username = p->data.username;
     u.source = p->data.source;
+    u.pq_source = p->data.pq_source; // 11/18/2026: Hybrid users
     users.Add(u);
   }
   int keep_backup = !SelfDestructOn(fname);
@@ -3052,7 +3200,8 @@ static int DatabaseInfo(const gxString &fname, MemoryBuffer &file_key)
 				       << " records not found by title, use --rebuild-index)";
   else cout << "could not be checked";
   cout << "\n";
-  cout << "RSA key users: " << info.rsa_users << ", smart card users: " << info.smartcard_users << "\n";
+  cout << "RSA key users: " << info.rsa_users << ", smart card users: " << info.smartcard_users
+       << ", quantum-resistant (+ ML-KEM-1024): " << info.pq_users << "\n";
   for(gxListNode<gxString> *p = info.users.GetHead(); p; p = p->next) cout << "  " << p->data.c_str() << "\n";
   cout << flush;
   return 0;
