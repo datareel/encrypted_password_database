@@ -10,6 +10,20 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
+NEXT RELEASE 2026.107 (NOT RELEASED YET)
+----------------------------------------
+* AI-assisted guide files: AGENTS.md (install, build, upgrade to the
+  current release, scripts and services, forks, troubleshooting and the
+  support summary), with CLAUDE.md and GEMINI.md that import it. Human in
+  the loop, never autonomous, and the agent never sees a password, key,
+  PIN or record value. Before any AI assistance: written management
+  approval under your AI usage policy and approved enterprise AI models
+  only. Also at
+  https://datareel.com/encrypted_password_database/ai_assisted_guide.php
+* GUI: the backup error message says "existing file".
+* Bug fixes and security updates found while upgrading installations to
+  2026.106 go into this release.
+
 RELEASE 2026.106: DATAREEL 6.4.1
 --------------------------------
 * Built with fcrypt 2026.109 (fcrypt main e6db852) and the bundled
