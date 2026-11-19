@@ -79,8 +79,11 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
   quantum-resistant user needs a FIPS provider with ML-KEM: the Red Hat
   FIPS providers have none, so in FIPS mode such a user gets a clear
   error and the database still opens with the password, key file or a
-  plain RSA or smart card user. --version shows the OpenSSL library, the
-  build and FIPS mode.
+  plain RSA or smart card user. In FIPS mode a v1 database (made before
+  2026.101) is refused, as fcrypt refuses its old formats: its key
+  derivation is not FIPS approved; upgrade it once outside FIPS mode with
+  epdb_auth_tool --no-fips --upgrade-db db.ehd. --version shows the
+  OpenSSL library, the build and FIPS mode.
 * OpenSSL 3.5 LTS on every platform, with one exception for FIPS mode:
   - RHEL 9 and 10: the system OpenSSL 3.5.
   - Windows: OpenSSL 3.5.x LTS built in.

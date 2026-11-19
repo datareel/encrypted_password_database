@@ -28,6 +28,15 @@ if [ ! -f ${TOOL} ]; then
     echo "ERROR: Missing ${TOOL}, run make first"
     exit 1
 fi
+# 11/19/2026: In FIPS mode (a host in FIPS mode or EPDB_FIPS=1) v1 databases
+# are refused; the v1 steps below use --no-fips, and one check confirms the
+# refusal
+V1OPT=""
+FIPS_ON=0
+if [ "$(cat /proc/sys/crypto/fips_enabled 2>/dev/null)" = "1" ] || [ "${EPDB_FIPS}" = "1" ]; then
+    V1OPT="--no-fips"
+    FIPS_ON=1
+fi
 if ! command -v python3 >/dev/null 2>&1; then
     echo "ERROR: python3 is needed to build the test files"
     exit 1
@@ -59,6 +68,12 @@ echo "Starting tests at $(date)" | tee -a ${logFILE}
 ${TESTDB} create known.ehd "${PW}" 12 >>${logFILE} 2>&1
 check $? "create the test database (format v2)"
 ${TESTDB} create-v1 known_v1.ehd "${PW}" 12 >>${logFILE} 2>&1
+if [ ${FIPS_ON} -eq 1 ]; then
+    printf '%s\n' "${PW}" > pwv1.txt; chmod 600 pwv1.txt
+    ${TOOL} --password-file=pwv1.txt --db-list known_v1.ehd > out.txt 2>err.txt
+    rv=$?; [ ${rv} -ne 0 ] && [ ! -s out.txt ] && grep -q "not opened in FIPS mode" err.txt
+    check $? "FIPS mode refuses a v1 database (rc=${rv})"
+fi
 check $? "create a format v1 test database"
 ${TESTDB} dump known.ehd "${PW}" > dump.txt 2>>${logFILE}
 [ $? -eq 0 ] && [ $(wc -l < dump.txt) -eq 12 ]
@@ -200,15 +215,15 @@ ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-fi
 check $? "a second RSA key block for the same user is rejected"
 cp known_v1.ehd nohash.ehd; cp known_v1.ehx nohash.ehx
 python3 -I -c "d=bytearray(open('nohash.ehd','rb').read()); d[90]=0; open('nohash.ehd','wb').write(d)"
-${TOOL} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
+${TOOL} ${V1OPT} --password-file=pw2.txt --db-config nohash.ehd > out.txt 2>err.txt
 [ $? -ne 0 ] && grep -q "not set" err.txt
 check $? "a database name that was never set does not accept any password"
 cp known.ehd nohash2.ehd; cp known.ehx nohash2.ehx
 python3 -I -c "d=bytearray(open('nohash2.ehd','rb').read()); d[90]=0; open('nohash2.ehd','wb').write(d)"
-${TOOL} --password-file=pw.txt --db-config nohash2.ehd > out.txt 2>err.txt
+${TOOL} ${V1OPT} --password-file=pw.txt --db-config nohash2.ehd > out.txt 2>err.txt
 [ $? -ne 0 ] && [ ! -s out.txt ] && grep -q "not set" err.txt
 check $? "a v2 database name that was never set is refused with the right password"
-${TOOL} --password-file=pw2.txt --db-config nohash2.ehd > out.txt 2>err.txt
+${TOOL} ${V1OPT} --password-file=pw2.txt --db-config nohash2.ehd > out.txt 2>err.txt
 [ $? -ne 0 ] && [ ! -s out.txt ]
 check $? "a v2 database name that was never set is refused with another password"
 
@@ -262,9 +277,9 @@ ${TESTDB} dump up.ehd "${PW}" > up_before.txt 2>>${logFILE}
 cmp -s up_before.txt dump.txt
 check $? "a v1 database has the same records as a v2 database"
 cp up.ehd up_orig.ehd; cp up.ehx up_orig.ehx
-${TOOL} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=tester up.ehd >>${logFILE} 2>&1
+${TOOL} ${V1OPT} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=tester up.ehd >>${logFILE} 2>&1
 cp up.ehd up_rsa.ehd; cp up.ehx up_rsa.ehx
-${TOOL} --password-file=pw.txt --upgrade-db up.ehd > out.txt 2>err.txt
+${TOOL} ${V1OPT} --password-file=pw.txt --upgrade-db up.ehd > out.txt 2>err.txt
 rv=$?; backup=$(sed -n 's/^The v1 database was saved to \([^ ]*\) and .*/\1/p' err.txt)
 [ ${rv} -eq 0 ] && [ -n "${backup}" ] && [ -f "${backup}" ]
 check $? "--upgrade-db upgrades and reports the backup file"

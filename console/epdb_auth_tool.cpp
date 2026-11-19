@@ -710,6 +710,17 @@ int main(int argc, char **argv)
     {
       FCVersionInfo vi; // 10/27/2026: Warn about v1 databases still in use
       gxString verr;
+      if(FC_check_version(fname.c_str(), vi, verr) == 0 && vi.is_v1 && FC_fips_mode()) {
+	// 11/19/2026 (dougg): in FIPS mode a v1 database is refused, as fcrypt
+	// refuses its old formats: the v1 key derivation is not FIPS approved
+	cerr << "ERROR: " << fname.c_str() << " is a v1 database (before 2026.101). Its key derivation is not "
+	     << "FIPS approved, so it is not opened in FIPS mode. Upgrade it once outside FIPS mode: "
+	     << "epdb_auth_tool --no-fips --upgrade-db " << fname.c_str() << "\n" << flush;
+	SetExit(FC_EXIT_USAGE);
+	ERROR_LEVEL++;
+	ptr = ptr->next;
+	continue;
+      }
       if(FC_check_version(fname.c_str(), vi, verr) == 0 && vi.is_v1 && !upgrade_db) {
 	NOTE << FC_v1_warning(fname.c_str(), vi).c_str() << "\n" << flush;
       }

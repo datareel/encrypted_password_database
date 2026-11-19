@@ -36,6 +36,7 @@ Yes to the warning when the card is low on tries or has one try left.
 */
 // ----------------------------------------------------------- //
 #include "app_defs.h"
+#include "fcfips.h" // 11/19/2026
 
 enum {
   ID_UNLOCK_FILE = 6201,
@@ -535,6 +536,21 @@ int UnlockDialog::TestInput()
     return 0;
   }
 
+  // 11/19/2026 (dougg): in FIPS mode a v1 database is refused, as fcrypt
+  // refuses its old formats: its key derivation is not FIPS approved
+  if(FC_fips_mode()) {
+    FCVersionInfo vi;
+    gxString verr;
+    if(FC_check_version(curr_fname.c_str(), vi, verr) == 0 && vi.is_v1) {
+      gxString m;
+      m << curr_fname << " is a v1 database (before 2026.101). Its key derivation is not FIPS approved, "
+	<< "so it cannot be opened in FIPS mode.\n\nUpgrade it once outside FIPS mode:\n"
+	<< "epdb_auth_tool --no-fips --upgrade-db " << curr_fname;
+      ProgramError->Message(m.c_str());
+      ClearSecrets();
+      return 0;
+    }
+  }
   open_failed = 0;
   if(!GUISelfDestructPrecheck(curr_fname.c_str())) {
     ClearSecrets();
