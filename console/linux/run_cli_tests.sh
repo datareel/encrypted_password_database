@@ -316,7 +316,7 @@ ${TOOL} --password-file=pw.txt --upgrade-db bad.ehd > out.txt 2>err.txt
 rv=$?
 [ ${rv} -eq 1 ] && cmp -s bad.ehd bad_before.ehd && ! ls bad.v1-backup-* bad.v2-upgrade.* >/dev/null 2>&1
 check $? "a failed upgrade leaves the database unchanged and no backup or temporary files"
-${TOOL} --password-file=pw2.txt --upgrade-db up_orig.ehd > out.txt 2>&1
+${TOOL} ${V1OPT} --password-file=pw2.txt --upgrade-db up_orig.ehd > out.txt 2>&1
 [ $? -eq 2 ] && ! ls up_orig.v1-backup-* >/dev/null 2>&1
 check $? "an upgrade with the wrong password changes nothing"
 # Tampering a v2 database is detected
@@ -395,11 +395,11 @@ ${TOOL} --password="${PW}" --db-list keysize.ehd > /dev/null 2>&1
 rv=$?; [ ${rv} -eq 1 ]
 check $? "B-tree header with a bad key size is rejected (rc=${rv})"
 tamper member "i=d.find(struct.pack('<II',8,355)); struct.pack_into('<I',d,i+4,0xF0000000)"
-${TOOL} --password="${PW}" --db-list member.ehd > out.txt 2>/dev/null
+${TOOL} ${V1OPT} --password="${PW}" --db-list member.ehd > out.txt 2>/dev/null
 rv=$?; [ ${rv} -eq 1 ] && [ $(wc -l < out.txt) -eq 11 ]
 check $? "record with a bad member length is skipped and exits 1 (rc=${rv})"
 tamper field "i=d.find(struct.pack('<II',8,355)); struct.pack_into('<I',d,i+8+40,0x41414141)"
-${TOOL} --password="${PW}" --db-list field.ehd > out.txt 2>err.txt
+${TOOL} ${V1OPT} --password="${PW}" --db-list field.ehd > out.txt 2>err.txt
 rv=$?; [ ${rv} -eq 1 ] && grep -q "Cannot decrypt" err.txt
 check $? "record field that fails to decrypt stops the export (rc=${rv})"
 

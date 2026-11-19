@@ -344,7 +344,7 @@ check $? "--check-version reports v1, the upgrade command and exits 5"
 ${TOOL} --check-version k_pw.txt >/dev/null 2>&1
 [ $? -eq 7 ]
 check $? "--check-version of a file that is not a database exits 7"
-${TOOL} --password="${PW}" --db-list known_v1.ehd 2>err.txt >/dev/null
+${TOOL} ${V1OPT} --password="${PW}" --db-list known_v1.ehd 2>err.txt >/dev/null
 grep -q "WARNING: known_v1.ehd uses EPDB v1" err.txt && grep -q -- "--upgrade-db" err.txt
 check $? "opening a v1 database warns on stderr and names the upgrade command"
 
