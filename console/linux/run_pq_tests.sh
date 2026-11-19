@@ -163,6 +163,26 @@ else
     check 1 "find the hybrid block to change a byte"
 fi
 
+# ---- RHEL crypto policy (11/19/2026): FUTURE asks for RSA keys of 3072 bits
+echo FUTURE > policy_future.txt
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out big_priv.pem > /dev/null 2>&1
+openssl pkey -in big_priv.pem -pubout -out big_pub.pem > /dev/null 2>&1; chmod 600 big_priv.pem
+cp db.ehd pol.ehd; cp db.ehx pol.ehx
+FC_CRYPTO_POLICY_FILE=policy_future.txt ${TOOL} --version | grep -q "Crypto policy: FUTURE (new RSA and smart card access needs keys of at least 3072 bits)"
+check $? "--version shows the crypto policy and the RSA minimum"
+FC_CRYPTO_POLICY_FILE=policy_future.txt ${TOOL} --password-file=pw.txt --add-rsa-key=carl_pub.pem --add-username=small pol.ehd > /dev/null 2> err.txt
+[ $? -ne 0 ] && grep -q "at least 3072 bits (crypto policy FUTURE)" err.txt && ! ${TOOL} --list-users pol.ehd | grep -q "Username: small"
+check $? "crypto policy FUTURE refuses new access for a 2048-bit RSA key"
+FC_CRYPTO_POLICY_FILE=policy_future.txt ${TOOL} --password-file=pw.txt --add-rsa-key=big_pub.pem --add-username=big --add-pq-public-key=carl_pq.pem.pub.pem pol.ehd >> ${logFILE} 2>&1
+check $? "crypto policy FUTURE adds a 3072-bit RSA key + ML-KEM-1024 user"
+FC_CRYPTO_POLICY_FILE=policy_future.txt ${TOOL} --rsa-key=carl_priv.pem --rsa-key-username=carl --db-list pol.ehd > out.txt 2>> ${logFILE}
+[ $? -eq 0 ] && cmp -s out.txt list.txt
+check $? "crypto policy FUTURE: an existing 2048-bit user still opens the database"
+printf 'password=%s\nrsa:alice=alice_pub.pem,pq=alice_pq.pem.pub.pem\nrsa:carl=carl_pub.pem\nrsa:big=big_pub.pem,pq=carl_pq.pem.pub.pem\n' "${PW}" | \
+    FC_CRYPTO_POLICY_FILE=policy_future.txt ${TOOL} --password-file=pw.txt --rekey pol.ehd > /dev/null 2> err.txt
+[ $? -ne 0 ] && grep -q "3072" err.txt
+check $? "crypto policy FUTURE refuses a rekey that rewraps 2048-bit users, nothing changed"
+
 # ---- Smart card + ML-KEM-1024 (SoftHSM2 only)
 if [ -n "${SC_MODULE}" ] && [ -n "${SC_PIN}" ] && [ -n "${SC_CERT}" ]; then
     printf '%s' "${SC_PIN}" > pin.txt; chmod 600 pin.txt

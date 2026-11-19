@@ -84,6 +84,13 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
   derivation is not FIPS approved; upgrade it once outside FIPS mode with
   epdb_auth_tool --no-fips --upgrade-db db.ehd. --version shows the
   OpenSSL library, the build and FIPS mode.
+* The RHEL crypto policy (/etc/crypto-policies/state/current) is read by
+  EPDB itself, as fcrypt, also in the RHEL 8 build with OpenSSL 3.5 built
+  in, which does not read it: with FUTURE, new RSA and smart card access
+  (adding users, quantum-resistant users and rekey rewraps) needs an RSA
+  key of at least 3072 bits; users that already have access keep
+  opening the database. DEFAULT, FIPS and LEGACY keep the 2048-bit
+  minimum. --version shows the policy.
 * OpenSSL 3.5 LTS on every platform, with one exception for FIPS mode:
   - RHEL 9 and 10: the system OpenSSL 3.5.
   - Windows: OpenSSL 3.5.x LTS built in.

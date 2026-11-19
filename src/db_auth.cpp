@@ -302,6 +302,19 @@ const char *EPDBBlockTypeName(gxUINT32 t)
   return "Unknown";
 }
 
+static int epdb_rsa_size_ok(unsigned ct_len, gxString &err)
+// 11/19/2026 (dougg): new RSA and smart card access follows the RHEL crypto
+// policy, as fcrypt (FC_min_rsa_bits(): FUTURE asks for 3072 bits). The
+// RSA ciphertext is as long as the key. Existing users keep opening.
+{
+  unsigned bits = ct_len * 8;
+  if(bits >= FC_min_rsa_bits()) return 1;
+  err << clear << "The RSA key is " << bits << " bits, new access needs an RSA key of at least "
+      << FC_min_rsa_bits() << " bits";
+  if(FC_min_rsa_bits() > FC_MIN_RSA_BITS) err << " (crypto policy " << FC_crypto_policy() << ")";
+  return 0;
+}
+
 static void epdb_hput32(unsigned char *p, unsigned v)
 {
   p[0] = (unsigned char)(v >> 24); p[1] = (unsigned char)(v >> 16);
@@ -662,6 +675,11 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
       err << clear << "RSA encrypt public key error " << RSA_err_string(rv);
       return ERROR_LEVEL;
     }
+    if(!epdb_rsa_size_ok(ct_len, err)) {
+      OPENSSL_cleanse(r, sizeof(r));
+      ERROR_LEVEL = -1;
+      return ERROR_LEVEL;
+    }
     ERROR_LEVEL = epdb_add_hybrid_block(this, ks, DB_AUTH_BLOCK_TYPE_RSA_HYBRID, rsa_key_username, ct, ct_len, r);
     OPENSSL_cleanse(r, sizeof(r));
     return ERROR_LEVEL;
@@ -707,6 +725,10 @@ int DatabaseUserAuth::AddRSAKeyToStaticArea(const MemoryBuffer &secret,
   if(rv != RSA_NO_ERROR) {
     ERROR_LEVEL = rv;
     err << clear << "RSA encrypt public key error " << RSA_err_string(rv);
+    return ERROR_LEVEL;
+  }
+  if(!epdb_rsa_size_ok(rsa_ciphertext_len, err)) { // 11/19/2026
+    ERROR_LEVEL = -1;
     return ERROR_LEVEL;
   }
 
@@ -833,6 +855,11 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
       err << clear << "Smart card cert encrypt error " << sc->err_string << " (the smart card key must be an RSA key)";
       return ERROR_LEVEL;
     }
+    if(!epdb_rsa_size_ok(ct_len, err)) {
+      OPENSSL_cleanse(r, sizeof(r));
+      ERROR_LEVEL = -1;
+      return ERROR_LEVEL;
+    }
     ERROR_LEVEL = epdb_add_hybrid_block(this, ks, DB_AUTH_BLOCK_TYPE_SMARTCARD_HYBRID, smartcard_cert_username, ct, ct_len, r);
     OPENSSL_cleanse(r, sizeof(r));
     return ERROR_LEVEL;
@@ -885,6 +912,10 @@ int DatabaseUserAuth::AddSmartCardCertToStaticArea(SmartCardOB *sc, int use_cert
     if(strcmp(sc->err_string, "Public key encrypt failed") == 0) {
       err << " (the smart card key must be an RSA key, EC keys are not supported)";
     }
+    return ERROR_LEVEL;
+  }
+  if(!epdb_rsa_size_ok(ciphertext_len, err)) { // 11/19/2026
+    ERROR_LEVEL = -1;
     return ERROR_LEVEL;
   }
 
@@ -2851,6 +2882,7 @@ static int epdb_make_block(gxUINT32 type, const unsigned char master[EPDB_V2_KEY
     err << clear << "Unsupported user type for " << username;
   }
   p_secret.Clear(1);
+  if(rv == 0 && !epdb_rsa_size_ok(ct_len, err)) rv = -1; // 11/19/2026: The crypto policy
   if(rv != 0) {
     OPENSSL_cleanse(r, sizeof(r));
     return -1;
