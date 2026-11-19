@@ -36,6 +36,7 @@ Encrypted database auth functions
 #include "db_auth.h"
 #include "fcfile.h"
 #include "epdb_journal.h"
+#include "fcfips.h" // 11/19/2026: FC_fips_mode()
 // 11/18/2026: ML-KEM-1024 (hybrid users) needs OpenSSL 3.5 or later. The
 // RHEL 8 build for hosts in FIPS mode uses the system OpenSSL 1.1.1k FIPS
 // module, which has none: there a hybrid user gets a clear error.
@@ -1130,6 +1131,16 @@ int DatabaseUserAuth::DecryptWithRSAKey(char private_key[], unsigned private_key
     return ERROR_LEVEL;
   }
 
+  // 11/19/2026: A block from before 2026.101 (PKCS#1 v1.5 padding) cannot
+  // be decrypted in FIPS mode: the FIPS providers of RHEL 9 and 10 refuse
+  // PKCS#1 v1.5 RSA decryption
+  if(FC_fips_mode() && list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_PKCS1) {
+    ERROR_LEVEL = -1;
+    err << clear << "The RSA key block of user " << rsa_key_username << " uses PKCS#1 v1.5 padding (added before "
+	<< "2026.101), which FIPS mode does not allow. Open the database with the password or with --no-fips, "
+	<< "and rekey it (--rekey) to rewrap the user with OAEP";
+    return ERROR_LEVEL;
+  }
   rv = RSA_private_key_decrypt((const unsigned char *)private_key, private_key_len,
 			       list_ptr->data.rsa_ciphertext.m_buf(), list_ptr->data.rsa_ciphertext.length(),
 			       rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
@@ -1300,6 +1311,15 @@ int DatabaseUserAuth::DecryptWithSmartcard(SmartCardOB *sc, const gxString &smar
     return ERROR_LEVEL;
   }
 
+  // 11/19/2026: PKCS#1 v1.5 blocks (before 2026.101) are not allowed in
+  // FIPS mode; checked before the card is used, so no PIN try is spent
+  if(FC_fips_mode() && list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_PKCS1) {
+    ERROR_LEVEL = -1;
+    err << clear << "The smart card block of user " << smartcard_cert_username << " uses PKCS#1 v1.5 padding (added "
+	<< "before 2026.101), which FIPS mode does not allow. Open the database with the password or with --no-fips, "
+	<< "and rekey it (--rekey) to rewrap the user with OAEP";
+    return ERROR_LEVEL;
+  }
   rv = SC_private_key_decrypt(sc, list_ptr->data.rsa_ciphertext.m_buf(), list_ptr->data.rsa_ciphertext.length(),
 			      rsa_decrypted_message, sizeof(rsa_decrypted_message), &decrypted_data_len,
 			      ((list_ptr->data.block_header.block_status == DB_AUTH_BLOCK_STATUS_OAEP) ||

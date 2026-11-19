@@ -294,9 +294,15 @@ check $? "no temporary files are left after the upgrade"
 ${TOOL} --password-file=pw.txt --db-list up.ehd > out.txt 2>>${logFILE}
 [ $? -eq 0 ] && cmp -s out.txt list.txt
 check $? "epdb_auth_tool lists the upgraded database"
-${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list up.ehd > out.txt 2>>${logFILE}
+${TOOL} ${V1OPT} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list up.ehd > out.txt 2>>${logFILE}
 [ $? -eq 0 ] && cmp -s out.txt list.txt
 check $? "an RSA user added before the upgrade opens the v2 database"
+if [ ${FIPS_ON} -eq 1 ]; then
+    # 11/19/2026: that user's block has PKCS#1 v1.5 padding, refused in FIPS mode with a clear message
+    ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list up.ehd > out.txt 2>err.txt
+    [ $? -ne 0 ] && [ ! -s out.txt ] && grep -q "PKCS#1 v1.5 padding" err.txt
+    check $? "FIPS mode refuses a PKCS#1 v1.5 RSA user block with a clear message"
+fi
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out rsa2_priv.pem >/dev/null 2>&1; chmod 600 rsa2_priv.pem
 openssl pkey -in rsa2_priv.pem -pubout -out rsa2_pub.pem >/dev/null 2>&1
 ${TOOL} --password-file=pw.txt --add-rsa-key=rsa2_pub.pem --add-username=newuser up.ehd >>${logFILE} 2>&1

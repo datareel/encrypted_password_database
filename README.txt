@@ -82,7 +82,11 @@ RELEASE 2026.107: QUANTUM-RESISTANT USERS, FIPS MODE, OPENSSL 3.5
   plain RSA or smart card user. In FIPS mode a v1 database (made before
   2026.101) is refused, as fcrypt refuses its old formats: its key
   derivation is not FIPS approved; upgrade it once outside FIPS mode with
-  epdb_auth_tool --no-fips --upgrade-db db.ehd. --version shows the
+  epdb_auth_tool --no-fips --upgrade-db db.ehd. An RSA or smart card
+  user added before 2026.101 (PKCS#1 v1.5 padding) is refused in FIPS
+  mode with a clear message (the RHEL 9 and 10 FIPS providers do not
+  allow it): rekey the database once to rewrap such users with OAEP.
+  --version shows the
   OpenSSL library, the build and FIPS mode.
 * The RHEL crypto policy (/etc/crypto-policies/state/current) is read by
   EPDB itself, as fcrypt, also in the RHEL 8 build with OpenSSL 3.5 built
