@@ -1138,12 +1138,12 @@ void DisplayVersion()
     const char *e = getenv("EPDB_FIPS");
     if(fips_request == FC_FIPS_AUTO && e && strcmp(e, "1") == 0) fips_request = FC_FIPS_ON;
     if(FC_crypto_init(fips_request, fips_err)) cout << FC_crypto_status().c_str() << "\n" << flush;
+    else cout << "FIPS mode: " << fips_err.c_str() << "\n" << flush;
     // 11/19/2026: The RHEL crypto policy, as fcrypt (FUTURE: RSA 3072 for new access)
     if(!FC_crypto_policy().is_null()) {
       cout << "Crypto policy: " << FC_crypto_policy().c_str() << " (new RSA and smart card access needs keys of at least "
 	   << FC_min_rsa_bits() << " bits)" << "\n" << flush;
     }
-    else cout << "FIPS mode: " << fips_err.c_str() << "\n" << flush;
   }
   cout << "\n" << flush;
 #ifdef __ENABLE_SMART_CARD__
