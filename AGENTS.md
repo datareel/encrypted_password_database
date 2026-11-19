@@ -4,7 +4,7 @@ This file is for AI-assisted work on the Encrypted Password Database
 (EPDB): it tells an AI agent (Gemini CLI, Claude Code, GitHub Copilot,
 Codex and others) how to assist a site's own administrators and
 developers to install EPDB, build it from source, upgrade older releases
-to the current release, 2026.106, maintain a fork, and troubleshoot. The
+to the current release, 2026.107, maintain a fork, and troubleshoot. The
 agent assists; it does not replace the administrators or DataReel
 support, and it never acts autonomously (section 0). The people review
 and approve every step, and problems the agent cannot solve go to
@@ -229,12 +229,12 @@ Help pages: https://datareel.com/encrypted_password_database/help/install.php
 5. Create the first database in the GUI (File, New Database). The person
    types the password; the agent never sees it (rule 1).
 
-## 5. AI-assisted upgrade to 2026.106
+## 5. AI-assisted upgrade to 2026.107
 
 ### 5.1 What changes, and what does not
 
 - **Database format:** databases made by 2026.101 and later are format v2
-  and open in 2026.106 unchanged. 2026.104, 2026.105 and 2026.106 open each
+  and open in 2026.107 unchanged. 2026.104 to 2026.107 open each
   other's databases.
 - **Format v1 databases** (made by 2025.x and older) still open; the GUI
   and `--check-version` warn. Upgrade them, after a backup, with File,
@@ -261,7 +261,7 @@ Help pages: https://datareel.com/encrypted_password_database/help/install.php
 3. **Install** the new release (section 4; on Linux `rh_install.sh`
    replaces the programs in `~/.encrypted_password_database/bin`; on
    Windows the setup upgrades in place).
-4. **Check:** `epdb_auth_tool --version` says 2026.106;
+4. **Check:** `epdb_auth_tool --version` says 2026.107;
    `epdb_auth_tool --check-version db.ehd` for each database (exit 0 = v2).
 5. **Open each database once** (the person, in the GUI or with
    `--db-stats` and a read-only list they do not paste back) and confirm
