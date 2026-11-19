@@ -1,6 +1,6 @@
 Encrypted Password Database
 
-Release 2026.106
+Release 2026.107
 
 Supports Windows 11, Windows Server 2022 and Windows Server 2025 (64-bit)
 Supports Windows 10 version 1903 or later and Windows 11 (32-bit, legacy)
@@ -10,8 +10,8 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
-NEXT RELEASE 2026.107 (NOT RELEASED YET)
-----------------------------------------
+RELEASE 2026.107: QUANTUM-RESISTANT USERS, FIPS MODE, OPENSSL 3.5
+-----------------------------------------------------------------
 * AI-assisted guide files: AGENTS.md (install, build, upgrade to the
   current release, scripts and services, forks, troubleshooting and the
   support summary), with CLAUDE.md and GEMINI.md that import it. Human in
@@ -106,8 +106,6 @@ NEXT RELEASE 2026.107 (NOT RELEASED YET)
     from fcrypt/console/linux/build_openssl35.sh, pinned sha256).
   - The RHEL 8 GUI is built with a wxWidgets 3.3.4 without libcurl
     (--disable-webrequest), so it never loads a second OpenSSL.
-* Bug fixes and security updates found while upgrading installations to
-  2026.106 go into this release.
 
 RELEASE 2026.106: DATAREEL 6.4.1
 --------------------------------
