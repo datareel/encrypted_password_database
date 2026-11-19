@@ -236,7 +236,9 @@ Help pages: https://datareel.com/encrypted_password_database/help/install.php
 - **Database format:** databases made by 2026.101 and later are format v2
   and open in 2026.107 unchanged. 2026.104 to 2026.107 open each
   other's databases.
-- **Format v1 databases** (made by 2025.x and older) still open; the GUI
+- **Format v1 databases** (made by 2025.x and older) still open outside
+  FIPS mode (in FIPS mode they are refused: upgrade them once with
+  `--no-fips --upgrade-db`); the GUI
   and `--check-version` warn. Upgrade them, after a backup, with File,
   Upgrade Database Format in the GUI or `epdb_auth_tool --upgrade-db
   db.ehd` (it keeps a copy of the v1 files). Releases before 2026.101
