@@ -104,6 +104,18 @@ NEXT RELEASE 2026.110 (NOT RELEASED YET)
   fcrypt --add-rsa-key) reads the whole pipe. It waited only 5 ms for
   the first bytes, so a slow producer gave "--add-rsa-key missing
   filename".
+* The RHEL crypto policy (dougg 11/19/2026). The OpenSSL 3.5 built into
+  the rhel8_openssl35 build does not read the system crypto policy, so
+  fcrypt reads /etc/crypto-policies/state/current itself, in every Linux
+  build. fcrypt --version shows it. With the FUTURE policy, new RSA access
+  (--add-rsa-key, hybrid users, rekey rewraps) needs RSA keys of at least
+  3072 bits, and the error names the policy; existing users with 2048-bit
+  keys can still decrypt, so nobody is locked out. DEFAULT, FIPS and LEGACY
+  keep fcrypt's own 2048-bit minimum. fcrypt's algorithms are fixed and
+  allowed by every policy (AES-256, HMAC-SHA256, PBKDF2-SHA256, RSA-OAEP
+  SHA-256, ML-KEM-1024). FIPS mode is read from
+  /proc/sys/crypto/fips_enabled, not from the policy, and the
+  rhel8_openssl35 build refuses to run on a host in FIPS mode.
 * Adding a user is all or nothing: --add-rsa-key and --add-smartcard-cert
   write the file to a temp file, check that it decrypts to the same data
   and rename it over the original, as --remove-user does, and take the
@@ -112,7 +124,9 @@ NEXT RELEASE 2026.110 (NOT RELEASED YET)
 * OpenSSL 3.5 LTS (dougg 11/18/2026: nothing is distributed on an
   OpenSSL older than the 3.5 LTS line, with one exception for FIPS on
   RHEL 8). RHEL 9 and 10 use the system OpenSSL 3.5 and Windows an
-  OpenSSL 3.5.x LTS release. RHEL 8 has two builds in the Linux package:
+  OpenSSL 3.5.x LTS release. RHEL 8 has two builds in the Linux package;
+  rhel8_openssl35 is the preferred build, and rhel8 is only for hosts that
+  must run in FIPS mode:
   - rhel8_openssl35: OpenSSL 3.5 LTS (3.5.9) built in statically, for
     hosts not in FIPS mode, with hybrid users. Built with
     makefile_rhel8_openssl35 (OPENSSL35_PREFIX, see build_openssl35.sh).
@@ -525,7 +539,14 @@ FIPS mode needs OpenSSL 3.0 or later with a FIPS provider:
 * RHEL 8: install the rhel8 build (install_fcrypt.sh picks it on a host
   in FIPS mode). It uses Red Hat's FIPS-validated system OpenSSL 1.1.1,
   which runs in FIPS mode on a host in FIPS mode; --fips is refused on a
-  host that is not. The rhel8_openssl35 build has no FIPS mode.
+  host that is not. The rhel8_openssl35 build has no FIPS provider: on a
+  host in FIPS mode it refuses to run (FIPS provider not found) unless
+  given --no-fips, and install_fcrypt.sh warns if it is chosen there.
+  Tested 11/19/2026 on a RHEL 8.10 host in FIPS mode: the rhel8 build
+  reports FIPS mode on and passes the build, keymgmt, security and
+  compatibility tests. Give it RSA keys with a passphrase in PKCS#8
+  format: in FIPS mode the RHEL 8 openssl command cannot make or read a
+  traditional (MD5 based) PEM key with a passphrase either.
 
 * Windows: build the OpenSSL 3.5.x LTS FIPS provider, see FIPS MODE ON
   WINDOWS in README_windows_openssl.txt.
