@@ -54,10 +54,10 @@ chmod 600 pw.txt pp.txt pqpp.txt pqbad.txt
 ${TESTDB} create db.ehd "${PW}" 12 >> ${logFILE} 2>&1
 check $? "create the test database"
 ${TOOL} --password-file=pw.txt --db-list db.ehd > list.txt 2>> ${logFILE}
-openssl genrsa -aes256 -passout pass:rsa-pass-2026 -out alice_priv.pem 2048 > /dev/null 2>&1
-openssl rsa -in alice_priv.pem -passin pass:rsa-pass-2026 -pubout -out alice_pub.pem > /dev/null 2>&1
-openssl genrsa -out carl_priv.pem 2048 > /dev/null 2>&1
-openssl rsa -in carl_priv.pem -pubout -out carl_pub.pem > /dev/null 2>&1
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -aes-256-cbc -pass pass:rsa-pass-2026 -out alice_priv.pem > /dev/null 2>&1
+openssl pkey -in alice_priv.pem -passin pass:rsa-pass-2026 -pubout -out alice_pub.pem > /dev/null 2>&1
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out carl_priv.pem > /dev/null 2>&1
+openssl pkey -in carl_priv.pem -pubout -out carl_pub.pem > /dev/null 2>&1
 chmod 600 alice_priv.pem carl_priv.pem
 
 ALICE="--rsa-key=alice_priv.pem --rsa-key-username=alice --rsa-key-passphrase-file=pp.txt"
@@ -197,7 +197,7 @@ if [ -n "${OLD}" ] && [ -x "${OLD}" ]; then
     [ $? -ne 0 ] && [ ! -s out.txt ]
     check $? "the old build refuses the hybrid user"
     cp db.ehd old.ehd; cp db.ehx old.ehx
-    openssl genrsa -out dan_priv.pem 2048 > /dev/null 2>&1; openssl rsa -in dan_priv.pem -pubout -out dan_pub.pem > /dev/null 2>&1
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out dan_priv.pem > /dev/null 2>&1; openssl pkey -in dan_priv.pem -pubout -out dan_pub.pem > /dev/null 2>&1
     ${OLD} --password-file=pw.txt --add-rsa-key=dan_pub.pem --add-username=dan old.ehd >> ${logFILE} 2>&1
     ${TOOL} ${ALICE} --pq-key=alice_pq.pem --pq-key-passphrase-file=pqpp.txt --db-list old.ehd > out.txt 2>> ${logFILE}
     [ $? -eq 0 ] && cmp -s out.txt list.txt

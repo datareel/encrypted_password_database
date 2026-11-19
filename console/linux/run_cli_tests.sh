@@ -114,8 +114,8 @@ check $? "--password-fd reads the password"
 ${TOOL} --password="${PW}" --db-list known.ehd > out.txt 2>err.txt
 [ $? -eq 0 ] && cmp -s out.txt list.txt && grep -q "WARNING: --password=value" err.txt
 check $? "--password=value still works and warns"
-openssl genrsa -aes256 -passout pass:rsa-pass-2026 -out rsa_priv.pem 2048 >/dev/null 2>&1
-openssl rsa -in rsa_priv.pem -passin pass:rsa-pass-2026 -pubout -out rsa_pub.pem >/dev/null 2>&1
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -aes-256-cbc -pass pass:rsa-pass-2026 -out rsa_priv.pem >/dev/null 2>&1
+openssl pkey -in rsa_priv.pem -passin pass:rsa-pass-2026 -pubout -out rsa_pub.pem >/dev/null 2>&1
 cp known.ehd rsa.ehd; cp known.ehx rsa.ehx
 ${TOOL} --password-file=pw.txt --add-rsa-key=rsa_pub.pem --add-username=tester rsa.ehd >>${logFILE} 2>&1
 check $? "add an RSA user"
@@ -282,8 +282,8 @@ check $? "epdb_auth_tool lists the upgraded database"
 ${TOOL} --rsa-key=rsa_priv.pem --rsa-key-username=tester --rsa-key-passphrase-file=pp.txt --db-list up.ehd > out.txt 2>>${logFILE}
 [ $? -eq 0 ] && cmp -s out.txt list.txt
 check $? "an RSA user added before the upgrade opens the v2 database"
-openssl genrsa -out rsa2_priv.pem 2048 >/dev/null 2>&1; chmod 600 rsa2_priv.pem
-openssl rsa -in rsa2_priv.pem -pubout -out rsa2_pub.pem >/dev/null 2>&1
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out rsa2_priv.pem >/dev/null 2>&1; chmod 600 rsa2_priv.pem
+openssl pkey -in rsa2_priv.pem -pubout -out rsa2_pub.pem >/dev/null 2>&1
 ${TOOL} --password-file=pw.txt --add-rsa-key=rsa2_pub.pem --add-username=newuser up.ehd >>${logFILE} 2>&1
 ${TOOL} --rsa-key=rsa2_priv.pem --rsa-key-username=newuser --db-list up.ehd > out.txt 2>>${logFILE}
 [ $? -eq 0 ] && cmp -s out.txt list.txt

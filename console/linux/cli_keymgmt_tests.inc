@@ -10,8 +10,8 @@ echo "Key management, records, logs, self-destruct and automation" | tee -a ${lo
 printf '%s\n' "${PW}" > k_pw.txt; chmod 600 k_pw.txt
 printf '%s\n' "${WRONG}" > k_bad.txt; chmod 600 k_bad.txt
 for u in alice bob; do
-    openssl genrsa -out k_${u}.pem 2048 >/dev/null 2>&1
-    openssl rsa -in k_${u}.pem -pubout -out k_${u}.pub >/dev/null 2>&1
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out k_${u}.pem >/dev/null 2>&1
+    openssl pkey -in k_${u}.pem -pubout -out k_${u}.pub >/dev/null 2>&1
     chmod 600 k_${u}.pem
 done
 KLOG=${testDIR}/k_access.log
