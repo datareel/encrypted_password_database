@@ -218,8 +218,12 @@ if pending ro.ehd.jnl; then
     chmod u+w ro.ehd ro.ehx ro.ehd.jnl
     ${TOOL} ${A} --db-list ro.ehd > /dev/null 2>ro_out2.txt
     rv=$?
-    [ ${rv} -eq 0 ] && grep -q "finished a save" ro_out2.txt && [ ! -f ro.ehd.jnl ]
-    check $? "the save is finished when the database can be written again"
+    # 11/19/2026: A kill before the save's commit record leaves a journal
+    # with nothing to finish: it is removed without the message (the
+    # database is as before the save). Both are right; the check names which.
+    if grep -q "finished a save" ro_out2.txt; then how="finished"; else how="nothing committed, journal removed"; fi
+    [ ${rv} -eq 0 ] && [ ! -f ro.ehd.jnl ] && ${TOOL} ${A} --db-list ro.ehd > /dev/null 2>>${logFILE}
+    check $? "the save is finished when the database can be written again (${how})"
 else
     fail "could not stop a save part way to test a read-only database"
 fi
