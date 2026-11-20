@@ -1,6 +1,6 @@
 File encryption and decryption utility
 
-Release 2026.109
+Release 2026.110
 
 Supports Windows 11, Windows Server 2022 and Windows Server 2025
 (64-bit by default; 32-bit builds for legacy systems)
@@ -44,8 +44,8 @@ FEATURES:
 	DataReel 6.4.1 (2026.109)
 	Quantum-resistant users, RSA or smart card + ML-KEM-1024 (2026.110)
 	
-NEXT RELEASE 2026.110 (NOT RELEASED YET)
----------------------------------------
+RELEASE 2026.110: QUANTUM-RESISTANT USERS AND OPENSSL 3.5 LTS
+-------------------------------------------------------------
 * AI-assisted install, build, upgrade and support: AGENTS.md (with
   CLAUDE.md and GEMINI.md, which only import it) lets an approved
   enterprise AI agent assist a site's administrators, human in the loop
@@ -103,8 +103,13 @@ NEXT RELEASE 2026.110 (NOT RELEASED YET)
 * fcrypt --add-rsa-key with the key on stdin (ssh-keygen -e ... |
   fcrypt --add-rsa-key) reads the whole pipe. It waited only 5 ms for
   the first bytes, so a slow producer gave "--add-rsa-key missing
-  filename".
-* The RHEL crypto policy (dougg 11/19/2026). The OpenSSL 3.5 built into
+  filename". The compatibility tests give older releases the key from a
+  file, since they still have the 5 ms wait.
+* FCRYPT_FIPS=1 with the rhel8 build (system OpenSSL 1.1.1k) on a host
+  not in FIPS mode is refused like --fips (--no-fips overrides it), the
+  same as the OpenSSL 3.5 builds when the FIPS provider cannot load. It
+  was ignored before.
+* The RHEL crypto policy. The OpenSSL 3.5 built into
   the rhel8_openssl35 build does not read the system crypto policy, so
   fcrypt reads /etc/crypto-policies/state/current itself, in every Linux
   build. fcrypt --version shows it. With the FUTURE policy, new RSA access
@@ -121,7 +126,7 @@ NEXT RELEASE 2026.110 (NOT RELEASED YET)
   and rename it over the original, as --remove-user does, and take the
   same file lock (--lock-timeout, exit 4). They used to rewrite the key
   slot area in place.
-* OpenSSL 3.5 LTS (dougg 11/18/2026: nothing is distributed on an
+* OpenSSL 3.5 LTS (11/18/2026: nothing is distributed on an
   OpenSSL older than the 3.5 LTS line, with one exception for FIPS on
   RHEL 8). RHEL 9 and 10 use the system OpenSSL 3.5 and Windows an
   OpenSSL 3.5.x LTS release. RHEL 8 has two builds in the Linux package;
@@ -145,8 +150,9 @@ NEXT RELEASE 2026.110 (NOT RELEASED YET)
   refuse an older OpenSSL library at run time, and fcrypt --version shows
   the OpenSSL build. Each package README and these release notes state
   the OpenSSL version of every build.
-* Bug fixes and security updates found while upgrading to 2026.109 go
-  into this release.
+* The file format is still 2026102: files from every earlier release
+  decrypt with 2026.110, and 2026.102 and later decrypt files written by
+  2026.110 with the password, key file or an RSA-only user.
 
 RELEASE 2026.109: DATAREEL 6.4.1
 --------------------------------
