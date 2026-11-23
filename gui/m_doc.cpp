@@ -121,6 +121,25 @@ CryptDBDocument::CryptDBDocument(EPDBMDIParentFrame *parent,
 #endif
 }
 
+void CryptDBDocument::UpdateColumnLabels()
+// 11/23/2026: The details pane and the search box show this database's
+// column names. They were made with the default names before the
+// database was opened, and were not changed by a column rename.
+{
+  if(!grid_frame) return;
+  details->UpdateLabels();
+  details->Layout();
+  char dest[DBStringLength];
+  for(unsigned n = 1; n < search_field->GetCount(); n++) {
+    int i = (int)(wxIntPtr)search_field->GetClientData(n) - 1;
+    if(i < 0 || i >= NumDataMembers) continue;
+    gxString name = DBParms()->pod ? gxString(DBParms()->db_config.GetColName(i, dest)) :
+      progcfg->global_dbparms.dbgrid_labels[i];
+    if(name.is_null()) name = progcfg->global_dbparms.dbgrid_labels[i];
+    search_field->SetString(n, wxString::FromUTF8(name.c_str()));
+  }
+}
+
 void CryptDBDocument::ApplySearch()
 {
   if(!grid_frame) return;
@@ -409,6 +428,7 @@ void CryptDBDocument::OnLabelRightClick(wxGridEvent& event)
 #else
       grid_frame->m_grid->SetColLabelValue(col, p);
 #endif
+      UpdateColumnLabels(); // 11/23/2026
     }
   }
   event.Skip();

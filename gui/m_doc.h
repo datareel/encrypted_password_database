@@ -92,6 +92,7 @@ public: // 10/27/2026: Records grid left, record details right
   void SaveSplitterPosition();
   void ApplySearch();
   void OnSearch(wxCommandEvent& event);
+  void UpdateColumnLabels(); // 11/23/2026: The details pane and search box column names
   void OnSearchCancel(wxCommandEvent& event);
   wxSearchCtrl *search_ctrl;  // Filters the records
   wxChoice *search_field;     // All fields or one field

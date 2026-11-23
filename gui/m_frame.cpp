@@ -1503,6 +1503,14 @@ void MainFrame::OnOpen(wxCommandEvent& WXUNUSED(event))
   OpenDatabaseFile(wxString());
 }
 
+// 11/23/2026: Marks the database being opened or created as the active
+// database until the open is done, see MainFrame::get_active_child()
+struct EPDBOpeningFrame
+{
+  EPDBOpeningFrame(CryptDBDocument *f) { progcfg->opening_child_frame = f; }
+  ~EPDBOpeningFrame() { progcfg->opening_child_frame = 0; }
+};
+
 void MainFrame::OpenDatabaseFile(const wxString &start_file)
 // 10/27/2026: The Unlock Database dialog asks for the file and the
 // unlock method, and unlocks the database
@@ -1543,6 +1551,7 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     // Open the database associated with this child frame
     CryptDBDocument *prev_frame = progcfg->active_child_frame; 
     progcfg->active_child_frame = subframe;
+    EPDBOpeningFrame opening(subframe); // 11/23/2026
     subframe->DBParms()->pod = OpenDatabase(subframe, database_file, 
 					    subframe->DBParms()->pod,
 					    subframe->DBParms()->db_config,
@@ -1554,6 +1563,7 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     if(!subframe->DBParms()->pod) {
       ProgramError->Message("Error opening the database.");
       progcfg->active_child_frame = prev_frame;
+      progcfg->opening_child_frame = 0; // 11/23/2026
       subframe->Close();
       ::wxSetWorkingDirectory(work_dir.c_str());
       return;
@@ -1562,6 +1572,7 @@ void MainFrame::OpenDatabaseFile(const wxString &start_file)
     // Called after database is opened top ensure that 
     // all the Grid parameters are set.
     grid_frame->InitGrid();
+    subframe->UpdateColumnLabels(); // 11/23/2026: This database's own column names
 
     char dest[DBStringLength];
     // 10/27/2026: The file name too when it differs from the database
@@ -1713,6 +1724,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
     progcfg->active_child_frame = subframe;
 
     subframe->DBParms()->crypt_key = progcfg->global_dbparms.crypt_key;
+    EPDBOpeningFrame opening(subframe); // 11/23/2026
     subframe->DBParms()->pod = OpenDatabase(subframe, dbname, 
 					    subframe->DBParms()->pod,
 					    subframe->DBParms()->db_config,
@@ -1724,6 +1736,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
     if(!subframe->DBParms()->pod) {
       ProgramError->Message("Error creating the database.");
       progcfg->active_child_frame = prev_frame;
+      progcfg->opening_child_frame = 0; // 11/23/2026
       subframe->Close();
       ::wxSetWorkingDirectory(work_dir.c_str());
       return;
@@ -1737,6 +1750,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
 	sbuf << clear << "ERROR: Cannot add public RSA key " << db_auth.err.c_str();
 	ProgramError->Message(sbuf.c_str());
 	progcfg->active_child_frame = prev_frame;
+	progcfg->opening_child_frame = 0; // 11/23/2026
 	subframe->Close();
 	::wxSetWorkingDirectory(work_dir.c_str());
 	// TODO: remove the database file and index file
@@ -1753,6 +1767,7 @@ void MainFrame::OnNew(wxCommandEvent& event)
 	 sbuf << clear << "ERROR: Cannot add smart card cert " << db_auth.err.c_str();
 	 ProgramError->Message(sbuf.c_str());
 	 progcfg->active_child_frame = prev_frame;
+	 progcfg->opening_child_frame = 0; // 11/23/2026
 	 subframe->Close();
 	 ::wxSetWorkingDirectory(work_dir.c_str());
 	 // TODO: remove the database file and index file
@@ -2962,6 +2977,16 @@ int MainFrame::DatabaseIsOpen(gxString &dbname)
 
 CryptDBDocument *MainFrame::get_active_child()
 {
+  // 11/23/2026: While a database is being opened or created, it is the
+  // active database. The window in front is still the database opened
+  // before it, and a menu update during the open (::wxYield()) switched
+  // the string key to that database's key. The new database's column
+  // names did not decrypt with it, so its grid showed the default names
+  // and the details pane and search box never showed the database's own.
+  if(progcfg->opening_child_frame) {
+    DBStringConfig::crypt_key = progcfg->opening_child_frame->DBParms()->crypt_key;
+    return progcfg->opening_child_frame;
+  }
   EPDBMDIChildFrame *child_frame = GetActiveChild();
   gxListNode<CryptDBDocument *> *ptr = progcfg->child_frame_list.GetHead();
 
