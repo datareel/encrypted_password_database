@@ -224,6 +224,7 @@ int count_import_lines(DiskFileB &stream, CryptDBDocument *child_frame)
 void ImportFromASCII(wxWindow *parent)
 {
   CryptDBDocument *child_frame = frame->ActiveChild();
+  EPDBUseDocument use_doc(child_frame); // 11/23/2026: This database's key until done
   if(!child_frame) {
     ProgramError->Message("No database is currently open\n");
     return;

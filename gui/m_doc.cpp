@@ -121,11 +121,59 @@ CryptDBDocument::CryptDBDocument(EPDBMDIParentFrame *parent,
 #endif
 }
 
+int EPDBDocumentIsOpen(CryptDBDocument *doc)
+// 11/23/2026: True if the database window is still open
+{
+  if(!doc) return 0;
+  for(gxListNode<CryptDBDocument *> *p = progcfg->child_frame_list.GetHead(); p; p = p->next) {
+    if(p->data == doc) return 1;
+  }
+  return 0;
+}
+
+EPDBUseDocument::EPDBUseDocument(CryptDBDocument *d)
+{
+  // A database with no key yet (a new grid before the open) is skipped
+  doc = (d && d->GridFrame() && d->DBParms()->crypt_key.length() > 0) ? d : 0;
+  prev = progcfg->busy_child_frame;
+  if(!doc) return;
+  progcfg->busy_child_frame = doc;
+  DBStringConfig::crypt_key = doc->DBParms()->crypt_key;
+}
+
+EPDBUseDocument::~EPDBUseDocument()
+{
+  if(!doc) return;
+  if(progcfg->busy_child_frame != doc && progcfg->busy_child_frame != 0) return; // Released by a nested user
+  progcfg->busy_child_frame = EPDBDocumentIsOpen(prev) ? prev : 0;
+  if(progcfg->busy_child_frame) {
+    DBStringConfig::crypt_key = progcfg->busy_child_frame->DBParms()->crypt_key;
+  }
+}
+
+void EPDBReleaseDocument(CryptDBDocument *doc, CryptDBDocument *prev)
+{
+  if(progcfg->busy_child_frame == doc) progcfg->busy_child_frame = 0;
+  if(prev && prev != doc && EPDBDocumentIsOpen(prev) && prev->GridFrame()) {
+    DBStringConfig::crypt_key = prev->DBParms()->crypt_key;
+  }
+  else {
+    DBStringConfig::crypt_key.Clear(1);
+  }
+  progcfg->global_dbparms.crypt_key.Clear(1); // The failed database's key
+}
+
+static int EPDBSameKey(MemoryBuffer &a, MemoryBuffer &b)
+{
+  return a.length() > 0 && a.length() == b.length() && memcmp(a.m_buf(), b.m_buf(), a.length()) == 0;
+}
+
 void CryptDBDocument::UpdateColumnLabels()
 // 11/23/2026: The details pane and the search box show this database's
 // column names. They were made with the default names before the
 // database was opened, and were not changed by a column rename.
 {
+  EPDBUseDocument use_doc(this); // 11/23/2026: This database's key
   if(!grid_frame) return;
   details->UpdateLabels();
   details->Layout();
@@ -235,6 +283,13 @@ CryptDBDocument::~CryptDBDocument()
   ResealDocument(this); // 10/25/2026: Seal the changes of a v2 database
   EPDBJournalUnregister(GetPOD()); // 10/31/2026
   GetPOD()->Close(); // Close the open database
+
+  // 11/23/2026: Wipe the shared copies of this database's key too. They
+  // were kept after closing the database in front while other databases
+  // were open. The next active database sets its own key.
+  if(progcfg->busy_child_frame == this) progcfg->busy_child_frame = 0;
+  if(EPDBSameKey(DBStringConfig::crypt_key, DBParms()->crypt_key)) DBStringConfig::crypt_key.Clear(1);
+  if(EPDBSameKey(progcfg->global_dbparms.crypt_key, DBParms()->crypt_key)) progcfg->global_dbparms.crypt_key.Clear(1);
 
   // 10/25/2026: Wipe this database's key
   DBParms()->crypt_key.Clear(1);
@@ -360,6 +415,7 @@ int CryptDBDocument::LoadGridObject(INFOHOG &infohog)
 
 void CryptDBDocument::OnLabelLeftClick(wxGridEvent& event)
 {
+  EPDBUseDocument use_doc(this); // 11/23/2026: This database's key
   // Sort order the grid
   if(event.GetCol() != -1) {
     if(event.GetCol() == 0) {
@@ -386,6 +442,7 @@ void CryptDBDocument::OnLabelLeftClick(wxGridEvent& event)
 
 void CryptDBDocument::OnLabelRightClick(wxGridEvent& event)
 {
+  EPDBUseDocument use_doc(this); // 11/23/2026: This database's key
   char dest[DBStringLength];
 
 #ifdef __APP_DEBUG_VERSION__
@@ -472,6 +529,7 @@ void CryptDBDocument::OnCellRightDClick(wxGridEvent& event)
 
 void CryptDBDocument::OnCellLeftDClick(wxGridEvent& event)
 {
+  EPDBUseDocument use_doc(this); // 11/23/2026: This database's key
   DBParms()->current_row = event.GetRow();
   DBParms()->current_col = event.GetCol();
   DBParms()->current_name = grid_frame->m_grid->GetCellValue(DBParms()->current_row, 0);
@@ -637,6 +695,7 @@ wxGrid *CryptDBDocument::GetGrid()
 
 int CryptDBDocument::change_cell_value(wxGridEvent& event)
 {
+  EPDBUseDocument use_doc(this); // 11/23/2026: This database's key
   char dest[DBStringLength];
   char *p;
   gxString gbuf;

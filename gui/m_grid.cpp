@@ -174,6 +174,7 @@ public:
 
 long CryptDBGrid::InitGrid()
 {
+  EPDBUseDocument use_doc(dynamic_cast<CryptDBDocument *>(parent_frame)); // 11/23/2026: This grid's key
   long num_rows = dbparms.default_num_rows;
   long num_entries = 0;
 
@@ -944,6 +945,7 @@ void CryptDBGrid::LoadCell(INFOHOG &infohog, int row_number)
 void CryptDBGrid::LoadGrid(long num_entries)
 {
   if(num_entries == 0) return;
+  EPDBUseDocument use_doc(dynamic_cast<CryptDBDocument *>(parent_frame)); // 11/23/2026: This grid's key
   long i = num_entries;
   
   // Ensure that the proper number of rows have been allocated
@@ -1120,6 +1122,7 @@ void CryptDBGrid::RefreshGrid()
 
 void CryptDBGrid::ReloadGrid(int test_database)
 {
+  EPDBUseDocument use_doc(dynamic_cast<CryptDBDocument *>(parent_frame)); // 11/23/2026: This grid's key
   m_grid->ClearGrid(); // Reset the column labels
   RefreshGrid();
   if(test_database) {

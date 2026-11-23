@@ -748,6 +748,7 @@ void wxStrStripChar(wxString &s, char c)
 int BuildVirtualDB(CryptDBDocument *child_frame)
 {
   if(!dllist) return 0;
+  EPDBUseDocument use_doc(child_frame); // 11/23/2026
   
   INFOHOGKEY key, compare_key;
   gxBtree *btx = child_frame->GetPOD()->Index();

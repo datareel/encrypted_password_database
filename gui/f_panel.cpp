@@ -110,6 +110,7 @@ void FindPanel::ShowPanel()
 void FindPanel::StartSearch()
 {
   Show(FALSE);
+  EPDBUseDocument use_doc(child_frame); // 11/23/2026
   gxString gxbuf1;
 
   gxString sbuf((const char *)db_input->GetValue().c_str());

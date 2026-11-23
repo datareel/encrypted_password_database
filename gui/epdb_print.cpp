@@ -213,6 +213,7 @@ static int EPDBCountGrid(CryptDBDocument *doc, int which)
 
 int EPDBMakePrintJob(CryptDBDocument *doc, EPDBPrintJob &job, const EPDBPrintSettings &s)
 {
+  EPDBUseDocument use_doc(doc); // 11/23/2026
   job.settings = s;
   job.records.clear();
   char dest[DBStringLength];
@@ -973,6 +974,7 @@ static void EPDBLoadPrintSettings(CryptDBDocument *doc, EPDBPrintSettings &s)
 
 int EPDBShowPrintDialog(wxWindow *parent, CryptDBDocument *doc, EPDBPrintJob &job)
 {
+  EPDBUseDocument use_doc(doc); // 11/23/2026
   EPDBPrintSettings s;
   EPDBLoadPrintSettings(doc, s);
   EPDBPrintDialog dlg(parent, doc, s);

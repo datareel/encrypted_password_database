@@ -162,7 +162,7 @@ wxappfwProgramConfig::wxappfwProgramConfig()
   // MDI Interface
   num_child_frames = 0;
   active_child_frame = 0;
-  opening_child_frame = 0;
+  busy_child_frame = 0;
 
   complex_passwords = 0; // Disable complex password requirment by default
   password_length = 1;

@@ -109,6 +109,26 @@ private:
   DECLARE_EVENT_TABLE()
 };
 
+// 11/23/2026: Keeps a database the active database, with its key as the
+// string key, while it is opened or worked on. Another database window
+// that comes to the front during a ::wxYield() or a message box does
+// not switch the key. Nests, and does nothing for a null database.
+class EPDBUseDocument
+{
+public:
+  EPDBUseDocument(CryptDBDocument *doc);
+  ~EPDBUseDocument();
+
+private:
+  CryptDBDocument *doc;
+  CryptDBDocument *prev;
+};
+
+// 11/23/2026: Ends EPDBUseDocument for a database that failed to open
+// and goes back to the key of the database that was active before it
+void EPDBReleaseDocument(CryptDBDocument *doc, CryptDBDocument *prev);
+int EPDBDocumentIsOpen(CryptDBDocument *doc);
+
 #endif // __M_DOC_HPP__
 // ----------------------------------------------------------- //
 // ------------------------------- //

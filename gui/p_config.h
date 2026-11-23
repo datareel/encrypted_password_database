@@ -120,9 +120,9 @@ struct wxappfwProgramConfig {
   gxList<CryptDBDocument *> child_frame_list;
   int num_child_frames;
   CryptDBDocument *active_child_frame;
-  // 11/23/2026: The database being opened or created, see
-  // MainFrame::get_active_child()
-  CryptDBDocument *opening_child_frame;
+  // 11/23/2026: The database being opened, created or worked on, see
+  // EPDBUseDocument and MainFrame::get_active_child()
+  CryptDBDocument *busy_child_frame;
 
   // External applications
   gxString web_browser;
