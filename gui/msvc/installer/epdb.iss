@@ -24,8 +24,8 @@
 ; install to remove; the installed program uses the same
 ; %USERPROFILE%\.encrypted_password_database as the unzipped programs.
 
-#define AppVersion "2026.107"
-#define AppVersionFile "2026_107"
+#define AppVersion "2026.108"
+#define AppVersionFile "2026_108"
 #ifdef Arch32
   #define VcArch "x86"
   #define SetupName "windows_32bit_setup"

@@ -10,6 +10,24 @@ The Encrypted Password Database is an enterprise level application for
 storing authentication information and automating application password
 management.
 
+NEXT RELEASE 2026.108 (NOT RELEASED YET)
+----------------------------------------
+* GUI: a database opened while another database is open shows its own
+  column names. The second database's names were read with the first
+  database's key, so its grid showed the default names. The details
+  pane and the search box field list also show the database's own
+  column names, after an open and after a column rename.
+* GUI: each open database keeps its own key until an open, import,
+  merge, backup, export, print, find or grid load is done. Clicking
+  another database window during one of them switched the key, so
+  records could be read with, or written encrypted with, the other
+  database's key. Grid edits, column renames, sorts and double clicks
+  use their own database's key. After a failed open the key goes back
+  to the database that was active before it, and closing a database
+  wipes the copies of its key.
+* Bug fixes and security updates found while upgrading installations to
+  2026.107 go into this release.
+
 RELEASE 2026.107: QUANTUM-RESISTANT USERS, FIPS MODE, OPENSSL 3.5
 -----------------------------------------------------------------
 * AI-assisted guide files: AGENTS.md (install, build, upgrade to the
